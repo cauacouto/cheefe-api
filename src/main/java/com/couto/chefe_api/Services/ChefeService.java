@@ -1,0 +1,45 @@
+package com.couto.chefe_api.Services;
+
+import com.couto.chefe_api.Dtos.ChefeRequestDto;
+import com.couto.chefe_api.Dtos.ChefeResponseDto;
+import com.couto.chefe_api.Excepitons.ChefeEception;
+import com.couto.chefe_api.Mapper.ChefeMapper;
+import com.couto.chefe_api.domin.ChefeModel;
+import com.couto.chefe_api.repositorys.repositoryChefe;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+
+import java.util.UUID;
+
+@Service
+public class ChefeService {
+
+private final repositoryChefe reposioty;
+
+private final ChefeMapper mapper;
+    public ChefeService(repositoryChefe reposioty, ChefeMapper mapper) {
+        this.reposioty = reposioty;
+        this.mapper = mapper;
+    }
+
+    public ChefeResponseDto salvarChefe(ChefeRequestDto dto){
+        ChefeModel chefe = mapper.toModel(dto);
+        ChefeModel salvo = reposioty.save(chefe);
+        return mapper.toDto(salvo);
+
+    }
+
+
+    public  ChefeResponseDto atualizarDados(ChefeRequestDto dto, UUID id){
+       ChefeModel chefe  = reposioty.findById(id).orElseThrow(ChefeEception::new);
+       mapper.updateModelFromDto(dto,chefe);
+       ChefeModel salvar = reposioty.save(chefe);
+       return mapper.toDto(salvar);
+    }
+
+    public Page<ChefeResponseDto> mostrarChefes (Pageable pageable){
+        return reposioty.findAll(pageable).map(ChefeResponseDto::new);
+    }
+
+}
