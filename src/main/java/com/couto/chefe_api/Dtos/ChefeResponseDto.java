@@ -4,8 +4,11 @@ import com.couto.chefe_api.domin.ChefeModel;
 import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.enums.Senioridade;
 
+import java.util.UUID;
+
 
 public record ChefeResponseDto(
+        UUID id,
     String nome,
     String nacionalidade,
     Especialidades especialidade,
@@ -19,6 +22,6 @@ public record ChefeResponseDto(
 
 
     public ChefeResponseDto(ChefeModel model) {
-        this(model.getNome(), model.getNacionalidade(), model.getEspecialidade(), model.getAnosDeExperiencia(), model.getSenioridade(), model.isDisponivel(), model.getIdiomas());
+        this(model.getId(), model.getNome(), model.getNacionalidade(), model.getEspecialidade(), model.getAnosDeExperiencia(), model.getSenioridade(), model.isDisponivel(), model.getIdiomas());
     }
 }
