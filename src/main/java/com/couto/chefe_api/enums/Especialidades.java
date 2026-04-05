@@ -1,0 +1,8 @@
+package com.couto.chefe_api.enums;
+
+public enum Especialidades {
+    FRANCESA, ITALIANA, JAPONESA, CHINESA,
+    ARABE, MEXICANA, INDIANA, BRASILEIRA,
+    CONFEITARIA, CHURRASCO, FRUTOS_DO_MAR,
+    VEGANA, FINE_DINING, PANIFICACAO
+}
