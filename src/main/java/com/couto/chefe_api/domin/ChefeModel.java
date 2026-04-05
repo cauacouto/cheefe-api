@@ -42,6 +42,8 @@ public class ChefeModel implements Serializable {
     private Senioridade senioridade;
 @Column(nullable = false)
     private boolean disponivel = true;
+
+private Boolean ativo = true;
     @NotBlank
     private String idiomas;
 }
