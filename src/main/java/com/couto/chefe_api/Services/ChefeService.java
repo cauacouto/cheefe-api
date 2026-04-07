@@ -5,7 +5,7 @@ import com.couto.chefe_api.Dtos.ChefeResponseDto;
 import com.couto.chefe_api.Excepitons.ChefeEception;
 import com.couto.chefe_api.Mapper.ChefeMapper;
 import com.couto.chefe_api.domin.ChefeModel;
-import com.couto.chefe_api.repositorys.repositoryChefe;
+import com.couto.chefe_api.repositorys.ChefeRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -15,10 +15,10 @@ import java.util.UUID;
 @Service
 public class ChefeService {
 
-    private final repositoryChefe reposioty;
+    private final ChefeRepository reposioty;
 
     private final ChefeMapper mapper;
-    public ChefeService(repositoryChefe reposioty, ChefeMapper mapper) {
+    public ChefeService(ChefeRepository reposioty, ChefeMapper mapper) {
         this.reposioty = reposioty;
         this.mapper = mapper;
     }
