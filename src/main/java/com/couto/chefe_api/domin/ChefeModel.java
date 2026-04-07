@@ -21,6 +21,7 @@ import java.util.UUID;
 @Table(name = "chefe")
 public class ChefeModel implements Serializable {
 
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
 
