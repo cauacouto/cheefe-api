@@ -27,7 +27,7 @@ public class Agendamento  implements Serializable {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
-    private UserModel userModel;
+    private UserModel usuario;
 
     @ManyToMany
     @JoinTable(
@@ -35,7 +35,11 @@ public class Agendamento  implements Serializable {
             joinColumns = @JoinColumn(name = "agendamento_id"),
             inverseJoinColumns = @JoinColumn(name = "chefe_id")
     )
-    private List<ChefeModel> chefeModels;
+    private List<ChefeModel> chefes;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "endereco_id")
+    private EnderecoModel endereco;
 
     @Column(nullable = false)
     private LocalDateTime datahora;
