@@ -14,5 +14,5 @@ public interface ChefeRepository extends JpaRepository<ChefeModel, UUID> {
 
 
 
-    List<ChefeModel> findByDisponivel();
+    List<ChefeModel> findByDisponivelTrue();
 }
