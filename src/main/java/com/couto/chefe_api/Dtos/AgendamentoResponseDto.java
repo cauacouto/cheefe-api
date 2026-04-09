@@ -1,11 +1,17 @@
 package com.couto.chefe_api.Dtos;
 
-import com.couto.chefe_api.domin.ChefeModel;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.util.List;
-
-public class AgendendamenResponseDto {
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+public class AgendamentoResponseDto {
 
     private Long id;
     private LocalDateTime dataHora;
@@ -23,7 +29,7 @@ public class AgendendamenResponseDto {
     private String estado;
     private String cep;
 
-    private List<ChefeModel> chefes;
+    private List<String> chefes;
 
 
 

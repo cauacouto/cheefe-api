@@ -1,5 +1,6 @@
 package com.couto.chefe_api.Dtos;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,7 +16,7 @@ import java.util.UUID;
 @AllArgsConstructor
 public class AgendamentoResquestDto {
 
-
+     @JsonFormat(pattern = "dd-MM-yyyy HH:mm")
     private LocalDateTime dataHora;
 
     private Long enderecoId;
