@@ -17,5 +17,5 @@ public interface ChefeMapper {
     ChefeModel toModel(ChefeRequestDto dto);
 
 @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-    void updateModelFromDto(ChefeRequestDto dto , @MappingTarget ChefeModel model);
+void updateModelFromDto(ChefeRequestDto dto , @MappingTarget ChefeModel model);
 }
