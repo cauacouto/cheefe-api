@@ -1,6 +1,7 @@
 package com.couto.chefe_api.Mapper;
 
 import com.couto.chefe_api.Dtos.EnderecoRequestDto;
+import com.couto.chefe_api.Dtos.EnderecoResponseDto;
 import com.couto.chefe_api.Dtos.UserRequestDto;
 import com.couto.chefe_api.Dtos.UserResponseDto;
 import com.couto.chefe_api.User.UserModel;
@@ -18,6 +19,8 @@ public interface UsuarioMapper {
     UserModel toModel(UserRequestDto dto);
 
     EnderecoModel toModel(EnderecoRequestDto dto);
+
+    EnderecoResponseDto toDto(EnderecoModel model);
 
 
 }
