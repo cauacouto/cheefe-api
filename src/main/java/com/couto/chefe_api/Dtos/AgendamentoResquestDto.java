@@ -18,8 +18,7 @@ public class AgendamentoResquestDto {
 
      @JsonFormat(pattern = "dd-MM-yyyy HH:mm")
     private LocalDateTime dataHora;
-
-    private Long enderecoId;
+     private Long enderecoId;
 
     private List<UUID> chefeIds;
 }
