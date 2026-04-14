@@ -3,11 +3,11 @@ package com.couto.chefe_api.User;
 import com.couto.chefe_api.domin.Agendamento;
 import com.couto.chefe_api.domin.EnderecoModel;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.validator.constraints.NotBlank;
 
 import java.util.List;
 import java.util.UUID;
@@ -38,5 +38,7 @@ public class UserModel  {
 
     @OneToMany(mappedBy = "usuario",cascade = CascadeType.ALL)
     private List<Agendamento> agendamento;
+
+
 
 }
