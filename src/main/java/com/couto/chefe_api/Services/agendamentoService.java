@@ -2,9 +2,7 @@ package com.couto.chefe_api.Services;
 
 import com.couto.chefe_api.Dtos.AgendamentoResquestDto;
 import com.couto.chefe_api.Dtos.AgendamentoResponseDto;
-import com.couto.chefe_api.Excepitons.EnderecoException;
-import com.couto.chefe_api.Excepitons.UsuarioException;
-import com.couto.chefe_api.Excepitons.disponivelExcepiton;
+import com.couto.chefe_api.Excepitons.*;
 import com.couto.chefe_api.Mapper.AgendamentoMapper;
 import com.couto.chefe_api.User.UsuarioRepository;
 import com.couto.chefe_api.domin.Agendamento;
@@ -13,6 +11,7 @@ import com.couto.chefe_api.domin.EnderecoModel;
 import com.couto.chefe_api.repositorys.AgendamentoRepository;
 import com.couto.chefe_api.repositorys.ChefeRepository;
 import com.couto.chefe_api.repositorys.EndercoRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -37,7 +36,7 @@ public class agendamentoService {
         this.agendamentoRepository = agendamentoRepository;
     }
 
-
+@Transactional
     public AgendamentoResponseDto criarAgendamento(AgendamentoResquestDto dto, String email){
 
         var user = usuarioRepository.findByEmail(email).orElseThrow(UsuarioException::new);
@@ -54,9 +53,6 @@ public class agendamentoService {
             throw new disponivelExcepiton();
         }
 
-
-
-
         Agendamento agendamento = new Agendamento();
 
         agendamento.setUsuario(user);
@@ -65,6 +61,38 @@ public class agendamentoService {
         agendamento.setDataHora(dto.getDataHora());
         return agendamentoMapper.toDto(agendamentoRepository.save(agendamento));
 
+
+
+    }
+
+    @Transactional
+    public AgendamentoResponseDto atualizarAgedamento(AgendamentoResquestDto dto,Long AgedamentoId){
+        Agendamento agenda = agendamentoRepository.findById(AgedamentoId)
+                .orElseThrow(AgendamentoException::new);
+
+        EnderecoModel endereco = endercoRepository.findById(dto.getEnderecoId())
+                .orElseThrow(EnderecoException::new);
+        if (dto.getEnderecoId() != null){
+            agenda.setEndereco(endereco);
+        }
+
+        if (dto.getChefeIds() != null && dto.getChefeIds().isEmpty()){
+            List<ChefeModel> chefes = chefeRepository.findAllById(dto.getChefeIds());
+
+            boolean todosValidos = chefes.stream().allMatch(ChefeModel->
+                    ChefeModel.isDisponivel() && ChefeModel.getAtivo());
+            if (!todosValidos){
+                throw  new disponivelExcepiton();
+
+            }
+            agenda.setChefes(chefes);
+        }
+
+        if (dto.getDataHora() != null){
+            dto.setDataHora(dto.getDataHora());
+        }
+
+        return agendamentoMapper.toDto(agendamentoRepository.save(agenda));
 
 
     }
