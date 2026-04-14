@@ -2,6 +2,7 @@ package com.couto.chefe_api.domin;
 
 import com.couto.chefe_api.User.UserModel;
 import com.couto.chefe_api.enums.StatusAgendamento;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -37,14 +38,16 @@ public class Agendamento  implements Serializable {
     )
     private List<ChefeModel> chefes;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn(name = "endereco_id")
     private EnderecoModel endereco;
 
-    @Column(nullable = false)
-    private LocalDateTime datahora;
+    @JsonFormat(pattern = "dd-MM-yyyy HH:mm")
+    private LocalDateTime dataHora;
 
     private StatusAgendamento status = StatusAgendamento.PENDENDE;
+
+    @Column(updatable = false)
     @CreationTimestamp
-    private LocalDateTime criado;
+    private LocalDateTime criadoEm;
 }
