@@ -30,7 +30,7 @@ public class EnderecoModel implements Serializable {
     private String complemento;
     private String estado;
     private String cep;
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne()
     @JoinColumn(name = "user_id")
     private UserModel usuario;
 }
