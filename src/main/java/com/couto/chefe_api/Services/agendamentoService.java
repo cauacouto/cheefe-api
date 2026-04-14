@@ -62,7 +62,7 @@ public class agendamentoService {
         agendamento.setUsuario(user);
         agendamento.setEndereco(endereco);
         agendamento.setChefes(chefes);
-        agendamento.setDatahora(dto.getDataHora());
+        agendamento.setDataHora(dto.getDataHora());
         return agendamentoMapper.toDto(agendamentoRepository.save(agendamento));
 
 
