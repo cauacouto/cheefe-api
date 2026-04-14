@@ -5,10 +5,7 @@ import com.couto.chefe_api.Dtos.AgendamentoResquestDto;
 import com.couto.chefe_api.Services.agendamentoService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/agendamento")
@@ -20,7 +17,7 @@ public class AgendamentoController {
         this.service = service;
     }
 @PostMapping
-    public ResponseEntity<AgendamentoResponseDto> criarAgendamento(@RequestBody AgendamentoResquestDto dto,String email){
+    public ResponseEntity<AgendamentoResponseDto> criarAgendamento(@RequestBody AgendamentoResquestDto dto,@RequestParam String email){
         return ResponseEntity.status(HttpStatus.CREATED).body(service.criarAgendamento(dto,email));
     }
 }
