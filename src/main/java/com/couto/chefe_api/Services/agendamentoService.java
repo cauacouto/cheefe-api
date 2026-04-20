@@ -2,12 +2,15 @@ package com.couto.chefe_api.Services;
 
 import com.couto.chefe_api.Dtos.AgendamentoResquestDto;
 import com.couto.chefe_api.Dtos.AgendamentoResponseDto;
+import com.couto.chefe_api.Dtos.ListaAgendamentoChefeDto;
+import com.couto.chefe_api.Dtos.ListaAgendamentoUsuarioDto;
 import com.couto.chefe_api.Excepitons.*;
 import com.couto.chefe_api.Mapper.AgendamentoMapper;
 import com.couto.chefe_api.User.UsuarioRepository;
 import com.couto.chefe_api.domin.Agendamento;
 import com.couto.chefe_api.domin.ChefeModel;
 import com.couto.chefe_api.domin.EnderecoModel;
+import com.couto.chefe_api.enums.StatusAgendamento;
 import com.couto.chefe_api.repositorys.AgendamentoRepository;
 import com.couto.chefe_api.repositorys.ChefeRepository;
 import com.couto.chefe_api.repositorys.EndercoRepository;
@@ -15,6 +18,8 @@ import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class agendamentoService {
@@ -59,11 +64,27 @@ public class agendamentoService {
         agendamento.setEndereco(endereco);
         agendamento.setChefes(chefes);
         agendamento.setDataHora(dto.getDataHora());
+        agendamento.setQuantidadePessoas(dto.getQuantidadePessoas());
         return agendamentoMapper.toDto(agendamentoRepository.save(agendamento));
 
 
 
     }
+
+
+    public List<ListaAgendamentoChefeDto> listarAgendamentosChefe(UUID chefeId){
+     return agendamentoMapper.toListChefe(
+             agendamentoRepository.findAllByChefe(chefeId)
+     );
+    }
+
+    public List<ListaAgendamentoUsuarioDto> listarAgendamentosUsuario(UUID UsuarioId){
+        return agendamentoMapper.toListUser(
+                agendamentoRepository.findAllByUsuario_Id(UsuarioId)
+        );
+    }
+
+
 
     @Transactional
     public AgendamentoResponseDto atualizarAgedamento(AgendamentoResquestDto dto,Long AgedamentoId){
@@ -94,6 +115,18 @@ public class agendamentoService {
 
         return agendamentoMapper.toDto(agendamentoRepository.save(agenda));
 
+
+    }
+
+
+    public void confirmarAgendamento(Long idAgendamento){
+        Optional<Agendamento> agendamento = agendamentoRepository.findById(idAgendamento);
+
+        if (!agendamento.isPresent()){
+            throw new AgendamentoException();
+        }
+        agendamento.get().setStatus(StatusAgendamento.CONFIRMADO);
+         agendamentoRepository.save(agendamento.get());
 
     }
 }
