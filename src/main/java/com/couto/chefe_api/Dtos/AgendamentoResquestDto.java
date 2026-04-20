@@ -21,4 +21,6 @@ public class AgendamentoResquestDto {
      private Long enderecoId;
 
     private List<UUID> chefeIds;
+
+    private Integer quantidadePessoas;
 }
