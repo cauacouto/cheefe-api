@@ -18,8 +18,8 @@ public class AgendamentoResponseDto {
     private Long id;
     @JsonFormat(pattern = "dd-MM-yyyy HH:mm")
     private LocalDateTime dataHora;
-    private String status;
     private String nomeUsuario;
+    private Integer quantidadePessoas;
     private String rua;
     private String numero;
     private String bairro;
@@ -29,8 +29,10 @@ public class AgendamentoResponseDto {
     private String estado;
     private String cep;
     private List<String> chefes;
+    private String status;
     @JsonFormat(pattern = "dd-MM-yyyy HH:mm")
     private LocalDateTime criadoEm;
+
 
 
 
