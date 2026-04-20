@@ -14,7 +14,8 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.List;
 
-@Entity(name = "agendamento")
+@Entity()
+@Table(name = "agendamentos")
 @Getter
 @Setter
 @AllArgsConstructor
@@ -25,6 +26,9 @@ public class Agendamento  implements Serializable {
     @GeneratedValue(strategy = GenerationType.AUTO)
 
     private Long id;
+
+    @Column(name = "quantidade_pessoas")
+    private Integer quantidadePessoas;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
@@ -47,7 +51,13 @@ public class Agendamento  implements Serializable {
 
     private StatusAgendamento status = StatusAgendamento.PENDENDE;
 
+
+
     @Column(updatable = false)
-    @CreationTimestamp
     private LocalDateTime criadoEm;
+
+    @PrePersist
+    public void Prepersist(){
+        this.criadoEm =LocalDateTime.now();
+    }
 }
