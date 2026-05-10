@@ -120,13 +120,11 @@ public class agendamentoService {
 
 
     public void confirmarAgendamento(Long idAgendamento){
-        Optional<Agendamento> agendamento = agendamentoRepository.findById(idAgendamento);
+        Agendamento agendamento = agendamentoRepository.findById(idAgendamento)
+                .orElseThrow(AgendamentoException::new);
 
-        if (!agendamento.isPresent()){
-            throw new AgendamentoException();
-        }
-        agendamento.get().setStatus(StatusAgendamento.CONFIRMADO);
-         agendamentoRepository.save(agendamento.get());
+            agendamento.setStatus(StatusAgendamento.CONFIRMADO);
+            agendamentoRepository.save(agendamento);
 
     }
 }
