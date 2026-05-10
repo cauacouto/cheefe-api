@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.io.Serializable;
-import java.util.UUID;
+import java.util.*;
 
 @Entity
 @Getter
@@ -30,6 +30,8 @@ public class ChefeModel implements Serializable {
     @NotBlank
     private String nome;
 
+    private String email;
+
     @NotBlank
     private String nacionalidade;
 
@@ -47,4 +49,7 @@ public class ChefeModel implements Serializable {
 private Boolean ativo = true;
     @NotBlank
     private String idiomas;
+
+    @OneToMany(mappedBy = "chefeModel")
+    private List<Pratos> pratos = new ArrayList<>();
 }
