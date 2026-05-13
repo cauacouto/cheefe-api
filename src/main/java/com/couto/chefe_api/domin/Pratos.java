@@ -17,10 +17,12 @@ public class Pratos {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     private Integer id;
-    private String nome;
+    @Column(name = "nome_prato")
+    private String nomePrato;
     private String descricao;
+    @Column(name = "image_Url")
     private String imageUrl;
-    @ManyToOne
-    @JoinColumn(name = "chefe_id")
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "chefe_id", nullable = false)
     private ChefeModel chefeModel;
 }
