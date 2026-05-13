@@ -50,39 +50,31 @@ public class ChefeService {
 
     }
 
-    public List<ListarPratosChefes> listaPratos(UUID chefeId){
+    public List<ListarPratosChefes> listaPratos(UUID chefeId) {
         List<Pratos> pratos = chefeId != null
                 ? patrosRepository.findByChefeModelId(chefeId)
-                :patrosRepository.findAll();
-
+                : patrosRepository.findAll();
         return pratos
                 .stream()
-                .map(this::toDto)
+                .map(pratosMapper::toDtoLista) // use o mapper aqui!
                 .toList();
     }
 
 
 
-    public List<ListarPratosChefes> listaPratosPorChefe(UUID id){ //usar UserDetails
-        return patrosRepository.findByChefeModelId(id)
-                .stream()
-                .map(p -> new ListarPratosChefes(
-                        p.getChefeModel().getNome(),
-                        p.getNome(),
-                        p.getDescricao(),
-                        p.getImageUrl()
-                ))
-                .toList();
-    }
+//    public List<ListarPratosChefes> listaPratosPorChefe(UUID id){ //usar UserDetails
+//        return patrosRepository.findByChefeModelId(id)
+//                .stream()
+//                .map(p -> new ListarPratosChefes(
+//                        p.getChefeModel().getNome(),
+//                        p.getNomePrato(),
+//                        p.getDescricao(),
+//                        p.getImageUrl()
+//                ))
+//                .toList();
+//    }
 
-    private ListarPratosChefes toDto(Pratos p){
-        return new ListarPratosChefes(
-                p.getChefeModel().getNome(),
-                p.getNome(),
-                p.getDescricao(),
-                p.getImageUrl()
-        );
-    }
+
 
     public  ChefeResponseDto atualizarDados(ChefeRequestDto dto, UUID id){
         ChefeModel chefe  = reposioty.findById(id).orElseThrow(ChefeEception::new);
