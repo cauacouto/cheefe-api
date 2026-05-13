@@ -19,6 +19,8 @@ public record ChefeRequestDto(
     Senioridade senioridade,
         @NotBlank
     String idiomas
+
+
 ) {
 }
 
