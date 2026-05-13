@@ -1,7 +1,6 @@
 package com.couto.chefe_api.Controller;
 
-import com.couto.chefe_api.Dtos.ChefeRequestDto;
-import com.couto.chefe_api.Dtos.ChefeResponseDto;
+import com.couto.chefe_api.Dtos.*;
 import com.couto.chefe_api.Services.ChefeService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -10,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -25,6 +25,19 @@ public class ChefeController {
     public ResponseEntity<ChefeResponseDto> salvarChefe(@RequestBody @Validated ChefeRequestDto dto){
         return ResponseEntity.status(HttpStatus.CREATED).body(service.salvarChefe(dto));
     }
+
+    @PostMapping("/pratos/{id}")
+    public ResponseEntity<CadastratPratosDtoResponse> cadastroPratos(@RequestBody CadastraPratosDtoRequest dtoRequest,@PathVariable UUID id){
+        CadastratPratosDtoResponse response = service.cadastrarPratos(dtoRequest,id);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+
+    }
+
+    @GetMapping("/pratos")
+    public ResponseEntity<List<ListarPratosChefes>> listaPratos( UUID chefeId){
+        return ResponseEntity.ok(service.listaPratos(chefeId));
+    }
+
     @GetMapping
     public ResponseEntity <Page<ChefeResponseDto>> listarChefes(Pageable pageable){
         return ResponseEntity.ok().body(service.mostrarChefes(pageable));
