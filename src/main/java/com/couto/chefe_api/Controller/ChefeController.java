@@ -3,7 +3,6 @@ package com.couto.chefe_api.Controller;
 import com.couto.chefe_api.Dtos.ChefeRequestDto;
 import com.couto.chefe_api.Dtos.ChefeResponseDto;
 import com.couto.chefe_api.Services.ChefeService;
-import com.couto.chefe_api.Services.PratosService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -26,8 +25,6 @@ public class ChefeController {
     public ResponseEntity<ChefeResponseDto> salvarChefe(@RequestBody @Validated ChefeRequestDto dto){
         return ResponseEntity.status(HttpStatus.CREATED).body(service.salvarChefe(dto));
     }
-
-
 
     @GetMapping
     public ResponseEntity <Page<ChefeResponseDto>> listarChefes(Pageable pageable){
