@@ -38,15 +38,22 @@ public class PratosService {
     private Cloudinary cloudinary;
 
 
-    public CadastratPratosDtoResponse cadastrarPratos(CadastraPratosDtoRequest dto, UUID id){
+    public CadastratPratosDtoResponse cadastrarPratos(CadastraPratosDtoRequest dto, MultipartFile file, UUID id) {
+
         ChefeModel chefe = reposioty.findById(id)
                 .orElseThrow(ChefeEception::new);
+
+        String imageUrl = uploadImg(file);
+
         Pratos pratos = pratosMapper.toModel(dto);
         pratos.setChefeModel(chefe);
-        Pratos salvo = patrosRepository.save(pratos);
-        return  pratosMapper.toDto(salvo);
+        pratos.setImageUrl(imageUrl);
 
+        Pratos salvo = patrosRepository.save(pratos);
+        return pratosMapper.toDto(salvo);
     }
+
+
 
 
     public List<ListarPratosChefes> listaPratos(UUID chefeId) {
@@ -67,41 +74,22 @@ public class PratosService {
     }
 
 
-
-
-    public  CadastratPratosDtoResponse uploadImagem(Integer id, MultipartFile file) {
-
+    private String uploadImg(MultipartFile file) {
         if (!tiposPermitidos.contains(file.getContentType())) {
             throw new RuntimeException("Apenas imagens são permitidas");
         }
-
         if (file.getSize() > tamanhoMaximo) {
             throw new RuntimeException("Imagem muito grande");
         }
-
-        Pratos pratos = patrosRepository.findById(id).orElseThrow(()-> new RuntimeException("prato não encontrado"));
-
-
         try {
-
             Map uploadResult = cloudinary.uploader().upload(
                     file.getBytes(),
-                    ObjectUtils.asMap(
-                            "folder", "chefe-api/chefe"
-                    )
+                    ObjectUtils.asMap("folder", "chefe-api/pratos")
             );
-
-            String imageUrl = uploadResult.get("secure_url").toString();
-
-            pratos.setImageUrl(imageUrl);
-
-            patrosRepository.save(pratos);
-            return new CadastratPratosDtoResponse(pratos);
-
+            return uploadResult.get("secure_url").toString();
         } catch (Exception e) {
             throw new RuntimeException("Erro ao enviar imagem para Cloudinary", e);
         }
     }
-
 
 }
