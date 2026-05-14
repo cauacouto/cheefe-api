@@ -5,7 +5,6 @@ import com.couto.chefe_api.Dtos.CadastratPratosDtoResponse;
 import com.couto.chefe_api.Dtos.ListarPratosChefes;
 import com.couto.chefe_api.Services.PratosService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,13 +18,17 @@ public class PratosController {
 
    private final PratosService pratosService;
 
+                                                                                                                                                  //adicionar UserDeails
+//    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+//    public ResponseEntity<CadastratPratosDtoResponse> cadastroPratos(@RequestPart("dados") CadastraPratosDtoRequest dto, @RequestParam MultipartFile foto,){
+//
+//        ChefeModel chefe = chefeRepository.findByEmail(usuarioLogado.getUsername())
+//                .orElseThrow(ChefeEception::new);
+//
+//        return ResponseEntity.status(HttpStatus.CREATED)
+//                .body(pratosService.cadastrarPratos(dto, foto, chefe.getId()));
+//    }
 
-    @PostMapping("/pratos/{id}")
-    public ResponseEntity<CadastratPratosDtoResponse> cadastroPratos(@RequestBody CadastraPratosDtoRequest dtoRequest, @PathVariable UUID id){
-        CadastratPratosDtoResponse response = pratosService.cadastrarPratos(dtoRequest,id);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
-
-    }
 
     @GetMapping("/chefe/{chefeId}")
     public ResponseEntity<List<ListarPratosChefes>> listaPorChefe(@PathVariable UUID chefeId){
@@ -43,7 +46,7 @@ public class PratosController {
   //  String email = usuarioLogado.getUsername()
     // chefe chefe = cheferepository.findyByemail(email)
     //  lança exececao
-//        return ResponseEntity.ok(pratosService.listaPratos(chefe.getId));
+//        return ResponseEntity.ok(pratosService.listaPratos(chefe.getId    ));
 //    }
 
     @PutMapping
@@ -51,4 +54,6 @@ public class PratosController {
         CadastratPratosDtoResponse response = pratosService.updatePratos(dto,id);
         return ResponseEntity.ok().body(response);
     }
+
+
 }
