@@ -4,8 +4,7 @@ import com.couto.chefe_api.Dtos.CadastraPratosDtoRequest;
 import com.couto.chefe_api.Dtos.CadastratPratosDtoResponse;
 import com.couto.chefe_api.Dtos.ListarPratosChefes;
 import com.couto.chefe_api.domin.Pratos;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
+import org.mapstruct.*;
 
 @Mapper(componentModel = "spring")
 public interface PratosMapper {
@@ -19,4 +18,9 @@ public interface PratosMapper {
 
     @Mapping(source = "chefeModel.nome", target = "nomeChefe")
     ListarPratosChefes toDtoLista(Pratos model);
+
+
+
+    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    void updatePrato(CadastraPratosDtoRequest dto , @MappingTarget Pratos pratos);
 }
