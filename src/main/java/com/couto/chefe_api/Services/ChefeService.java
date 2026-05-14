@@ -40,41 +40,6 @@ public class ChefeService {
 
     }
 
-    public CadastratPratosDtoResponse cadastrarPratos(CadastraPratosDtoRequest dto, UUID id){
-        ChefeModel chefe = reposioty.findById(id)
-                .orElseThrow(ChefeEception::new);
-            Pratos pratos = pratosMapper.toModel(dto);
-            pratos.setChefeModel(chefe);
-            Pratos salvo = patrosRepository.save(pratos);
-             return  pratosMapper.toDto(salvo);
-
-    }
-
-    public List<ListarPratosChefes> listaPratos(UUID chefeId) {
-        List<Pratos> pratos = chefeId != null
-                ? patrosRepository.findByChefeModelId(chefeId)
-                : patrosRepository.findAll();
-        return pratos
-                .stream()
-                .map(pratosMapper::toDtoLista) // use o mapper aqui!
-                .toList();
-    }
-
-
-
-//    public List<ListarPratosChefes> listaPratosPorChefe(UUID id){ //usar UserDetails
-//        return patrosRepository.findByChefeModelId(id)
-//                .stream()
-//                .map(p -> new ListarPratosChefes(
-//                        p.getChefeModel().getNome(),
-//                        p.getNomePrato(),
-//                        p.getDescricao(),
-//                        p.getImageUrl()
-//                ))
-//                .toList();
-//    }
-
-
 
     public  ChefeResponseDto atualizarDados(ChefeRequestDto dto, UUID id){
         ChefeModel chefe  = reposioty.findById(id).orElseThrow(ChefeEception::new);
