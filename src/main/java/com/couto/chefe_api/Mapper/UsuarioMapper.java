@@ -16,7 +16,7 @@ public interface UsuarioMapper {
     UserResponseDto toDto(UserModel model);
 
     @Mapping(target = "endereco",ignore = true)
-    UserModel toModel(UserRequestDto dto);
+    UserModel toModel(UserRequestDto dto,String senhaCriptografada);
 
     EnderecoModel toModel(EnderecoRequestDto dto);
 
