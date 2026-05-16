@@ -3,25 +3,26 @@ package com.couto.chefe_api.Controller;
 import com.couto.chefe_api.Dtos.UserRequestDto;
 import com.couto.chefe_api.Dtos.UserResponseDto;
 import com.couto.chefe_api.User.UsuarioService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/usuario")
+@RequiredArgsConstructor
 public class UsuarioController {
 
-    private final UsuarioService service;
+    private final UsuarioService usuarioService;
 
-    public UsuarioController(UsuarioService service) {
-        this.service = service;
+
+    @PutMapping
+    public ResponseEntity<UserResponseDto> atualizar(@RequestBody UserRequestDto dto, UUID id){
+        var update = usuarioService.atualizarUsuario(dto,id);
+        return ResponseEntity.ok().body(update);
     }
 
-    @PostMapping
-    public ResponseEntity<UserResponseDto> salvarUsuario(@RequestBody UserRequestDto dto){
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.salvarUsuario(dto));
-    }
+
 }
