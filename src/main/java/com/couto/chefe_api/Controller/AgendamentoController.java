@@ -31,6 +31,12 @@ public class AgendamentoController {
         return ResponseEntity.ok(service.listarAgendamentosChefe(chefeId));
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<AgendamentoResponseDto> atualizarAgendamento(@RequestBody AgendamentoResquestDto dto,@PathVariable Long id){
+        var update = service.atualizarAgedamento(dto, id);
+        return ResponseEntity.ok().body(update);
+    }
+
     @GetMapping("/usuario/{usuarioId}")
     public ResponseEntity<List<ListaAgendamentoUsuarioDto>> listarAgedamentoUsuarios(@PathVariable UUID usuarioId){
      return ResponseEntity.ok(service.listarAgendamentosUsuario(usuarioId));
