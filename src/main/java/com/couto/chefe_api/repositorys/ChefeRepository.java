@@ -18,5 +18,7 @@ public interface ChefeRepository extends JpaRepository<ChefeModel, UUID> {
 
     List<ChefeModel> findByDisponivelTrue();
 
+    Optional<ChefeModel> findByEmail(String usuarioLogado);
+
 
 }
