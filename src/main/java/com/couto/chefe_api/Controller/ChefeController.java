@@ -6,9 +6,7 @@ import com.couto.chefe_api.Services.ChefeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -20,12 +18,6 @@ public class ChefeController {
 
     private final ChefeService service;
 
-
-    @PostMapping
-    public ResponseEntity<ChefeResponseDto> salvarChefe(@RequestBody @Validated ChefeRequestDto dto){
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.salvarChefe(dto));
-    }
-
     @GetMapping
     public ResponseEntity <Page<ChefeResponseDto>> listarChefes(Pageable pageable){
         return ResponseEntity.ok().body(service.mostrarChefes(pageable));
@@ -36,7 +28,7 @@ public class ChefeController {
         return ResponseEntity.ok(chefeAtualizado);
 
     }
-    @PutMapping("{id}/inativar")
+    @PatchMapping("/{id}/inativar")
     public ResponseEntity<Void> iniativar(@PathVariable UUID id){
         service.inativar(id);
         return ResponseEntity.noContent().build();
