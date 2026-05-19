@@ -1,10 +1,13 @@
 package com.couto.chefe_api.Services;
 
-import com.couto.chefe_api.Dtos.AgendamentoResquestDto;
 import com.couto.chefe_api.Dtos.AgendamentoResponseDto;
+import com.couto.chefe_api.Dtos.AgendamentoResquestDto;
 import com.couto.chefe_api.Dtos.ListaAgendamentoChefeDto;
 import com.couto.chefe_api.Dtos.ListaAgendamentoUsuarioDto;
-import com.couto.chefe_api.Excepitons.*;
+import com.couto.chefe_api.Excepitons.AgendamentoException;
+import com.couto.chefe_api.Excepitons.EnderecoException;
+import com.couto.chefe_api.Excepitons.UsuarioException;
+import com.couto.chefe_api.Excepitons.disponivelExcepiton;
 import com.couto.chefe_api.Mapper.AgendamentoMapper;
 import com.couto.chefe_api.User.UsuarioRepository;
 import com.couto.chefe_api.domin.Agendamento;
@@ -17,8 +20,11 @@ import com.couto.chefe_api.repositorys.EndercoRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Optional;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -58,13 +64,30 @@ public class agendamentoService {
             throw new disponivelExcepiton();
         }
 
+        if (dto.getDataHoraFinal().isAfter(dto.getDataHoraInicial())){
+            throw new IllegalArgumentException("data/hora final deve ser maior que a inicial");
+        }
+
+       BigDecimal horas = BigDecimal.valueOf(
+            ChronoUnit.MINUTES.between(dto.getDataHoraInicial(),dto.getDataHoraFinal()))
+            .divide(BigDecimal.valueOf(60),2, RoundingMode.HALF_UP);
+
+
+        BigDecimal valorTotal = chefes.stream()
+                .map(ChefeModel::getValorHora)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO,BigDecimal::add)
+                .multiply(horas);
+
         Agendamento agendamento = new Agendamento();
 
         agendamento.setUsuario(user);
         agendamento.setEndereco(endereco);
         agendamento.setChefes(chefes);
-        agendamento.setDataHora(dto.getDataHora());
+        agendamento.setDataHoraInicial(dto.getDataHoraInicial());
+        agendamento.setDataHoraFinal(dto.getDataHoraFinal());
         agendamento.setQuantidadePessoas(dto.getQuantidadePessoas());
+        agendamento.setValorTotal(valorTotal);
         return agendamentoMapper.toDto(agendamentoRepository.save(agendamento));
 
 
@@ -109,9 +132,31 @@ public class agendamentoService {
             agenda.setChefes(chefes);
         }
 
-        if (dto.getDataHora() != null){
-            dto.setDataHora(dto.getDataHora());
+        if (dto.getDataHoraInicial() != null){
+            dto.setDataHoraInicial(dto.getDataHoraInicial());
         }
+        if (dto.getDataHoraFinal() != null){
+            dto.setDataHoraFinal(dto.getDataHoraFinal());
+        }
+
+        if (dto.getDataHoraInicial() != null || dto.getDataHoraFinal() != null){
+            BigDecimal horas = BigDecimal.valueOf(
+                            ChronoUnit.MINUTES.between(
+                                    agenda.getDataHoraInicial(),
+                                    agenda.getDataHoraFinal()))
+                    .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
+
+
+            BigDecimal valorTotal = agenda.getChefes().stream()
+                    .map(ChefeModel::getValorHora)
+                    .filter(Objects::nonNull)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .multiply(horas);
+
+            agenda.setValorTotal(valorTotal);
+
+        }
+
 
         return agendamentoMapper.toDto(agendamentoRepository.save(agenda));
 
