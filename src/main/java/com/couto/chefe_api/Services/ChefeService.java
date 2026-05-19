@@ -1,44 +1,25 @@
 package com.couto.chefe_api.Services;
 
-import com.couto.chefe_api.Dtos.*;
+import com.couto.chefe_api.Dtos.ChefeRequestDto;
+import com.couto.chefe_api.Dtos.ChefeResponseDto;
 import com.couto.chefe_api.Excepitons.ChefeEception;
 import com.couto.chefe_api.Mapper.ChefeMapper;
-import com.couto.chefe_api.Mapper.PratosMapper;
 import com.couto.chefe_api.domin.ChefeModel;
-import com.couto.chefe_api.domin.Pratos;
 import com.couto.chefe_api.repositorys.ChefeRepository;
-import com.couto.chefe_api.repositorys.PatrosRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class ChefeService {
 
     private final ChefeRepository reposioty;
 
     private final ChefeMapper mapper;
-
-    private final PatrosRepository patrosRepository;
-
-    private final PratosMapper pratosMapper;
-
-    public ChefeService(ChefeRepository reposioty, ChefeMapper mapper, PatrosRepository patrosRepository, PratosMapper pratosMapper) {
-        this.reposioty = reposioty;
-        this.mapper = mapper;
-        this.patrosRepository = patrosRepository;
-        this.pratosMapper = pratosMapper;
-    }
-
-    public ChefeResponseDto salvarChefe(ChefeRequestDto dto){
-        ChefeModel chefe = mapper.toModel(dto);
-        ChefeModel salvo = reposioty.save(chefe);
-        return mapper.toDto(salvo);
-
-    }
 
 
     public  ChefeResponseDto atualizarDados(ChefeRequestDto dto, UUID id){
