@@ -53,6 +53,8 @@ private Boolean ativo = true;
     @NotBlank
     private String idiomas;
 
+    private String imageUrl;
+
     private BigDecimal valorHora;
 
     @OneToMany(mappedBy = "chefeModel")
