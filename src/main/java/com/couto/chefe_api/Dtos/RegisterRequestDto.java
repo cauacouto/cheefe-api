@@ -24,20 +24,22 @@ public class RegisterRequestDto {
     @NotNull
     private TipoUsuario tipoUsuario;
 
-
+// campos usuario
     @NotBlank
     private String nome;
     @NotBlank
     private String email;
     @NotBlank
     private String password;
-
     private List<EnderecoRequestDto> endereco;
 
+
+   // campos chefe
     private String nacionalidade;
     private Especialidades especialidade;
     private Senioridade senioridade;
     private Integer anosDeExperiencia;
     private String idiomas;
     private BigDecimal valorHora;
+    private String imageUrl;
 }
