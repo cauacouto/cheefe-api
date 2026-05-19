@@ -5,20 +5,24 @@ import com.couto.chefe_api.enums.Senioridade;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
+import java.math.BigDecimal;
+
 public record ChefeRequestDto(
         @NotBlank
-    String nome,
+        String nome,
         @NotBlank
-    String nacionalidade,
+        String nacionalidade,
 
-    Especialidades especialidade,
+        Especialidades especialidade,
 
         @NotNull
-    int anosDeExperiencia,
+        int anosDeExperiencia,
 
-    Senioridade senioridade,
+        Senioridade senioridade,
         @NotBlank
-    String idiomas
+        String idiomas,
+
+        BigDecimal valorHora
 
 
 ) {
