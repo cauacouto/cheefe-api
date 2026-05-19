@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -46,7 +47,14 @@ public class Agendamento  implements Serializable {
     private EnderecoModel endereco;
 
     @JsonFormat(pattern = "dd-MM-yyyy HH:mm")
-    private LocalDateTime dataHora;
+    private LocalDateTime dataHoraInicial;
+
+    @JsonFormat(pattern = "dd-MM-yyyy HH:mm")
+    private LocalDateTime dataHoraFinal;
+
+    @Column(precision = 10,scale = 2)
+    private BigDecimal valorTotal;
+
 
     private StatusAgendamento status = StatusAgendamento.PENDENDE;
 
