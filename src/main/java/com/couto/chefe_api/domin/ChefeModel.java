@@ -33,6 +33,8 @@ public class ChefeModel implements Serializable {
 
     private String email;
 
+    private String password;
+
     @NotBlank
     private String nacionalidade;
 
