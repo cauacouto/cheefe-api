@@ -35,6 +35,7 @@ public class UserModel implements UserDetails {
     private String password;
 
     private String telefone;
+    private String imageUrl;
 
     @OneToMany(mappedBy = "usuario",cascade = CascadeType.ALL)
     private List<EnderecoModel> endereco;
