@@ -17,7 +17,10 @@ import java.util.UUID;
 public class AgendamentoResquestDto {
 
      @JsonFormat(pattern = "dd-MM-yyyy HH:mm")
-    private LocalDateTime dataHora;
+    private LocalDateTime dataHoraInicial;
+
+    @JsonFormat(pattern = "dd-MM-yyyy HH:mm")
+    private LocalDateTime dataHoraFinal;
 
 
      private Long enderecoId;
