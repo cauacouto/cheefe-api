@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.*;
 
 @Entity
@@ -49,6 +50,8 @@ public class ChefeModel implements Serializable {
 private Boolean ativo = true;
     @NotBlank
     private String idiomas;
+
+    private BigDecimal valorHora;
 
     @OneToMany(mappedBy = "chefeModel")
     private List<Pratos> pratos = new ArrayList<>();
