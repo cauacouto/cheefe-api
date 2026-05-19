@@ -2,8 +2,7 @@ package com.couto.chefe_api.Controller;
 
 import com.couto.chefe_api.Dtos.DadosLoginDto;
 import com.couto.chefe_api.Dtos.DadosTokenDto;
-import com.couto.chefe_api.Dtos.UserRequestDto;
-import com.couto.chefe_api.Dtos.UserResponseDto;
+import com.couto.chefe_api.Dtos.RegisterRequestDto;
 import com.couto.chefe_api.Security.LoginService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -21,10 +20,13 @@ public class AuthController {
     private final LoginService loginService;
 
 
+
     @PostMapping("/register")
-    public ResponseEntity<UserResponseDto> register(@RequestBody UserRequestDto request){
-        UserResponseDto response = loginService.Register(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    public ResponseEntity<?> register(@RequestBody RegisterRequestDto dto){
+       return switch (dto.getTipoUsuario()){
+           case CLIENTE -> ResponseEntity.status(HttpStatus.CREATED).body(loginService.RegisterUsuario(dto));
+           case CHEFE ->  ResponseEntity.status(HttpStatus.CREATED).body(loginService.registerChefe(dto));
+       };
     }
 
     @PostMapping("/login")
