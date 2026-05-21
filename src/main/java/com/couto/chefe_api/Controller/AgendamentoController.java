@@ -5,6 +5,7 @@ import com.couto.chefe_api.Dtos.AgendamentoResquestDto;
 import com.couto.chefe_api.Dtos.ListaAgendamentoChefeDto;
 import com.couto.chefe_api.Dtos.ListaAgendamentoUsuarioDto;
 import com.couto.chefe_api.Services.agendamentoService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,13 +15,12 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/agendamentos")
+@RequiredArgsConstructor
 public class AgendamentoController {
 
     private final agendamentoService service;
 
-    public AgendamentoController(agendamentoService service) {
-        this.service = service;
-    }
+
 @PostMapping
     public ResponseEntity<AgendamentoResponseDto> criarAgendamento(@RequestBody AgendamentoResquestDto dto,@RequestParam String email){
         return ResponseEntity.status(HttpStatus.CREATED).body(service.criarAgendamento(dto,email));
@@ -47,4 +47,6 @@ public class AgendamentoController {
      service.confirmarAgendamento(id);
      return ResponseEntity.ok().build();
     }
+
+
 }
