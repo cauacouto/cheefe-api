@@ -17,4 +17,6 @@ public interface AgendamentoRepository extends JpaRepository<Agendamento,Long> {
     List<Agendamento> findAllByChefe(@Param("chefeId") UUID chefeId);
 
 
+
+
 }
