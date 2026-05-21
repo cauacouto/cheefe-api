@@ -41,6 +41,9 @@ public class ChefeModel implements Serializable {
     @Enumerated(EnumType.STRING)
     private Especialidades especialidade;
 
+    @ManyToMany(mappedBy = "chefes")
+    private List<Agendamento> agendamentos = new ArrayList<>();
+
     @NotNull
     private int anosDeExperiencia;
 
