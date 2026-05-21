@@ -17,29 +17,36 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ChefeService {
 
-    private final ChefeRepository reposioty;
+    private final ChefeRepository chefeRepository;
 
     private final ChefeMapper mapper;
+    private final ChefeMapper chefeMapper;
 
 
     public  ChefeResponseDto atualizarDados(ChefeRequestDto dto, UUID id){
-        ChefeModel chefe  = reposioty.findById(id).orElseThrow(ChefeEception::new);
+        ChefeModel chefe  = chefeRepository.findById(id).orElseThrow(ChefeEception::new);
         mapper.updateModelFromDto(dto,chefe);
-        ChefeModel salvar = reposioty.save(chefe);
+        ChefeModel salvar = chefeRepository.save(chefe);
         return mapper.toDto(salvar);
     }
 
     public Page<ChefeResponseDto> mostrarChefes (Pageable pageable){
-        return reposioty.findAll(pageable).map(ChefeResponseDto::new);
+        return chefeRepository.findAll(pageable).map(ChefeResponseDto::new);
+    }
+
+
+    public Page<ChefeResponseDto> chefesMaisAgendados(Pageable pageable) {
+        return chefeRepository.findMaisAgendados(pageable)
+                .map(chefeMapper::toDto);
     }
 
     public void deletar(UUID id ){
-        reposioty.deleteById(id);
+        chefeRepository.deleteById(id);
     }
 
     public void inativar(UUID id){
-        ChefeModel chefe = reposioty.findById(id).orElseThrow(ChefeEception::new);
+        ChefeModel chefe = chefeRepository.findById(id).orElseThrow(ChefeEception::new);
         chefe.setAtivo(false);
-        reposioty.save(chefe);
+        chefeRepository.save(chefe);
     }
 }
