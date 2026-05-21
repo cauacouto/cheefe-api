@@ -33,6 +33,11 @@ public class ChefeController {
         service.inativar(id);
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/destaque")
+    public ResponseEntity<Page<ChefeResponseDto>> chefesMaisAgendados(Pageable pageable) {
+        return ResponseEntity.ok(service.chefesMaisAgendados(pageable));
+    }
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletar(@PathVariable UUID id){
         service.deletar(id);
