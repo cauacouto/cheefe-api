@@ -1,8 +1,6 @@
 package com.couto.chefe_api.Controller;
 
-import com.couto.chefe_api.Dtos.DadosLoginDto;
-import com.couto.chefe_api.Dtos.DadosTokenDto;
-import com.couto.chefe_api.Dtos.RegisterRequestDto;
+import com.couto.chefe_api.Dtos.*;
 import com.couto.chefe_api.Security.LoginService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -20,17 +18,24 @@ public class AuthController {
 
 
 
+
     @PostMapping(value = "/register",consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> register(@RequestPart("dados") RegisterRequestDto dto, @RequestParam MultipartFile foto){
+    public ResponseEntity<?> register(@RequestPart("dados") RegisterRequestDto dto, @RequestParam(value = "foto",required = false) MultipartFile foto){
        return switch (dto.getTipoUsuario()){
-           case CLIENTE -> ResponseEntity.status(HttpStatus.CREATED).body(loginService.RegisterUsuario(dto));
+           case CLIENTE -> ResponseEntity.status(HttpStatus.CREATED).body(loginService.RegisterUsuario(dto,foto));
            case CHEFE ->  ResponseEntity.status(HttpStatus.CREATED).body(loginService.registerChefe(dto,foto));
        };
     }
 
     @PostMapping("/login")
-    public ResponseEntity<DadosTokenDto> login(@RequestBody DadosLoginDto dto){
-    var token = loginService.login(dto);
-    return ResponseEntity.ok(new DadosTokenDto(token));
+    public ResponseEntity<LoginResponseDto> login(@RequestBody DadosLoginDto dto){
+    var response = loginService.login(dto);
+    return ResponseEntity.ok().body(response);
+    }
+
+    @PostMapping("/request-otp")
+    public ResponseEntity<Void> solicitarOtp(@RequestBody SolicitarOtpDto dto){
+        this.loginService.solicitarOtp(dto.email());
+        return ResponseEntity.ok().build();
     }
 }

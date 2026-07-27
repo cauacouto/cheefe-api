@@ -1,5 +1,6 @@
 package com.couto.chefe_api.Services;
 
+import com.couto.chefe_api.Chefe.ChefeSpecification;
 import com.couto.chefe_api.Dtos.ChefeRequestDto;
 import com.couto.chefe_api.Dtos.ChefeResponseDto;
 import com.couto.chefe_api.Excepitons.ChefeEception;
@@ -9,8 +10,10 @@ import com.couto.chefe_api.repositorys.ChefeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Service
@@ -30,8 +33,13 @@ public class ChefeService {
         return mapper.toDto(salvar);
     }
 
-    public Page<ChefeResponseDto> mostrarChefes (Pageable pageable){
-        return chefeRepository.findAll(pageable).map(ChefeResponseDto::new);
+    public Page<ChefeResponseDto> mostrarChefes (Pageable pageable, BigDecimal valorMnimmo, BigDecimal valorMaximo){
+        Specification<ChefeModel> spec = Specification
+                .where(ChefeSpecification.valorMinimoMaior(valorMnimmo))
+                .and(ChefeSpecification.valorMaximoMneor(valorMaximo));
+
+        return chefeRepository.findAll(spec,pageable)
+                .map(chefeMapper::toDto);
     }
 
 
@@ -49,4 +57,6 @@ public class ChefeService {
         chefe.setAtivo(false);
         chefeRepository.save(chefe);
     }
+
+
 }

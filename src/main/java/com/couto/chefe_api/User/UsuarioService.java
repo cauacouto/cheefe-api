@@ -8,7 +8,6 @@ import com.couto.chefe_api.domin.EnderecoModel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -20,15 +19,12 @@ public class UsuarioService {
 
     private final UsuarioRepository repository;
     private  final UsuarioMapper UserMapper;
-    private final PasswordEncoder passwordEncoder;
+
 
 
 
     public UserResponseDto atualizarUsuario(UserRequestDto dto, UUID id){
         UserModel user = repository.findById(id).orElseThrow(UsuarioException::new);
-
-        var senhaCriptografada = passwordEncoder.encode(dto.password());
-        user.setPassword(senhaCriptografada);
         user.setNome(dto.nome());
         user.setEmail(dto.email());
         user.setTelefone(dto.telefone());

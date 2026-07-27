@@ -9,6 +9,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @RestController
@@ -19,8 +20,8 @@ public class ChefeController {
     private final ChefeService service;
 
     @GetMapping
-    public ResponseEntity <Page<ChefeResponseDto>> listarChefes(Pageable pageable){
-        return ResponseEntity.ok().body(service.mostrarChefes(pageable));
+    public ResponseEntity <Page<ChefeResponseDto>> listarChefes(Pageable pageable,@RequestParam(required = false) BigDecimal valorMinimo,@RequestParam(required = false) BigDecimal valorMaximo){
+        return ResponseEntity.ok().body(service.mostrarChefes(pageable,valorMinimo,valorMaximo));
     }
     @PatchMapping("/{id}")
     public ResponseEntity<ChefeResponseDto> atualizar(@RequestBody ChefeRequestDto dto, @PathVariable UUID id){

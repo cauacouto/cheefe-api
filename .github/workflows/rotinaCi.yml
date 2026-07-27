@@ -2,13 +2,20 @@ name: Java CI
 
 on:
   push:
-    branches: [ '*' ]
+    branches:
+      - main
+      - develop
 
 jobs:
   build:
+
     runs-on: ubuntu-latest
 
+    env:
+      RESEND_API_KEY: ${{ secrets_RESEND_API_KEY }}
+
     steps:
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -17,9 +24,10 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+          cache: maven
 
       - name: Permissão Maven
         run: chmod +x mvnw
 
       - name: Build
-        run: ./mvnw clean package -DskipTests
+        run: ./mvnw clean package

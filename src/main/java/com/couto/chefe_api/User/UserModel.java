@@ -21,61 +21,24 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserModel implements UserDetails {
+public  class UserModel {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
 
-    private UUID id ;
+    private UUID id;
     @NotBlank
     private String nome;
-
     private String email;
-
-    private String password;
-
     private String telefone;
     private String imageUrl;
 
-    @OneToMany(mappedBy = "usuario",cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "usuario", cascade = CascadeType.ALL)
     private List<EnderecoModel> endereco;
 
-    @OneToMany(mappedBy = "usuario",cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "usuario", cascade = CascadeType.ALL)
     private List<Agendamento> agendamento;
-
-
-    @Override
-    public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of();
-    }
-
-    @Override
-    public String getUsername() {
-        return email;
-    }
-
-    @Override
-    public String getPassword() {
-        return password;
-    }
-
-    @Override
-    public boolean isAccountNonExpired() {
-        return UserDetails.super.isAccountNonExpired();
-    }
-
-    @Override
-    public boolean isAccountNonLocked() {
-        return UserDetails.super.isAccountNonLocked();
-    }
-
-    @Override
-    public boolean isCredentialsNonExpired() {
-        return UserDetails.super.isCredentialsNonExpired();
-    }
-
-    @Override
-    public boolean isEnabled() {
-        return UserDetails.super.isEnabled();
-    }
 }
+
+
+

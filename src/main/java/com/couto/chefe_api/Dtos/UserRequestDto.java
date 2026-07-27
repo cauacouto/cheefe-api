@@ -8,7 +8,6 @@ import java.util.List;
 
 public record UserRequestDto(@NotBlank String nome,
                             @NotBlank String email,
-                             @NotBlank String password,
                             @NotBlank String telefone,
                             @NotNull @NotEmpty List<EnderecoRequestDto> endereco
                              ) {

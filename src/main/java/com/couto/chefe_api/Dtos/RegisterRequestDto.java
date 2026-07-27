@@ -29,12 +29,11 @@ public class RegisterRequestDto {
     private String nome;
     @NotBlank
     private String email;
-    @NotBlank
-    private String password;
+
     private List<EnderecoRequestDto> endereco;
 
 
-   // campos chefe
+   // campos complmento chefe
     private String nacionalidade;
     private Especialidades especialidade;
     private Senioridade senioridade;

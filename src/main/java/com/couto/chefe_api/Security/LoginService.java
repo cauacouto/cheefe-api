@@ -2,23 +2,23 @@ package com.couto.chefe_api.Security;
 
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
+import com.couto.chefe_api.Config.Infra.ResendService;
 import com.couto.chefe_api.Dtos.*;
-import com.couto.chefe_api.Excepitons.UsuarioException;
 import com.couto.chefe_api.Mapper.ChefeMapper;
 import com.couto.chefe_api.Mapper.UsuarioMapper;
+import com.couto.chefe_api.Security.otp.OtpService;
 import com.couto.chefe_api.User.UserModel;
 import com.couto.chefe_api.User.UsuarioRepository;
 import com.couto.chefe_api.domin.ChefeModel;
 import com.couto.chefe_api.domin.EnderecoModel;
 import com.couto.chefe_api.repositorys.ChefeRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -28,11 +28,12 @@ public class LoginService {
     private final UsuarioRepository repository;
     private  final UsuarioMapper UserMapper;
     private final TokenService tokenService;
-    private final PasswordEncoder passwordEncoder;
     private final ChefeMapper chefeMapper;
     private final ChefeRepository chefeRepository;
+    private final OtpService otpService;
+    private final ResendService resendService;
 
-    @Autowired
+
     private final Cloudinary cloudinary;
 
 
@@ -42,9 +43,11 @@ public class LoginService {
 
 
 
-    public UserResponseDto RegisterUsuario(RegisterRequestDto dto){
-        var senhaCriptografada = passwordEncoder.encode(dto.getPassword());
-        UserModel usuario = UserMapper.toModel(dto, senhaCriptografada);
+    public UserResponseDto RegisterUsuario(RegisterRequestDto dto,MultipartFile file){
+        //verificar se email ja cadastrado
+        UserModel usuario = UserMapper.toEntity(dto);
+        String imageUrl = uploadImg(file);
+        usuario.setImageUrl(imageUrl);
 
         List<EnderecoModel> enderecos = dto.getEndereco().stream()
                 .map(UserMapper::toModel)
@@ -61,9 +64,8 @@ public class LoginService {
 
 
     public ChefeResponseDto registerChefe(RegisterRequestDto dto,MultipartFile file) {
-        var senhaCriptografada = passwordEncoder.encode(dto.getPassword());
-        ChefeModel chefe = chefeMapper.toModel(dto, senhaCriptografada);
-
+        //verificar se email ja cadastrado
+        ChefeModel chefe = chefeMapper.toModel(dto);
         String imageUrl = uploadImg(file);
         chefe.setImageUrl(imageUrl);
         return chefeMapper.toDto(chefeRepository.save(chefe));
@@ -71,25 +73,63 @@ public class LoginService {
 
 
 
-    public String login(DadosLoginDto dados){
-        var usuario = repository.findByEmail(dados.email())
-                .orElseThrow(UsuarioException::new);
+    public String solicitarOtp(String email){
+
+        String otpId = UUID.randomUUID().toString();
+        String codigo = otpService.gerarCodigo();
+        otpService.salvarCodigo(otpId,codigo,email);
+       String reponse = resendService.enviarOtp(email,codigo);
+        System.out.println(reponse);
+        return otpId;
+    }
 
 
-        if (!passwordEncoder.matches(dados.password(), usuario.getPassword())){
-            throw new RuntimeException("senha invalida");
+    public LoginResponseDto login(DadosLoginDto dados){
+
+
+       otpData data = otpService.validarCodigo(
+                dados.otpId(),
+                dados.codigo()
+
+        );
+
+        var usuario = repository.findByEmail(data.email());
+
+
+        if (usuario.isEmpty()){
+            return new LoginResponseDto(
+                    true,
+                    data.email(),
+                    null
+            );
         }
-        return tokenService.gerarToken(usuario);
+
+
+        String token = tokenService.gerarToken(usuario.get());
+
+        return new LoginResponseDto(
+                false,
+                null,
+                token
+        );
     }
 
 
     private String uploadImg(MultipartFile file) {
+
+        if (file == null || file.isEmpty()) {
+            return null; // ou uma URL de imagem padrão
+        }
+
         if (!tiposPermitidos.contains(file.getContentType())) {
             throw new RuntimeException("Apenas imagens são permitidas");
         }
         if (file.getSize() > tamanhoMaximo) {
             throw new RuntimeException("Imagem muito grande");
         }
+
+
+
         try {
             Map uploadResult = cloudinary.uploader().upload(
                     file.getBytes(),
