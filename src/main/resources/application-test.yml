@@ -13,15 +13,13 @@ spring:
     init:
       mode: never
 
+cloudinary:
+  cloud-name: teste
+  api-key: teste
+  api-secret: teste
 
-      cloudinary:
-        cloud-name: teste
-        api-key: teste
-        api-secret: teste
-
-      resend:
-        secret-key: ${SECRET-KEY}
-
+resend:
+  secret-key: teste
 
 jwt:
-  key: ${JWT_SECRET}
+  key: teste

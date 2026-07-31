@@ -27,5 +27,5 @@ jobs:
       - name: Permissão Maven
         run: chmod +x mvnw
 
-      - name: Executar testes
-        run: ./mvnw test -Dspring.profiles.active=test
+      - name: Build
+        run: ./mvnw clean package -Dspring.profiles.active=test
