@@ -6,17 +6,14 @@ on:
       - main
       - develop
 
-
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     env:
-      RESEND_API_KEY: ${{  secrets.RESEND_API_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
 
     steps:
-
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -30,5 +27,5 @@ jobs:
       - name: Permissão Maven
         run: chmod +x mvnw
 
-      - name: Build
-        run: ./mvnw clean package
+      - name: Executar testes
+        run: ./mvnw test -Dspring.profiles.active=test
