@@ -32,8 +32,6 @@ public class LoginService {
     private final ChefeRepository chefeRepository;
     private final OtpService otpService;
     private final ResendService resendService;
-
-
     private final Cloudinary cloudinary;
 
 
@@ -78,8 +76,7 @@ public class LoginService {
         String otpId = UUID.randomUUID().toString();
         String codigo = otpService.gerarCodigo();
         otpService.salvarCodigo(otpId,codigo,email);
-       String reponse = resendService.enviarOtp(email,codigo);
-        System.out.println(reponse);
+       resendService.enviarOtp(email,codigo);
         return otpId;
     }
 
@@ -118,7 +115,7 @@ public class LoginService {
     private String uploadImg(MultipartFile file) {
 
         if (file == null || file.isEmpty()) {
-            return null; // ou uma URL de imagem padrão
+            return null;
         }
 
         if (!tiposPermitidos.contains(file.getContentType())) {

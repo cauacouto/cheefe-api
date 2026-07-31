@@ -14,7 +14,6 @@ jobs:
 
     env:
       RESEND_API_KEY: ${{  secrets.RESEND_API_KEY }}
-      JWT_KEY: ${{secrets.JWT_KEY}}
 
     steps:
 

@@ -24,6 +24,7 @@ public class OtpService {
 
 
     public String gerarCodigo() {
+
         SecureRandom secureRandom = new SecureRandom();
         return String.format("%06d", secureRandom.nextInt(1_000_000));
     }
@@ -55,21 +56,18 @@ public class OtpService {
     public Long verificarTentativas(String otpId){
 
 
-        String key = ATTEMPT_PREFIX + otpId;
+        String otpKey = OTP_PREFIX + otpId;
+        String attemptKey = ATTEMPT_PREFIX + otpId;
 
-        Long tentativas = redisTemplate.opsForValue()
-                .increment(key);
+        Long tentativas = redisTemplate.opsForValue().increment(attemptKey);
 
-        if (tentativas == 1) {
-            redisTemplate.expire(
-                    key,
-                    Duration.ofMinutes(5)
-            );
-        }
+          if (tentativas == 1){
+              redisTemplate.expire(attemptKey,Duration.ofMinutes(5));
+          }
 
         if (tentativas > 5){
-            redisTemplate.delete(OTP_PREFIX + otpId);
-            redisTemplate.delete(key);
+            redisTemplate.delete(otpKey);
+            redisTemplate.delete(attemptKey);
 
             throw new RuntimeException("Muitas tentativas");
         }
