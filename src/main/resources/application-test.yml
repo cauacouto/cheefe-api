@@ -12,3 +12,16 @@ spring:
   sql:
     init:
       mode: never
+
+
+      cloudinary:
+        cloud-name: teste
+        api-key: teste
+        api-secret: teste
+
+      resend:
+        secret-key: ${SECRET-KEY}
+
+
+jwt:
+  key: ${JWT_SECRET}
