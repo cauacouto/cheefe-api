@@ -81,7 +81,7 @@ public class LoginService {
     }
 
 
-    public LoginResponseDto login(DadosLoginDto dados){
+    public LoginResult login(DadosLoginDto dados){
 
 
        otpData data = otpService.validarCodigo(
@@ -94,21 +94,16 @@ public class LoginService {
 
 
         if (usuario.isEmpty()){
-            return new LoginResponseDto(
+            return new LoginResult(null, new LoginResponseDto(
                     true,
-                    data.email(),
-                    null
-            );
+                    data.email()
+            ));
         }
 
 
         String token = tokenService.gerarToken(usuario.get());
 
-        return new LoginResponseDto(
-                false,
-                null,
-                token
-        );
+        return new LoginResult(token, new LoginResponseDto(false, null));
     }
 
 

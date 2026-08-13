@@ -6,6 +6,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.Cookie;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -31,18 +32,28 @@ public class SecurityFilter extends OncePerRequestFilter {
 
         if (token != null && !token.isEmpty()){
             var email = tokenService.validarToken(token);
-            var usuario = usuarioRepository.findByEmail(email).orElseThrow(UsuarioException::new);
+            if (!email.isEmpty()) {
+                var usuario = usuarioRepository.findByEmail(email).orElseThrow(UsuarioException::new);
 
-            var authentication = new UsernamePasswordAuthenticationToken(usuario,null, List.of());
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+                var authentication = new UsernamePasswordAuthenticationToken(usuario,null, List.of());
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            }
 
         }
      filterChain.doFilter(request,response);
     }
 
     private String recoverToken(HttpServletRequest request){
-    var authHeader = request.getHeader("authorization");
-    if (authHeader == null) return null;
-    return  authHeader.replace("Bearer ","");
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
+            return null;
+        }
+
+        for (Cookie cookie : cookies) {
+            if ("accessToken".equals(cookie.getName())) {
+                return cookie.getValue();
+            }
+        }
+        return null;
     }
 }
