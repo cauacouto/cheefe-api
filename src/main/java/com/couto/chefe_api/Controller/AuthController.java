@@ -42,9 +42,9 @@ public class AuthController {
     }
 
     @PostMapping("/request-otp")
-    public ResponseEntity<Void> solicitarOtp(@RequestBody SolicitarOtpDto dto){
-        this.loginService.solicitarOtp(dto.email());
-        return ResponseEntity.ok().build();
+    public ResponseEntity<OtpResponseDto> solicitarOtp(@RequestBody SolicitarOtpDto dto){
+        String otpId = this.loginService.solicitarOtp(dto.email());
+        return ResponseEntity.ok(new OtpResponseDto(otpId));
     }
 
     @PostMapping("/logout")

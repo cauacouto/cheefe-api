@@ -31,6 +31,7 @@ public class ChefeModel implements Serializable {
     @NotBlank
     private String nome;
 
+    @Column(nullable = false, unique = true)
     private String email;
 
     private String password;

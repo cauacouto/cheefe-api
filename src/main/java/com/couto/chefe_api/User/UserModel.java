@@ -29,6 +29,7 @@ public  class UserModel {
     private UUID id;
     @NotBlank
     private String nome;
+    @Column(nullable = false, unique = true)
     private String email;
     private String telefone;
     private String imageUrl;
@@ -39,6 +40,5 @@ public  class UserModel {
     @OneToMany(mappedBy = "usuario", cascade = CascadeType.ALL)
     private List<Agendamento> agendamento;
 }
-
 
 

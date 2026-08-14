@@ -20,6 +20,7 @@ public class OtpService {
     private final PasswordEncoder passwordEncoder;
     private static final String OTP_PREFIX = "otp:";
     private static final String ATTEMPT_PREFIX = "otp:attempt:";
+    private static final String EMAIL_PREFIX = "otp:email:";
     private final ObjectMapper objectMapper;
 
 
@@ -33,6 +34,8 @@ public class OtpService {
 
         String hash = passwordEncoder.encode(codigo);
 
+        String emailKey = emailKey(email);
+
         otpData data = new otpData(
                 email,
                 hash
@@ -44,6 +47,14 @@ public class OtpService {
                             objectMapper.writeValueAsString(data),
                             Duration.ofMinutes(5)
                     );
+
+            String otpAnterior = redisTemplate.opsForValue().getAndSet(emailKey, otpId);
+            redisTemplate.expire(emailKey, Duration.ofMinutes(5));
+
+            if (otpAnterior != null && !otpAnterior.equals(otpId)) {
+                redisTemplate.delete(OTP_PREFIX + otpAnterior);
+                redisTemplate.delete(ATTEMPT_PREFIX + otpAnterior);
+            }
 
     } catch (OtpException e) {
             throw new RuntimeException(e);
@@ -92,6 +103,11 @@ public class OtpService {
                 otpData.class
         );
 
+        String otpAtivo = redisTemplate.opsForValue().get(emailKey(data.email()));
+        if (!otpId.equals(otpAtivo)) {
+            throw new RuntimeException("OTP substituído");
+        }
+
 
         if (!passwordEncoder.matches(codigo, data.codigoHash())) {
             verificarTentativas(otpId);
@@ -99,12 +115,28 @@ public class OtpService {
         }
         redisTemplate.delete(OTP_PREFIX + otpId);
         redisTemplate.delete(ATTEMPT_PREFIX + otpId);
+        redisTemplate.delete(emailKey(data.email()));
 
         return data;
 
         }catch (OtpException ex){
             throw  new RuntimeException("Erro ao ler otp", ex);
         }
+    }
+
+    public void removerCodigo(String otpId, String email) {
+        redisTemplate.delete(OTP_PREFIX + otpId);
+        redisTemplate.delete(ATTEMPT_PREFIX + otpId);
+
+        String emailKey = emailKey(email);
+        String otpAtivo = redisTemplate.opsForValue().get(emailKey);
+        if (otpId.equals(otpAtivo)) {
+            redisTemplate.delete(emailKey);
+        }
+    }
+
+    private String emailKey(String email) {
+        return EMAIL_PREFIX + email.trim().toLowerCase();
     }
 
 

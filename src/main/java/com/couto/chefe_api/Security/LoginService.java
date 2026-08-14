@@ -42,7 +42,10 @@ public class LoginService {
 
 
     public UserResponseDto RegisterUsuario(RegisterRequestDto dto,MultipartFile file){
-        //verificar se email ja cadastrado
+        if (repository.findByEmail(dto.getEmail()).isPresent()) {
+            throw new RuntimeException("E-mail já cadastrado");
+        }
+
         UserModel usuario = UserMapper.toEntity(dto);
         String imageUrl = uploadImg(file);
         usuario.setImageUrl(imageUrl);
@@ -62,7 +65,10 @@ public class LoginService {
 
 
     public ChefeResponseDto registerChefe(RegisterRequestDto dto,MultipartFile file) {
-        //verificar se email ja cadastrado
+        if (chefeRepository.findByEmail(dto.getEmail()).isPresent()) {
+            throw new RuntimeException("E-mail já cadastrado");
+        }
+
         ChefeModel chefe = chefeMapper.toModel(dto);
         String imageUrl = uploadImg(file);
         chefe.setImageUrl(imageUrl);
@@ -75,8 +81,13 @@ public class LoginService {
 
         String otpId = UUID.randomUUID().toString();
         String codigo = otpService.gerarCodigo();
-        otpService.salvarCodigo(otpId,codigo,email);
-       resendService.enviarOtp(email,codigo);
+        otpService.salvarCodigo(otpId, email, codigo);
+        try {
+            resendService.enviarOtp(email, codigo);
+        } catch (RuntimeException ex) {
+            otpService.removerCodigo(otpId, email);
+            throw ex;
+        }
         return otpId;
     }
 

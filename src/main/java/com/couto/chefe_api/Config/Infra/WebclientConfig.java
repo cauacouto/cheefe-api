@@ -19,6 +19,10 @@ public class WebclientConfig {
                         HttpHeaders.CONTENT_TYPE,
                         MediaType.APPLICATION_JSON_VALUE
                 )
+                .defaultHeader(
+                        HttpHeaders.USER_AGENT,
+                        "chefe-api/1.0"
+                )
                 .build();
     }
 }
