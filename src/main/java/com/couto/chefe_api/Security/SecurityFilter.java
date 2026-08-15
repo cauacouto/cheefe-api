@@ -10,55 +10,71 @@ import jakarta.servlet.http.Cookie;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 @Component
 @RequiredArgsConstructor
 public class SecurityFilter extends OncePerRequestFilter {
 
-  private  final TokenService tokenService;
+    private static final List<String> PUBLIC_PATHS = List.of(
+            "/auth/",
+            "/enderecos/cep/"
+    );
 
-  private final UsuarioRepository usuarioRepository;
+    private final TokenService tokenService;
+    private final UsuarioRepository usuarioRepository;
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return request.getServletPath().startsWith("/auth/");
+        String path = request.getServletPath();
+        return PUBLIC_PATHS.stream().anyMatch(path::startsWith);
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain
+    ) throws ServletException, IOException {
+        String token = recoverToken(request);
 
-        var token = this.recoverToken(request);
-
-        if (token != null && !token.isEmpty()){
-            var email = tokenService.validarToken(token);
-            if (!email.isEmpty()) {
-                var usuario = usuarioRepository.findByEmail(email).orElseThrow(UsuarioException::new);
-
-                var authentication = new UsernamePasswordAuthenticationToken(usuario,null, List.of());
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-            }
-
+        if (token != null && !token.isBlank()) {
+            autenticarUsuario(token);
         }
-     filterChain.doFilter(request,response);
+
+        filterChain.doFilter(request, response);
+    }
+
+    private void autenticarUsuario(String token) {
+        String email = tokenService.validarToken(token);
+
+        if (email.isBlank()) {
+            return;
+        }
+
+        var usuario = usuarioRepository.findByEmail(email)
+                .orElseThrow(UsuarioException::new);
+
+        var authentication = new UsernamePasswordAuthenticationToken(usuario, null, List.of());
+        SecurityContextHolder.getContext().setAuthentication(authentication);
     }
 
     private String recoverToken(HttpServletRequest request){
         Cookie[] cookies = request.getCookies();
+
         if (cookies == null) {
             return null;
         }
 
-        for (Cookie cookie : cookies) {
-            if ("accessToken".equals(cookie.getName())) {
-                return cookie.getValue();
-            }
-        }
-        return null;
+        return Arrays.stream(cookies)
+                .filter(cookie -> "accessToken".equals(cookie.getName()))
+                .map(Cookie::getValue)
+                .findFirst()
+                .orElse(null);
     }
 }
