@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 public class ResendService {
 
 
-    private final WebclientConfig resendWebClient;
+    private final WebclientResendConfig resendWebClient;
 
     @Value("${resend.secret-key}")
     private String apiKey;

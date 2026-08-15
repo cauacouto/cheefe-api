@@ -7,7 +7,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.WebClient;
 
 @Configuration
-public class WebclientConfig {
+public class WebclientResendConfig {
 
 
 
