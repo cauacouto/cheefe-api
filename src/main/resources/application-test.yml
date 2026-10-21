@@ -28,6 +28,13 @@ cloudinary:
   api-key: teste
   api-secret: teste
 
+storage:
+  endpoint: http://localhost:9000
+  bucket: teste
+  access-key: teste
+  secret-key: teste
+  public-url: http://localhost:9000/teste
+
 jwt:
   key: teste
 
