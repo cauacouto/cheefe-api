@@ -19,7 +19,16 @@ public class GoogleLoginFailureHandler implements AuthenticationFailureHandler {
     private final String frontUrl;
 
     public GoogleLoginFailureHandler(@Value("${app.front-url}") String frontUrl) {
-        this.frontUrl = frontUrl;
+        this.frontUrl = semBarraFinal(frontUrl);
+    }
+
+    /** {@code FRONT_URL=http://localhost:5173/} não pode virar {@code //cadastro}. */
+    static String semBarraFinal(String url) {
+        String normalizada = url.trim();
+        while (normalizada.endsWith("/")) {
+            normalizada = normalizada.substring(0, normalizada.length() - 1);
+        }
+        return normalizada;
     }
 
     @Override

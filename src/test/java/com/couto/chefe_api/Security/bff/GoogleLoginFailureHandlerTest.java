@@ -26,4 +26,14 @@ class GoogleLoginFailureHandlerTest {
         assertThat(response.getRedirectedUrl()).isEqualTo(FRONT + "/login?erro=google");
         assertThat(output).contains("WARN").contains("state divergente no callback");
     }
+
+    @Test
+    void frontUrlComBarraFinalNaoGeraBarraDupla() throws Exception {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        new GoogleLoginFailureHandler(FRONT + "/")
+                .onAuthenticationFailure(new MockHttpServletRequest(), response, new OAuth2AuthenticationException("x"));
+
+        assertThat(response.getRedirectedUrl()).isEqualTo(FRONT + "/login?erro=google");
+    }
 }

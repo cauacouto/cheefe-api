@@ -102,6 +102,17 @@ class GoogleLoginSuccessHandlerTest {
     }
 
     @Test
+    void frontUrlComBarraFinalNaoGeraBarraDupla() throws Exception {
+        when(loginService.loginGoogle(any())).thenReturn(new LoginResult(null, "reg"));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        new GoogleLoginSuccessHandler(loginService, new AuthCookies(false), FRONT + "/")
+                .onAuthenticationSuccess(new MockHttpServletRequest(), response, autenticacao(true));
+
+        assertEquals(FRONT + "/cadastro", response.getRedirectedUrl());
+    }
+
+    @Test
     void falhaRedirecionaParaErro() throws Exception {
         MockHttpServletResponse response = new MockHttpServletResponse();
 

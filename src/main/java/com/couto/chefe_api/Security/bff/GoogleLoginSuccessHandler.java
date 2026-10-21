@@ -29,7 +29,7 @@ public class GoogleLoginSuccessHandler implements AuthenticationSuccessHandler {
                                      @Value("${app.front-url}") String frontUrl) {
         this.loginService = loginService;
         this.authCookies = authCookies;
-        this.frontUrl = frontUrl;
+        this.frontUrl = GoogleLoginFailureHandler.semBarraFinal(frontUrl);
     }
 
     @Override
