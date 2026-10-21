@@ -5,7 +5,6 @@ import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.enums.Senioridade;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -37,7 +36,6 @@ public class ChefeModel implements Serializable {
 
     private String password;
 
-    @NotBlank
     private String nacionalidade;
 
     @Enumerated(EnumType.STRING)
@@ -46,8 +44,7 @@ public class ChefeModel implements Serializable {
     @ManyToMany(mappedBy = "chefes")
     private List<Agendamento> agendamentos = new ArrayList<>();
 
-    @NotNull
-    private int anosDeExperiencia;
+    private Integer anosDeExperiencia;
 
     @Enumerated(EnumType.STRING)
     private Senioridade senioridade;
@@ -55,7 +52,6 @@ public class ChefeModel implements Serializable {
     private boolean disponivel = true;
 
 private Boolean ativo = true;
-    @NotBlank
     private String idiomas;
 
     private String imageUrl;
@@ -70,5 +66,25 @@ private Boolean ativo = true;
         if (!Boolean.TRUE.equals(ativo)) {
             throw new ContaInativaException();
         }
+    }
+
+    /** Campos que o chef precisa preencher para aparecer na busca e ser agendado, na ordem do contrato. */
+    public List<String> camposPendentes() {
+        List<String> pendentes = new ArrayList<>();
+        if (emBranco(nacionalidade)) pendentes.add("nacionalidade");
+        if (especialidade == null) pendentes.add("especialidade");
+        if (senioridade == null) pendentes.add("senioridade");
+        if (anosDeExperiencia == null) pendentes.add("anosDeExperiencia");
+        if (emBranco(idiomas)) pendentes.add("idiomas");
+        if (valorHora == null) pendentes.add("valorHora");
+        return pendentes;
+    }
+
+    public boolean isPerfilCompleto() {
+        return camposPendentes().isEmpty();
+    }
+
+    private static boolean emBranco(String valor) {
+        return valor == null || valor.isBlank();
     }
 }
