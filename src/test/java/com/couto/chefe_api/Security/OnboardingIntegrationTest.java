@@ -1,7 +1,9 @@
 package com.couto.chefe_api.Security;
 
+import com.couto.chefe_api.User.UserModel;
 import com.couto.chefe_api.User.UsuarioRepository;
 import com.couto.chefe_api.domin.ChefeModel;
+import com.couto.chefe_api.enums.TipoUsuario;
 import com.couto.chefe_api.repositorys.ChefeRepository;
 import com.couto.chefe_api.repositorys.EndercoRepository;
 import jakarta.servlet.http.Cookie;
@@ -16,11 +18,16 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
+import java.util.ArrayList;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -99,6 +106,61 @@ class OnboardingIntegrationTest {
 
         assertThat(usuarioRepository.findByEmailIgnoreCase(email)).isPresent();
         assertThat(enderecoRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void chefRecemCriadoVeCamposPendentes() throws Exception {
+        ChefeModel chefe = chefeSoComNome();
+
+        mockMvc.perform(get("/chefe/me").cookie(cookieDe(chefe)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.perfilCompleto").value(false))
+                .andExpect(jsonPath("$.camposPendentes").value(contains(
+                        "nacionalidade", "especialidade", "senioridade", "anosDeExperiencia", "idiomas", "valorHora")));
+    }
+
+    @Test
+    void completarPerfilViaPatchTornaVisivel() throws Exception {
+        ChefeModel chefe = chefeSoComNome();
+        Cookie cookie = cookieDe(chefe);
+
+        mockMvc.perform(patch("/chefe/me").cookie(cookie).contentType(MediaType.APPLICATION_JSON).content("""
+                        {"nacionalidade":"Brasileira","especialidade":"BRASILEIRA","senioridade":"HEAD_CHEF",
+                         "anosDeExperiencia":5,"idiomas":"pt","valorHora":150}"""))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/chefe/me").cookie(cookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.perfilCompleto").value(true))
+                .andExpect(jsonPath("$.camposPendentes").isEmpty());
+        mockMvc.perform(get("/chefe").cookie(cookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.id == '" + chefe.getId() + "')]").exists());
+    }
+
+    @Test
+    void clienteEmChefeMeDa403() throws Exception {
+        UserModel cliente = new UserModel();
+        cliente.setNome("Ana");
+        cliente.setEmail(email);
+        cliente.setEndereco(new ArrayList<>());
+        cliente = usuarioRepository.save(cliente);
+
+        mockMvc.perform(get("/chefe/me").cookie(new Cookie(AuthCookies.ACCESS_TOKEN,
+                        tokenService.gerarToken(new UsuarioAutenticado(cliente.getId(), cliente.getEmail(), TipoUsuario.CLIENTE)))))
+                .andExpect(status().isForbidden());
+    }
+
+    private ChefeModel chefeSoComNome() {
+        ChefeModel chefe = new ChefeModel();
+        chefe.setNome("Bia");
+        chefe.setEmail(email);
+        return chefeRepository.save(chefe);
+    }
+
+    private Cookie cookieDe(ChefeModel chefe) {
+        return new Cookie(AuthCookies.ACCESS_TOKEN,
+                tokenService.gerarToken(new UsuarioAutenticado(chefe.getId(), chefe.getEmail(), TipoUsuario.CHEFE)));
     }
 
     private org.springframework.test.web.servlet.ResultActions registrar(String json) throws Exception {

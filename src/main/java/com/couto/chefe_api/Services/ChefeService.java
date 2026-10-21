@@ -1,6 +1,7 @@
 package com.couto.chefe_api.Services;
 
 import com.couto.chefe_api.Chefe.ChefeSpecification;
+import com.couto.chefe_api.Dtos.ChefePerfilDto;
 import com.couto.chefe_api.Dtos.ChefeRequestDto;
 import com.couto.chefe_api.Dtos.ChefeResponseDto;
 import com.couto.chefe_api.Excepitons.ChefeNaoEncontradoException;
@@ -30,6 +31,11 @@ public class ChefeService {
         chefe.exigirAtivo();
         chefeMapper.updateModelFromDto(dto, chefe);
         return chefeMapper.toDto(chefeRepository.save(chefe));
+    }
+
+    @Transactional(readOnly = true)
+    public ChefePerfilDto buscarPerfil(UUID chefeId) {
+        return ChefePerfilDto.de(chefeRepository.findById(chefeId).orElseThrow(ChefeNaoEncontradoException::new));
     }
 
     @Transactional(readOnly = true)

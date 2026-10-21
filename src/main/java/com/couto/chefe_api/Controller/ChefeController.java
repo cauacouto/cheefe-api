@@ -1,5 +1,6 @@
 package com.couto.chefe_api.Controller;
 
+import com.couto.chefe_api.Dtos.ChefePerfilDto;
 import com.couto.chefe_api.Dtos.ChefeRequestDto;
 import com.couto.chefe_api.Dtos.ChefeResponseDto;
 import com.couto.chefe_api.Services.ChefeService;
@@ -27,6 +28,11 @@ public class ChefeController {
     @GetMapping
     public ResponseEntity <Page<ChefeResponseDto>> listarChefes(Pageable pageable,@RequestParam(required = false) BigDecimal valorMinimo,@RequestParam(required = false) BigDecimal valorMaximo){
         return ResponseEntity.ok().body(service.mostrarChefes(pageable,valorMinimo,valorMaximo));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<ChefePerfilDto> perfil(@AuthenticationPrincipal UsuarioAutenticado chefe) {
+        return ResponseEntity.ok(service.buscarPerfil(chefe.id()));
     }
 
     @PatchMapping("/me")
