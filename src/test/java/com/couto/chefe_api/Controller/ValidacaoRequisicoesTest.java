@@ -59,7 +59,7 @@ class ValidacaoRequisicoesTest {
         mvc = MockMvcBuilders.standaloneSetup(
                         new AgendamentoController(agendamentoService),
                         new UsuarioController(usuarioService, enderecoService, new AuthCookies(false)),
-                        new ChefeController(chefeService),
+                        new ChefeController(chefeService, new AuthCookies(false)),
                         new PratosController(pratosService, mock(ChefeRepository.class)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
@@ -159,13 +159,13 @@ class ValidacaoRequisicoesTest {
     @Test
     void atualizarChefeValidaSoOsCamposEnviados() throws Exception {
         UUID id = UUID.randomUUID();
-        mvc.perform(patch("/chefe/" + id)
+        mvc.perform(patch("/chefe/me")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"nome\":\"  \",\"anosDeExperiencia\":-1,\"valorHora\":0}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.campos[*].campo").value(hasItems("nome", "anosDeExperiencia", "valorHora")));
 
-        mvc.perform(patch("/chefe/" + id)
+        mvc.perform(patch("/chefe/me")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"nome\":\"Novo nome\",\"anosDeExperiencia\":3}"))
                 .andExpect(status().isOk());

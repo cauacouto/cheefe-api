@@ -143,6 +143,47 @@ class AutorizacaoIntegrationTest {
         mockMvc.perform(get("/usuario/me").cookie(cookie)).andExpect(status().isNotFound());
     }
 
+    @Test
+    void chefEditaSoOProprioPerfil() throws Exception {
+        ChefeModel x = novoChefe();
+        ChefeModel y = novoChefe();
+
+        mockMvc.perform(patch("/chefe/me").cookie(cookieDe(x)).contentType(MediaType.APPLICATION_JSON).content("{\"nome\":\"Novo\"}"))
+                .andExpect(status().isOk());
+
+        assertThat(chefeRepository.findById(x.getId()).orElseThrow().getNome()).isEqualTo("Novo");
+        assertThat(chefeRepository.findById(y.getId()).orElseThrow().getNome()).isEqualTo("Chef");
+    }
+
+    @Test
+    void rotaAntigaDeChefPorIdNaoExiste() throws Exception {
+        ChefeModel x = novoChefe();
+        ChefeModel y = novoChefe();
+
+        mockMvc.perform(patch("/chefe/" + y.getId()).cookie(cookieDe(x)).contentType(MediaType.APPLICATION_JSON).content("{\"nome\":\"Hacked\"}"))
+                .andExpect(status().isNotFound());
+
+        assertThat(chefeRepository.findById(y.getId()).orElseThrow().getNome()).isEqualTo("Chef");
+    }
+
+    @Test
+    void clienteNaoEditaChef() throws Exception {
+        mockMvc.perform(patch("/chefe/me").cookie(cookieDe(novoCliente())).contentType(MediaType.APPLICATION_JSON).content("{\"nome\":\"Hacked\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void deleteChefMeInativaEExpiraCookie() throws Exception {
+        ChefeModel x = novoChefe();
+
+        mockMvc.perform(delete("/chefe/me").cookie(cookieDe(x)))
+                .andExpect(status().isNoContent())
+                .andExpect(result -> assertThat(result.getResponse().getHeaders("Set-Cookie"))
+                        .anyMatch(c -> c.startsWith(AuthCookies.ACCESS_TOKEN + "=") && c.contains("Max-Age=0")));
+
+        assertThat(chefeRepository.findById(x.getId()).orElseThrow().getAtivo()).isFalse();
+    }
+
     UserModel novoCliente() {
         UserModel usuario = new UserModel();
         usuario.setNome("Cliente");

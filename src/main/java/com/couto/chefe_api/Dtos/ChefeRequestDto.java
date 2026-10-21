@@ -26,7 +26,7 @@ public record ChefeRequestDto(
         Especialidades especialidade,
 
         @PositiveOrZero
-        int anosDeExperiencia,
+        Integer anosDeExperiencia,
 
         Senioridade senioridade,
 
