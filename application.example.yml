@@ -1,0 +1,41 @@
+# Modelo do src/main/resources/application.yml (que é ignorado pelo git).
+# Copie para src/main/resources/application.yml e preencha via variáveis de ambiente.
+
+spring:
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope: openid,profile,email
+
+server:
+  # Atrás de proxy/PaaS que termina TLS: sem isso o redirect_uri sai como http:// e o Google
+  # responde redirect_uri_mismatch.
+  forward-headers-strategy: framework
+
+# Chave HMAC dos JWTs da API e base (PBKDF2) da cifra AES do cookie do fluxo OAuth.
+# Use um valor aleatório longo, ex.: openssl rand -base64 48
+jwt:
+  key: ${JWT_KEY}
+
+cloudinary:
+  cloud-name: ${CLOUDINARY_CLOUD_NAME}
+  api-key: ${CLOUDINARY_API_KEY}
+  api-secret: ${CLOUDINARY_API_SECRET}
+
+# Para onde o BFF redireciona depois do login (sem barra no final).
+app:
+  front-url: ${FRONT_URL:http://localhost:5173}
+
+# false só em desenvolvimento local via HTTP.
+auth:
+  cookie:
+    secure: ${AUTH_COOKIE_SECURE:true}
