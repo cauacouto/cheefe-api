@@ -6,7 +6,6 @@ import com.couto.chefe_api.Services.EnderecoService;
 import com.couto.chefe_api.Services.PratosService;
 import com.couto.chefe_api.Services.agendamentoService;
 import com.couto.chefe_api.User.UsuarioService;
-import com.couto.chefe_api.repositorys.ChefeRepository;
 import com.couto.chefe_api.Security.AuthCookies;
 import com.couto.chefe_api.Security.UsuarioAutenticado;
 import com.couto.chefe_api.enums.TipoUsuario;
@@ -60,7 +59,7 @@ class ValidacaoRequisicoesTest {
                         new AgendamentoController(agendamentoService),
                         new UsuarioController(usuarioService, enderecoService, new AuthCookies(false)),
                         new ChefeController(chefeService, new AuthCookies(false)),
-                        new PratosController(pratosService, mock(ChefeRepository.class)))
+                        new PratosController(pratosService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
@@ -186,7 +185,7 @@ class ValidacaoRequisicoesTest {
 
     @Test
     void atualizarPratoValidaCampos() throws Exception {
-        mvc.perform(put("/pratos").param("id", "1")
+        mvc.perform(put("/pratos/1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"nomePrato\":\"\",\"descricao\":\"ok\"}"))
                 .andExpect(status().isBadRequest())

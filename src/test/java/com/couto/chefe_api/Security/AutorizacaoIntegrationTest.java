@@ -3,8 +3,10 @@ package com.couto.chefe_api.Security;
 import com.couto.chefe_api.User.UserModel;
 import com.couto.chefe_api.User.UsuarioRepository;
 import com.couto.chefe_api.domin.ChefeModel;
+import com.couto.chefe_api.domin.Pratos;
 import com.couto.chefe_api.enums.TipoUsuario;
 import com.couto.chefe_api.repositorys.ChefeRepository;
+import com.couto.chefe_api.repositorys.PatrosRepository;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,6 +47,8 @@ class AutorizacaoIntegrationTest {
     private UsuarioRepository usuarioRepository;
     @Autowired
     private ChefeRepository chefeRepository;
+    @Autowired
+    private PatrosRepository pratosRepository;
 
     private MockMvc mockMvc;
 
@@ -182,6 +186,38 @@ class AutorizacaoIntegrationTest {
                         .anyMatch(c -> c.startsWith(AuthCookies.ACCESS_TOKEN + "=") && c.contains("Max-Age=0")));
 
         assertThat(chefeRepository.findById(x.getId()).orElseThrow().getAtivo()).isFalse();
+    }
+
+    @Test
+    void chefNaoEditaPratoDeOutroChef() throws Exception {
+        ChefeModel x = novoChefe();
+        Pratos pratoDeY = novoPrato(novoChefe(), "Moqueca");
+
+        mockMvc.perform(put("/pratos/" + pratoDeY.getId()).cookie(cookieDe(x))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"nomePrato\":\"Hacked\",\"descricao\":\"x\"}"))
+                .andExpect(status().isNotFound());
+
+        assertThat(pratosRepository.findById(pratoDeY.getId()).orElseThrow().getNomePrato()).isEqualTo("Moqueca");
+    }
+
+    @Test
+    void meusPratosListaSoOsDoChef() throws Exception {
+        ChefeModel x = novoChefe();
+        novoPrato(x, "Prato de X");
+        novoPrato(novoChefe(), "Prato de Y");
+
+        mockMvc.perform(get("/pratos/meus").cookie(cookieDe(x)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].nomePrato").value("Prato de X"));
+    }
+
+    Pratos novoPrato(ChefeModel chefe, String nome) {
+        Pratos prato = new Pratos();
+        prato.setNomePrato(nome);
+        prato.setDescricao("descrição");
+        prato.setChefeModel(chefe);
+        return pratosRepository.save(prato);
     }
 
     UserModel novoCliente() {

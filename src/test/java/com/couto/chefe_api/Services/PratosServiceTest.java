@@ -19,6 +19,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.never;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -66,9 +67,33 @@ class PratosServiceTest {
 
     @Test
     void atualizarPratoInexistenteDa404() {
-        when(pratosRepository.findById(99)).thenReturn(Optional.empty());
+        when(pratosRepository.findByIdAndChefeModel_Id(99, chefe.getId())).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.updatePratos(new CadastraPratosDtoRequest("a", "b", null), 99))
+        assertThatThrownBy(() -> service.updatePratos(new CadastraPratosDtoRequest("a", "b", null), 99, chefe.getId()))
                 .isInstanceOf(PratoNaoEncontradoException.class);
+    }
+
+    @Test
+    void updatePratoDeOutroChefDa404() {
+        UUID outroChef = UUID.randomUUID();
+        when(pratosRepository.findByIdAndChefeModel_Id(1, outroChef)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.updatePratos(new CadastraPratosDtoRequest("Hacked", "x", null), 1, outroChef))
+                .isInstanceOf(PratoNaoEncontradoException.class);
+        verify(pratosRepository, never()).save(any());
+    }
+
+    @Test
+    void updatePratoProprioAtualiza() {
+        Pratos prato = new Pratos();
+        prato.setId(1);
+        prato.setNomePrato("Antigo");
+        prato.setChefeModel(chefe);
+        when(pratosRepository.findByIdAndChefeModel_Id(1, chefe.getId())).thenReturn(Optional.of(prato));
+        when(pratosRepository.save(any(Pratos.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.updatePratos(new CadastraPratosDtoRequest("Novo", "desc", null), 1, chefe.getId());
+
+        assertThat(prato.getNomePrato()).isEqualTo("Novo");
     }
 }

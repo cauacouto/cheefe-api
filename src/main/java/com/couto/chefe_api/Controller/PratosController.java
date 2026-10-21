@@ -3,17 +3,14 @@ package com.couto.chefe_api.Controller;
 import com.couto.chefe_api.Dtos.CadastraPratosDtoRequest;
 import com.couto.chefe_api.Dtos.CadastratPratosDtoResponse;
 import com.couto.chefe_api.Dtos.ListarPratosChefes;
-import com.couto.chefe_api.Excepitons.ChefeNaoEncontradoException;
 import com.couto.chefe_api.Services.PratosService;
-import com.couto.chefe_api.domin.ChefeModel;
-import com.couto.chefe_api.repositorys.ChefeRepository;
 import jakarta.validation.Valid;
+import com.couto.chefe_api.Security.UsuarioAutenticado;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -25,21 +22,15 @@ import java.util.UUID;
 @RequestMapping("/pratos")
 public class PratosController {
 
-   private final PratosService pratosService;
-   private  final ChefeRepository chefeRepository;
+    private final PratosService pratosService;
 
-
-                                                                                                                                                  //adicionar UserDeails
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<CadastratPratosDtoResponse> cadastroPratos(@Valid @RequestPart("dados") CadastraPratosDtoRequest dto, @RequestParam MultipartFile foto, @AuthenticationPrincipal UserDetails usuarioLogado){
-
-        ChefeModel chefe = chefeRepository.findByEmail(usuarioLogado.getUsername())
-                .orElseThrow(ChefeNaoEncontradoException::new);
-
+    public ResponseEntity<CadastratPratosDtoResponse> cadastroPratos(@Valid @RequestPart("dados") CadastraPratosDtoRequest dto,
+                                                                     @RequestParam MultipartFile foto,
+                                                                     @AuthenticationPrincipal UsuarioAutenticado chefe) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(pratosService.cadastrarPratos(dto, foto, chefe.getId()));
+                .body(pratosService.cadastrarPratos(dto, foto, chefe.id()));
     }
-
 
     @GetMapping("/chefe/{chefeId}")
     public ResponseEntity<List<ListarPratosChefes>> listaPorChefe(@PathVariable UUID chefeId){
@@ -51,19 +42,15 @@ public class PratosController {
         return ResponseEntity.ok(pratosService.listaPratos(null));
     }
 
-
-    @GetMapping("/pratos/meus-pratos")
-    public ResponseEntity<List<ListarPratosChefes>> meusPratos(@AuthenticationPrincipal UserDetails usuarioLogado) {
-     ChefeModel chefe = chefeRepository.findByEmail(usuarioLogado.getUsername())
-             .orElseThrow(ChefeNaoEncontradoException::new);
-        return ResponseEntity.ok(pratosService.listaPratos(chefe.getId()));
+    @GetMapping("/meus")
+    public ResponseEntity<List<ListarPratosChefes>> meusPratos(@AuthenticationPrincipal UsuarioAutenticado chefe) {
+        return ResponseEntity.ok(pratosService.listaPratos(chefe.id()));
     }
 
-    @PutMapping
-    public ResponseEntity<CadastratPratosDtoResponse> updatePratos(@Valid @RequestBody CadastraPratosDtoRequest dto, Integer id){
-        CadastratPratosDtoResponse response = pratosService.updatePratos(dto,id);
-        return ResponseEntity.ok().body(response);
+    @PutMapping("/{id}")
+    public ResponseEntity<CadastratPratosDtoResponse> updatePratos(@Valid @RequestBody CadastraPratosDtoRequest dto,
+                                                                   @PathVariable Integer id,
+                                                                   @AuthenticationPrincipal UsuarioAutenticado chefe) {
+        return ResponseEntity.ok(pratosService.updatePratos(dto, id, chefe.id()));
     }
-
-
 }

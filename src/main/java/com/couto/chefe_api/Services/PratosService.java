@@ -53,8 +53,9 @@ public class PratosService {
     }
 
     @Transactional
-    public CadastratPratosDtoResponse updatePratos(CadastraPratosDtoRequest dto, Integer id) {
-        Pratos pratos = patrosRepository.findById(id).orElseThrow(PratoNaoEncontradoException::new);
+    public CadastratPratosDtoResponse updatePratos(CadastraPratosDtoRequest dto, Integer pratoId, UUID chefeId) {
+        // prato de outro chef é tratado como inexistente
+        Pratos pratos = patrosRepository.findByIdAndChefeModel_Id(pratoId, chefeId).orElseThrow(PratoNaoEncontradoException::new);
         pratosMapper.updatePrato(dto, pratos);
         Pratos salvar = patrosRepository.save(pratos);
         return pratosMapper.toDto(salvar);
