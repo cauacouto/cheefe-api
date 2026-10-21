@@ -182,6 +182,12 @@ class OAuth2FlowIntegrationTest {
     }
 
     @Test
+    void faviconSemCookieNaoDa401() throws Exception {
+        mockMvc.perform(get("/favicon.ico"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void meSemCookieDa401() throws Exception {
         mockMvc.perform(get("/auth/me"))
                 .andExpect(status().isUnauthorized());

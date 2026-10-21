@@ -49,6 +49,7 @@ public class SecurityConfiguration  {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/auth/me").authenticated()
                         .requestMatchers("/auth/**", "/oauth2/**", "/login/oauth2/**", "/error", "/enderecos/cep/**").permitAll()
+                        .requestMatchers("/favicon.ico").permitAll()
                         // papel por rota; o dono do recurso é checado nos serviços
                         .requestMatchers("/usuario/**").hasRole(CLIENTE)
                         .requestMatchers(HttpMethod.POST, "/agendamentos").hasRole(CLIENTE)
