@@ -344,7 +344,8 @@ class AutorizacaoIntegrationTest {
                 .isEqualTo(StatusAgendamento.CONFIRMADO);
 
         mockMvc.perform(patch("/agendamentos/" + agendamento.getId() + "/confirmar").cookie(cookieDe(x)))
-                .andExpect(status().isConflict());
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Só é possível confirmar agendamentos pendentes (status atual: CONFIRMADO)"));
     }
 
     @Test
