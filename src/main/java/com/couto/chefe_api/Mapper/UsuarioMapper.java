@@ -14,6 +14,7 @@ public interface UsuarioMapper {
 
     @Mapping(target = "endereco",ignore = true)
     @Mapping(target = "email", ignore = true)
+    @Mapping(target = "imageUrl", ignore = true)
     UserModel toEntity(RegisterRequestDto dto);
 
     EnderecoModel toModel(EnderecoRequestDto dto);

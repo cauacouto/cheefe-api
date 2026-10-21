@@ -81,6 +81,6 @@ class LoginServiceContaLegadaIntegrationTest {
         dto.setEndereco(List.of());
         String token = tokenService.gerarTokenRegistro(new GoogleUser("ana@gmail.com", "Ana", null));
 
-        assertThrows(EmailJaCadastradoException.class, () -> loginService.register(dto, null, token));
+        assertThrows(EmailJaCadastradoException.class, () -> loginService.register(dto, token));
     }
 }

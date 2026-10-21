@@ -8,11 +8,9 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/auth")
@@ -28,13 +26,12 @@ public class AuthController {
         return ResponseEntity.ok(loginService.dadosRegistro(registroToken));
     }
 
-    @PostMapping(value = "/register", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping("/register")
     public ResponseEntity<Object> register(
-            @Valid @RequestPart("dados") RegisterRequestDto dto,
-            @RequestParam(value = "foto", required = false) MultipartFile foto,
+            @Valid @RequestBody RegisterRequestDto dto,
             @CookieValue(name = AuthCookies.REGISTRO_TOKEN, required = false) String registroToken,
             HttpServletResponse response) {
-        RegisterResult result = loginService.register(dto, foto, registroToken);
+        RegisterResult result = loginService.register(dto, registroToken);
         authCookies.adicionar(response, authCookies.accessToken(result.accessToken()));
         authCookies.adicionar(response, authCookies.expirar(AuthCookies.REGISTRO_TOKEN, AuthCookies.PATH_REGISTRO));
         return ResponseEntity.status(HttpStatus.CREATED).body(result.corpo());

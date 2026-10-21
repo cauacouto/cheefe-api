@@ -15,6 +15,7 @@ public interface ChefeMapper {
 
 
     @Mapping(target = "email", ignore = true)
+    @Mapping(target = "imageUrl", ignore = true)
     ChefeModel toModel(RegisterRequestDto dto);
 
 @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)

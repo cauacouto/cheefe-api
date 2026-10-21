@@ -7,6 +7,12 @@ spring:
     username: ${DATABASE_USERNAME}
     password: ${DATABASE_PASSWORD}
 
+  servlet:
+    multipart:
+      # o validador de imagem aceita até 5MB; sem isso o Spring corta em 1MB
+      max-file-size: 5MB
+      max-request-size: 6MB
+
   security:
     oauth2:
       client:
@@ -26,10 +32,14 @@ server:
 jwt:
   key: ${JWT_KEY}
 
-cloudinary:
-  cloud-name: ${CLOUDINARY_CLOUD_NAME}
-  api-key: ${CLOUDINARY_API_KEY}
-  api-secret: ${CLOUDINARY_API_SECRET}
+# Fotos de pratos: bucket compatível com S3 (Cloudflare R2, AWS S3, MinIO...).
+# R2: endpoint https://<ACCOUNT_ID>.r2.cloudflarestorage.com; public-url é o r2.dev ou domínio próprio do bucket.
+storage:
+  endpoint: ${R2_ENDPOINT}
+  bucket: ${R2_BUCKET}
+  access-key: ${R2_ACCESS_KEY_ID}
+  secret-key: ${R2_SECRET_ACCESS_KEY}
+  public-url: ${R2_PUBLIC_URL}
 
 # Para onde o BFF redireciona depois do login (sem barra no final).
 app:

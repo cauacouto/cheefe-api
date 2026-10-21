@@ -23,11 +23,6 @@ spring:
             client-secret: teste-secret
             scope: openid,profile,email
 
-cloudinary:
-  cloud-name: teste
-  api-key: teste
-  api-secret: teste
-
 storage:
   endpoint: http://localhost:9000
   bucket: teste

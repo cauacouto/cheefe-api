@@ -38,5 +38,4 @@ public class RegisterRequestDto {
     private Integer anosDeExperiencia;
     private String idiomas;
     private BigDecimal valorHora;
-    private String imageUrl;
 }

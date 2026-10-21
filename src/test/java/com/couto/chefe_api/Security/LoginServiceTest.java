@@ -1,6 +1,5 @@
 package com.couto.chefe_api.Security;
 
-import com.cloudinary.Cloudinary;
 import com.couto.chefe_api.Dtos.ChefeResponseDto;
 import com.couto.chefe_api.Dtos.LoginResult;
 import com.couto.chefe_api.Dtos.RegisterRequestDto;
@@ -34,7 +33,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class LoginServiceTest {
@@ -43,7 +41,6 @@ class LoginServiceTest {
 
     private final UsuarioRepository usuarioRepository = mock(UsuarioRepository.class);
     private final ChefeRepository chefeRepository = mock(ChefeRepository.class);
-    private final Cloudinary cloudinary = mock(Cloudinary.class);
     private final TokenService tokenService = new TokenService("teste");
     private final GoogleUser googleUser = new GoogleUser(EMAIL, "Ana", "https://foto");
 
@@ -56,8 +53,7 @@ class LoginServiceTest {
                 Mappers.getMapper(UsuarioMapper.class),
                 tokenService,
                 Mappers.getMapper(ChefeMapper.class),
-                chefeRepository,
-                cloudinary
+                chefeRepository
         );
         when(usuarioRepository.findByEmailIgnoreCase(any())).thenReturn(Optional.empty());
         when(chefeRepository.findByEmailIgnoreCase(any())).thenReturn(Optional.empty());
@@ -124,7 +120,7 @@ class LoginServiceTest {
 
     @Test
     void registerClienteUsaEmailDoTokenELoga() {
-        RegisterResult result = loginService.register(dto(TipoUsuario.CLIENTE, List.of()), null, tokenRegistro());
+        RegisterResult result = loginService.register(dto(TipoUsuario.CLIENTE, List.of()), tokenRegistro());
 
         UserModel salvo = usuarioSalvo();
         assertEquals(EMAIL, salvo.getEmail());
@@ -136,7 +132,7 @@ class LoginServiceTest {
 
     @Test
     void registerChefUsaEmailDoTokenELoga() {
-        RegisterResult result = loginService.register(dto(TipoUsuario.CHEFE, null), null, tokenRegistro());
+        RegisterResult result = loginService.register(dto(TipoUsuario.CHEFE, null), tokenRegistro());
 
         ArgumentCaptor<ChefeModel> captor = ArgumentCaptor.forClass(ChefeModel.class);
         verify(chefeRepository).save(captor.capture());
@@ -146,18 +142,26 @@ class LoginServiceTest {
     }
 
     @Test
-    void registerSemFotoUsaFotoDoGoogle() {
-        loginService.register(dto(TipoUsuario.CLIENTE, List.of()), null, tokenRegistro());
+    void registerClienteUsaFotoDoGoogle() {
+        loginService.register(dto(TipoUsuario.CLIENTE, List.of()), tokenRegistro());
 
         assertEquals("https://foto", usuarioSalvo().getImageUrl());
-        verifyNoInteractions(cloudinary);
     }
 
     @Test
-    void registerSemFotoEContaGoogleSemFotoGravaNulo() {
+    void registerChefUsaFotoDoGoogle() {
+        loginService.register(dto(TipoUsuario.CHEFE, null), tokenRegistro());
+
+        ArgumentCaptor<ChefeModel> captor = ArgumentCaptor.forClass(ChefeModel.class);
+        verify(chefeRepository).save(captor.capture());
+        assertEquals("https://foto", captor.getValue().getImageUrl());
+    }
+
+    @Test
+    void contaGoogleSemFotoGravaNulo() {
         String token = tokenService.gerarTokenRegistro(new GoogleUser(EMAIL, "Ana", null));
 
-        loginService.register(dto(TipoUsuario.CLIENTE, List.of()), null, token);
+        loginService.register(dto(TipoUsuario.CLIENTE, List.of()), token);
 
         assertNull(usuarioSalvo().getImageUrl());
     }
@@ -167,7 +171,7 @@ class LoginServiceTest {
         when(chefeRepository.findByEmailIgnoreCase(EMAIL)).thenReturn(Optional.of(new ChefeModel()));
 
         assertThrows(EmailJaCadastradoException.class,
-                () -> loginService.register(dto(TipoUsuario.CLIENTE, List.of()), null, tokenRegistro()));
+                () -> loginService.register(dto(TipoUsuario.CLIENTE, List.of()), tokenRegistro()));
         verify(usuarioRepository, never()).save(any());
         verify(chefeRepository, never()).save(any());
     }
@@ -177,14 +181,14 @@ class LoginServiceTest {
         String tokenDeAcesso = tokenService.gerarToken(new UsuarioAutenticado(UUID.randomUUID(), EMAIL, TipoUsuario.CLIENTE));
 
         assertThrows(RegistroTokenInvalidoException.class,
-                () -> loginService.register(dto(TipoUsuario.CLIENTE, List.of()), null, null));
+                () -> loginService.register(dto(TipoUsuario.CLIENTE, List.of()), null));
         assertThrows(RegistroTokenInvalidoException.class,
-                () -> loginService.register(dto(TipoUsuario.CLIENTE, List.of()), null, tokenDeAcesso));
+                () -> loginService.register(dto(TipoUsuario.CLIENTE, List.of()), tokenDeAcesso));
     }
 
     @Test
     void registerClienteSemEnderecoNaoQuebra() {
-        loginService.register(dto(TipoUsuario.CLIENTE, null), null, tokenRegistro());
+        loginService.register(dto(TipoUsuario.CLIENTE, null), tokenRegistro());
 
         assertTrue(usuarioSalvo().getEndereco().isEmpty());
     }

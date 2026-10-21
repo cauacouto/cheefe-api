@@ -39,10 +39,10 @@ class AuthControllerTest {
     void postRegisterGravaAccessTokenEExpiraRegistro() {
         RegisterRequestDto dto = new RegisterRequestDto();
         UserResponseDto corpo = new UserResponseDto();
-        when(loginService.register(dto, null, "tok")).thenReturn(new RegisterResult("jwt", corpo));
+        when(loginService.register(dto, "tok")).thenReturn(new RegisterResult("jwt", corpo));
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        var result = controller.register(dto, null, "tok", response);
+        var result = controller.register(dto, "tok", response);
 
         assertEquals(HttpStatus.CREATED, result.getStatusCode());
         assertSame(corpo, result.getBody());

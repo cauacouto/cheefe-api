@@ -54,7 +54,8 @@ O `src/main/resources/application.yml` não é versionado. Use o modelo [`applic
 | `FRONT_URL` | URL do front, sem barra no final (ex.: `http://localhost:5173`) |
 | `AUTH_COOKIE_SECURE` | `false` só em dev via HTTP; `true` em produção |
 | `JWT_KEY` | segredo aleatório longo (`openssl rand -base64 48`) |
-| `DATABASE_*`, `CLOUDINARY_*` | banco e upload de imagens |
+| `DATABASE_*` | banco de dados |
+| `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_PUBLIC_URL` | bucket de fotos dos pratos (Cloudflare R2 ou outro compatível com S3, com leitura pública) |
 
 A aplicação **não sobe** sem o registro do Google e sem `FRONT_URL`.
 
@@ -72,7 +73,7 @@ Fluxo para o front:
 |---|---|
 | Entrar | navegar para `{API}/oauth2/authorization/google` |
 | Conta existe | volta em `{FRONT_URL}/` com cookie `accessToken` |
-| Conta nova | volta em `{FRONT_URL}/cadastro`; `GET /auth/register` traz `email`, `nome`, `foto`; `POST /auth/register` (multipart `dados` + `foto` opcional, sem `email`) cria a conta e já loga |
+| Conta nova | volta em `{FRONT_URL}/cadastro`; `GET /auth/register` traz `email`, `nome`, `foto`; `POST /auth/register` (JSON, sem `email`; a foto de perfil é a do Google) cria a conta e já loga |
 | Erro/cancelamento | volta em `{FRONT_URL}/login?erro=google` |
 | Sessão | `GET /auth/me` → `{ id, email, tipo }` ou 401 |
 | Sair | `POST /auth/logout` |
