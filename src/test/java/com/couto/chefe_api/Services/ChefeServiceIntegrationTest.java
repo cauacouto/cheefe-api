@@ -151,6 +151,22 @@ class ChefeServiceIntegrationTest {
         assertThat(chefeService.chefesMaisAgendados(PageRequest.of(0, 10)).getContent()).isEmpty();
     }
 
+    @Test
+    void chefComEspacosQueOTrimDoBancoNaoRemoveNaoAparece() {
+        ChefeModel comTab = chefe("ComTab", true);
+        comTab.setNacionalidade("\t");
+        chefeRepository.save(comTab);
+        ChefeModel comEmSpace = chefe("ComEmSpace", true);
+        comEmSpace.setIdiomas("\u2003");
+        chefeRepository.save(comEmSpace);
+
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null).getContent())
+                .extracting(ChefeResponseDto::nome).containsExactly("Ativo");
+        assertThat(chefeService.chefesMaisAgendados(PageRequest.of(0, 10)).getContent())
+                .extracting(ChefeResponseDto::nome).containsExactly("Ativo");
+        assertThat(chefeRepository.findById(comTab.getId()).orElseThrow().getNacionalidade()).isNull();
+    }
+
     private static ChefeModel chefe(String nome, boolean ativo) {
         ChefeModel chefe = new ChefeModel();
         chefe.setNome(nome);

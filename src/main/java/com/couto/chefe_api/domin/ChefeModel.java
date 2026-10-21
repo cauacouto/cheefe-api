@@ -87,4 +87,19 @@ private Boolean ativo = true;
     private static boolean emBranco(String valor) {
         return valor == null || valor.isBlank();
     }
+
+    /**
+     * Texto só com espaços (inclusive tab e espaços Unicode, que o TRIM do banco não remove)
+     * vira null ao gravar. Assim a busca (SQL) e isPerfilCompleto (Java) concordam.
+     */
+    @PrePersist
+    @PreUpdate
+    void normalizarTextos() {
+        nacionalidade = semEspacosOuNulo(nacionalidade);
+        idiomas = semEspacosOuNulo(idiomas);
+    }
+
+    private static String semEspacosOuNulo(String valor) {
+        return emBranco(valor) ? null : valor.strip();
+    }
 }
