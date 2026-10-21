@@ -406,6 +406,40 @@ class AutorizacaoIntegrationTest {
         assertThat(pratosRepository.findById(prato.getId()).orElseThrow().getNomePrato()).isEqualTo("Moqueca");
     }
 
+    @Test
+    void meDeClienteApagadoDa401EExpiraCookie() throws Exception {
+        UserModel ana = novoCliente();
+        Cookie tokenAntigo = cookieDe(ana);
+        usuarioRepository.deleteById(ana.getId());
+
+        mockMvc.perform(get("/auth/me").cookie(tokenAntigo))
+                .andExpect(status().isUnauthorized())
+                .andExpect(result -> assertThat(result.getResponse().getHeaders("Set-Cookie"))
+                        .anyMatch(c -> c.startsWith(AuthCookies.ACCESS_TOKEN + "=") && c.contains("Max-Age=0")));
+    }
+
+    @Test
+    void meDeChefInativoDa401EExpiraCookie() throws Exception {
+        ChefeModel x = novoChefe();
+        x.setAtivo(false);
+        chefeRepository.save(x);
+
+        mockMvc.perform(get("/auth/me").cookie(cookieDe(x)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(result -> assertThat(result.getResponse().getHeaders("Set-Cookie"))
+                        .anyMatch(c -> c.startsWith(AuthCookies.ACCESS_TOKEN + "=") && c.contains("Max-Age=0")));
+    }
+
+    @Test
+    void meDeContaAtivaDevolveSessao() throws Exception {
+        ChefeModel x = novoChefe();
+
+        mockMvc.perform(get("/auth/me").cookie(cookieDe(x)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value(x.getEmail()))
+                .andExpect(jsonPath("$.tipo").value("CHEFE"));
+    }
+
     UserModel novoCliente() {
         UserModel usuario = new UserModel();
         usuario.setNome("Cliente");
