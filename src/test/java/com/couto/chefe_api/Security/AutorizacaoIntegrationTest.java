@@ -14,6 +14,7 @@ import com.couto.chefe_api.repositorys.EndercoRepository;
 import com.couto.chefe_api.repositorys.ChefeRepository;
 import com.couto.chefe_api.repositorys.PatrosRepository;
 import jakarta.servlet.http.Cookie;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -68,6 +69,19 @@ class AutorizacaoIntegrationTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+    }
+
+    /**
+     * O H2 é compartilhado por todos os @SpringBootTest do contexto: apaga na ordem das FKs
+     * para não vazar dados para as outras classes de teste.
+     */
+    @AfterEach
+    void limparBanco() {
+        agendamentoRepository.deleteAll();
+        pratosRepository.deleteAll();
+        enderecoRepository.deleteAll();
+        usuarioRepository.deleteAll();
+        chefeRepository.deleteAll();
     }
 
     @Test
