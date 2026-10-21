@@ -23,7 +23,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -140,6 +143,15 @@ class OAuth2FlowIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"tipoUsuario\":\"CLIENTE\",\"nome\":\"Ana\",\"endereco\":[]}"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void corsPermitePatchDoFront() throws Exception {
+        mockMvc.perform(options("/chefe/me")
+                        .header("Origin", "http://localhost:5173")
+                        .header("Access-Control-Request-Method", "PATCH"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Methods", containsString("PATCH")));
     }
 
     @Test
