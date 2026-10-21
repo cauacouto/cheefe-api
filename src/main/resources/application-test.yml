@@ -21,3 +21,10 @@ cloudinary:
 
 jwt:
   key: teste
+
+app:
+  front-url: http://localhost:5173
+
+auth:
+  cookie:
+    secure: false
