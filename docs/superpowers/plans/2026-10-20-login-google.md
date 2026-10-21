@@ -108,6 +108,7 @@
   - `void adicionar(HttpServletResponse, ResponseCookie)`, que adiciona o header `Set-Cookie`
   - `Optional<String> ler(HttpServletRequest, String nome)`, que ignora valores em branco
   - `SecurityFilter(TokenService, AuthCookies)`: sem `shouldNotFilter` e sem `UsuarioRepository`.
+  - `AuthController(LoginService, AuthCookies)`.
 
 - [ ] **Step 1: Escrever os testes que falham:**
   - `AuthCookiesTest.accessTokenTemAtributosCorretos` (`secure=true`): o header contém `accessToken=v`, `Path=/`, `Max-Age=28800`, `HttpOnly`, `SameSite=Lax` e `Secure`.
@@ -161,7 +162,8 @@
   - `registerClienteSemEnderecoNaoQuebra`: `endereco=null` → salva com a lista vazia.
 - [ ] **Step 2:** Rodar `-Dtest=LoginServiceTest` → FAIL.
 - [ ] **Step 3:** Implementar. `uploadImg` continua como está. A checagem de duplicidade consulta as duas tabelas antes de qualquer upload.
-- [ ] **Step 4:** Rodar `-Dtest=LoginServiceTest` → PASS. Depois a suíte completa → PASS (o `AuthController` ainda compila na Task 5; se não compilar aqui, junte as Tasks 4 e 5 num commit só).
+- [ ] **Step 3b:** Para o build continuar compilando, trocar no `AuthController.register` as chamadas a `RegisterUsuario`/`registerChefe` por `loginService.register(dto, foto, registroToken)`, com `@CookieValue` do registro, gravando `accessToken` e expirando `registroToken`. Os testes desse endpoint ficam na Task 5.
+- [ ] **Step 4:** Rodar `-Dtest=LoginServiceTest` → PASS. Depois a suíte completa → PASS.
 - [ ] **Step 5:** Commit `feat: Google login and registration bound to verified email`.
 
 ---
