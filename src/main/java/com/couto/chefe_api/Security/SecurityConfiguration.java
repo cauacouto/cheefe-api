@@ -4,9 +4,11 @@ import com.couto.chefe_api.Security.bff.CookieOAuth2AuthorizationRequestReposito
 import com.couto.chefe_api.Security.bff.GoogleLoginFailureHandler;
 import com.couto.chefe_api.Security.bff.GoogleLoginSuccessHandler;
 import com.couto.chefe_api.Security.bff.NaoArmazenarAuthorizedClientRepository;
+import com.couto.chefe_api.enums.TipoUsuario;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -29,6 +31,8 @@ import java.util.List;
 public class SecurityConfiguration  {
 
     private static final String AUTHORIZATION_BASE_URI = "/oauth2/authorization";
+    private static final String CLIENTE = TipoUsuario.CLIENTE.name();
+    private static final String CHEFE = TipoUsuario.CHEFE.name();
 
     private final SecurityFilter securityFilter;
     private final CookieOAuth2AuthorizationRequestRepository authorizationRequestRepository;
@@ -47,6 +51,18 @@ public class SecurityConfiguration  {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/auth/me").authenticated()
                         .requestMatchers("/auth/**", "/oauth2/**", "/login/oauth2/**", "/error", "/enderecos/cep/**").permitAll()
+                        // papel por rota; o dono do recurso é checado nos serviços
+                        .requestMatchers("/usuario/**").hasRole(CLIENTE)
+                        .requestMatchers(HttpMethod.POST, "/agendamentos").hasRole(CLIENTE)
+                        .requestMatchers(HttpMethod.PUT, "/agendamentos/*").hasRole(CLIENTE)
+                        .requestMatchers(HttpMethod.GET, "/agendamentos/meus").hasRole(CLIENTE)
+                        .requestMatchers(HttpMethod.PATCH, "/chefe/me", "/chefe/me/inativar").hasRole(CHEFE)
+                        .requestMatchers(HttpMethod.DELETE, "/chefe/me").hasRole(CHEFE)
+                        .requestMatchers(HttpMethod.POST, "/pratos").hasRole(CHEFE)
+                        .requestMatchers(HttpMethod.PUT, "/pratos/*").hasRole(CHEFE)
+                        .requestMatchers(HttpMethod.GET, "/pratos/meus").hasRole(CHEFE)
+                        .requestMatchers(HttpMethod.GET, "/agendamentos/recebidos").hasRole(CHEFE)
+                        .requestMatchers(HttpMethod.PATCH, "/agendamentos/*/confirmar").hasRole(CHEFE)
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth2 -> oauth2
