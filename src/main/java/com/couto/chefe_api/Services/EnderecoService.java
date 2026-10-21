@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -23,8 +24,8 @@ public class EnderecoService {
     private final EndercoRepository enderecoRepository;
 
     @Transactional
-    public EnderecoResponseDto adicionarEndereco(EnderecoRequestDto dto, String email) {
-        UserModel usuario = usuarioRepository.findByEmail(email)
+    public EnderecoResponseDto adicionarEndereco(EnderecoRequestDto dto, UUID usuarioId) {
+        UserModel usuario = usuarioRepository.findById(usuarioId)
                 .orElseThrow(UsuarioException::new);
         EnderecoModel endereco = usuarioMapper.toModel(dto);
         endereco.getTipoDeResidencia().validar(endereco);
@@ -36,8 +37,8 @@ public class EnderecoService {
     }
 
     @Transactional(readOnly = true)
-    public List<EnderecoResponseDto> listarEnderecos(String email) {
-        UserModel usuario = usuarioRepository.findByEmail(email)
+    public List<EnderecoResponseDto> listarEnderecos(UUID usuarioId) {
+        UserModel usuario = usuarioRepository.findById(usuarioId)
                 .orElseThrow(UsuarioException::new);
         return usuario.getEndereco().stream()
                 .map(usuarioMapper::toDto)

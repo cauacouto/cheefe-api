@@ -7,8 +7,6 @@ import com.couto.chefe_api.Mapper.UsuarioMapper;
 import com.couto.chefe_api.domin.EnderecoModel;
 import com.couto.chefe_api.repositorys.EndercoRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,8 +30,8 @@ public class UsuarioService {
      * tem {@code orphanRemoval}, os endereços antigos são apagados aqui.</p>
      */
     @Transactional
-    public UserResponseDto atualizarUsuario(UserRequestDto dto, UUID id) {
-        UserModel user = repository.findById(id).orElseThrow(UsuarioException::new);
+    public UserResponseDto atualizar(UserRequestDto dto, UUID usuarioId) {
+        UserModel user = repository.findById(usuarioId).orElseThrow(UsuarioException::new);
 
         List<EnderecoModel> novos = dto.endereco().stream()
                 .map(usuarioMapper::toModel)
@@ -44,7 +42,6 @@ public class UsuarioService {
         });
 
         user.setNome(dto.nome());
-        user.setEmail(dto.email());
         user.setTelefone(dto.telefone());
 
         if (user.getEndereco() == null) {
@@ -59,20 +56,16 @@ public class UsuarioService {
     }
 
     @Transactional(readOnly = true)
-    public Page<UserResponseDto> listarUsuarios(Pageable pageable) {
-        return repository.findAll(pageable)
-                .map(usuarioMapper::toDto);
-    }
-
-    @Transactional(readOnly = true)
-    public UserResponseDto buscarPorId(UUID id) {
-        UserModel user = repository.findById(id)
+    public UserResponseDto buscar(UUID usuarioId) {
+        UserModel user = repository.findById(usuarioId)
                 .orElseThrow(UsuarioException::new);
         return usuarioMapper.toDto(user);
     }
 
     @Transactional
-    public void deletar(UUID id) {
-        repository.deleteById(id);
+    public void deletar(UUID usuarioId) {
+        UserModel user = repository.findById(usuarioId)
+                .orElseThrow(UsuarioException::new);
+        repository.delete(user);
     }
 }

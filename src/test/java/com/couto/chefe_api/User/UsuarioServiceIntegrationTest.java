@@ -67,11 +67,11 @@ class UsuarioServiceIntegrationTest {
 
     @Test
     void substituiOsEnderecosSemAcumular() {
-        UserRequestDto dto = new UserRequestDto("Ana Maria", "ana-nova-" + UUID.randomUUID() + "@x.com", "11888888888",
+        UserRequestDto dto = new UserRequestDto("Ana Maria", "11888888888",
                 List.of(endereco("Rua Nova", TipoDeResidencia.CASA, null),
                         endereco("Rua do Prédio", TipoDeResidencia.APARTAMENTO, "Bloco B ap 12")));
 
-        UserResponseDto resposta = usuarioService.atualizarUsuario(dto, usuarioId);
+        UserResponseDto resposta = usuarioService.atualizar(dto, usuarioId);
 
         assertThat(resposta.getNome()).isEqualTo("Ana Maria");
         assertThat(resposta.getEndereco()).extracting("rua").containsExactlyInAnyOrder("Rua Nova", "Rua do Prédio");
@@ -81,12 +81,12 @@ class UsuarioServiceIntegrationTest {
 
     @Test
     void funcionaComEntidadeGerenciadaComoNoOpenSessionInView() {
-        UserRequestDto dto = new UserRequestDto("Ana Maria", "ana-osiv-" + UUID.randomUUID() + "@x.com", "11888888888",
+        UserRequestDto dto = new UserRequestDto("Ana Maria", "11888888888",
                 List.of(endereco("Rua Nova", TipoDeResidencia.CASA, null)));
 
         transactionTemplate.executeWithoutResult(status -> {
             usuarioRepository.findById(usuarioId).orElseThrow();
-            usuarioService.atualizarUsuario(dto, usuarioId);
+            usuarioService.atualizar(dto, usuarioId);
         });
 
         assertThat(enderecosDoUsuario()).extracting(EnderecoModel::getRua).containsExactly("Rua Nova");
@@ -94,10 +94,10 @@ class UsuarioServiceIntegrationTest {
 
     @Test
     void enderecoInvalidoNaoAlteraNada() {
-        UserRequestDto dto = new UserRequestDto("Outro nome", "outro-" + UUID.randomUUID() + "@x.com", "11",
+        UserRequestDto dto = new UserRequestDto("Outro nome", "11",
                 List.of(endereco("Rua do Prédio", TipoDeResidencia.APARTAMENTO, " ")));
 
-        assertThatThrownBy(() -> usuarioService.atualizarUsuario(dto, usuarioId))
+        assertThatThrownBy(() -> usuarioService.atualizar(dto, usuarioId))
                 .isInstanceOf(EnderecoInvalidoException.class);
 
         assertThat(usuarioRepository.findById(usuarioId)).get().extracting(UserModel::getNome).isEqualTo("Ana");
@@ -112,5 +112,17 @@ class UsuarioServiceIntegrationTest {
 
     private static EnderecoRequestDto endereco(String rua, TipoDeResidencia tipo, String complemento) {
         return new EnderecoRequestDto(rua, "10", complemento, "01001-000", "São Paulo", "Centro", "SP", tipo);
+    }
+
+    @Test
+    void atualizarNaoMudaOEmail() {
+        String emailOriginal = usuarioRepository.findById(usuarioId).orElseThrow().getEmail();
+        UserRequestDto dto = new UserRequestDto("Ana Maria", "11888888888", List.of(
+                new EnderecoRequestDto("Rua Nova", "2", null, "01001000", "São Paulo", "Sé", "SP", TipoDeResidencia.CASA)));
+
+        UserResponseDto resposta = usuarioService.atualizar(dto, usuarioId);
+
+        assertThat(resposta.getEmail()).isEqualTo(emailOriginal);
+        assertThat(usuarioRepository.findById(usuarioId).orElseThrow().getEmail()).isEqualTo(emailOriginal);
     }
 }

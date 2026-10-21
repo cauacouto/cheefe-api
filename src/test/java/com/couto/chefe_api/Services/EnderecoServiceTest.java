@@ -20,6 +20,7 @@ import org.mockito.quality.Strictness;
 
 import java.util.ArrayList;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -31,6 +32,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class EnderecoServiceTest {
+
+    private static final UUID USUARIO_ID = UUID.randomUUID();
 
     @Mock
     private UsuarioRepository usuarioRepository;
@@ -45,7 +48,7 @@ class EnderecoServiceTest {
     void setUp() {
         service = new EnderecoService(usuarioRepository, usuarioMapper, enderecoRepository);
         usuario.setEndereco(new ArrayList<>());
-        when(usuarioRepository.findByEmail("ana@x.com")).thenReturn(Optional.of(usuario));
+        when(usuarioRepository.findById(USUARIO_ID)).thenReturn(Optional.of(usuario));
         when(enderecoRepository.save(any(EnderecoModel.class))).thenAnswer(inv -> {
             EnderecoModel endereco = inv.getArgument(0);
             endereco.setId(42L);
@@ -57,7 +60,7 @@ class EnderecoServiceTest {
     void salvaOEnderecoEDevolveComId() {
         EnderecoResponseDto resposta = service.adicionarEndereco(
                 new EnderecoRequestDto("Rua A", "1", null, "01001000", "SP", "Centro", "SP", TipoDeResidencia.CASA),
-                "ana@x.com");
+                USUARIO_ID);
 
         assertThat(resposta.id()).isEqualTo(42L);
         assertThat(usuario.getEndereco()).hasSize(1);
@@ -68,7 +71,7 @@ class EnderecoServiceTest {
     void apartamentoSemComplementoNaoEhSalvo() {
         assertThatThrownBy(() -> service.adicionarEndereco(
                 new EnderecoRequestDto("Rua A", "1", null, "01001000", "SP", "Centro", "SP", TipoDeResidencia.APARTAMENTO),
-                "ana@x.com"))
+                USUARIO_ID))
                 .isInstanceOf(EnderecoInvalidoException.class);
         verify(enderecoRepository, never()).save(any());
     }

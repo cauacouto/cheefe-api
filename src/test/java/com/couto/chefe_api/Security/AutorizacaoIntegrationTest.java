@@ -21,9 +21,13 @@ import java.util.ArrayList;
 import java.util.UUID;
 
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -73,6 +77,70 @@ class AutorizacaoIntegrationTest {
     @Test
     void semCookieDa401() throws Exception {
         mockMvc.perform(get("/usuario/me")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void clienteVeSoOsProprioDados() throws Exception {
+        UserModel ana = novoCliente();
+
+        mockMvc.perform(get("/usuario/me").cookie(cookieDe(ana)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value(ana.getEmail()));
+    }
+
+    @Test
+    void rotasAntigasPorIdNaoExistem() throws Exception {
+        Cookie ana = cookieDe(novoCliente());
+        UserModel bia = novoCliente();
+
+        mockMvc.perform(get("/usuario/" + bia.getId()).cookie(ana)).andExpect(status().isNotFound());
+        mockMvc.perform(delete("/usuario/" + bia.getId()).cookie(ana)).andExpect(status().isNotFound());
+        assertThat(usuarioRepository.findById(bia.getId())).isPresent();
+    }
+
+    @Test
+    void listagemDeUsuariosNaoExiste() throws Exception {
+        String corpo = mockMvc.perform(get("/usuario").cookie(cookieDe(novoCliente())))
+                .andExpect(result -> assertThat(result.getResponse().getStatus()).isIn(404, 405))
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(corpo).doesNotContain("cliente-");
+    }
+
+    @Test
+    void putIgnoraEmailNoCorpo() throws Exception {
+        UserModel ana = novoCliente();
+        String json = """
+                {"nome":"Ana","email":"outro@x.com","telefone":"11999999999",
+                 "endereco":[{"rua":"Rua A","numero":"1","cep":"01001-000","cidade":"SP","bairro":"Centro",
+                              "estado":"SP","tipoDeResidencia":"CASA"}]}
+                """;
+
+        mockMvc.perform(put("/usuario/me").cookie(cookieDe(ana)).contentType(MediaType.APPLICATION_JSON).content(json))
+                .andExpect(status().isOk());
+
+        assertThat(usuarioRepository.findById(ana.getId()).orElseThrow().getEmail()).isEqualTo(ana.getEmail());
+    }
+
+    @Test
+    void deleteMeApagaEExpiraCookie() throws Exception {
+        UserModel ana = novoCliente();
+
+        mockMvc.perform(delete("/usuario/me").cookie(cookieDe(ana)))
+                .andExpect(status().isNoContent())
+                .andExpect(result -> assertThat(result.getResponse().getHeaders("Set-Cookie"))
+                        .anyMatch(c -> c.startsWith(AuthCookies.ACCESS_TOKEN + "=") && c.contains("Max-Age=0")));
+
+        assertThat(usuarioRepository.findById(ana.getId())).isEmpty();
+    }
+
+    @Test
+    void tokenDeContaApagadaDa404() throws Exception {
+        UserModel ana = novoCliente();
+        Cookie cookie = cookieDe(ana);
+        usuarioRepository.deleteById(ana.getId());
+
+        mockMvc.perform(get("/usuario/me").cookie(cookie)).andExpect(status().isNotFound());
     }
 
     UserModel novoCliente() {

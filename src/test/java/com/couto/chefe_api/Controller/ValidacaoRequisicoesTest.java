@@ -7,6 +7,13 @@ import com.couto.chefe_api.Services.PratosService;
 import com.couto.chefe_api.Services.agendamentoService;
 import com.couto.chefe_api.User.UsuarioService;
 import com.couto.chefe_api.repositorys.ChefeRepository;
+import com.couto.chefe_api.Security.AuthCookies;
+import com.couto.chefe_api.Security.UsuarioAutenticado;
+import com.couto.chefe_api.enums.TipoUsuario;
+import org.junit.jupiter.api.AfterEach;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -51,11 +58,20 @@ class ValidacaoRequisicoesTest {
     void setUp() {
         mvc = MockMvcBuilders.standaloneSetup(
                         new AgendamentoController(agendamentoService),
-                        new UsuarioController(usuarioService, enderecoService),
+                        new UsuarioController(usuarioService, enderecoService, new AuthCookies(false)),
                         new ChefeController(chefeService),
                         new PratosController(pratosService, mock(ChefeRepository.class)))
                 .setControllerAdvice(new GlobalExceptionHandler())
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
+        UsuarioAutenticado usuario = new UsuarioAutenticado(UUID.randomUUID(), "ana@x.com", TipoUsuario.CLIENTE);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(usuario, null, usuario.getAuthorities()));
+    }
+
+    @AfterEach
+    void limparContexto() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -115,17 +131,17 @@ class ValidacaoRequisicoesTest {
     }
 
     @Test
-    void atualizarUsuarioValidaEmailEEnderecosAninhados() throws Exception {
+    void atualizarUsuarioValidaEnderecosAninhados() throws Exception {
         String json = """
-                {"nome":"Ana","email":"nao-eh-email","telefone":"11999999999",
+                {"nome":"Ana","telefone":"11999999999",
                  "endereco":[{"rua":"Rua A","numero":"1","cep":"123","cidade":"SP","bairro":"Centro",
                               "estado":"SP","tipoDeResidencia":"CASA"}]}
                 """;
 
-        mvc.perform(put("/usuario").param("id", UUID.randomUUID().toString())
+        mvc.perform(put("/usuario/me")
                         .contentType(MediaType.APPLICATION_JSON).content(json))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.campos[*].campo").value(hasItems("email", "endereco[0].cep")));
+                .andExpect(jsonPath("$.campos[*].campo").value(hasItems("endereco[0].cep")));
         verifyNoInteractions(usuarioService);
     }
 
