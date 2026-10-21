@@ -19,8 +19,5 @@ cloudinary:
   api-key: teste
   api-secret: teste
 
-resend:
-  secret-key: teste
-
 jwt:
   key: teste

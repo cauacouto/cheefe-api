@@ -30,23 +30,6 @@ public class AuthController {
        };
     }
 
-    @PostMapping("/login")
-    public ResponseEntity<LoginResponseDto> login(@RequestBody DadosLoginDto dto, HttpServletResponse response){
-        var result = loginService.login(dto);
-
-        if (result.token() != null) {
-            response.addHeader(HttpHeaders.SET_COOKIE, createAccessTokenCookie(result.token(), 8 * 3600).toString());
-        }
-
-        return ResponseEntity.ok().body(result.responseDto());
-    }
-
-    @PostMapping("/request-otp")
-    public ResponseEntity<OtpResponseDto> solicitarOtp(@RequestBody SolicitarOtpDto dto){
-        String otpId = this.loginService.solicitarOtp(dto.email());
-        return ResponseEntity.ok(new OtpResponseDto(otpId));
-    }
-
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletResponse response) {
         response.addHeader(HttpHeaders.SET_COOKIE, createAccessTokenCookie("", 0).toString());

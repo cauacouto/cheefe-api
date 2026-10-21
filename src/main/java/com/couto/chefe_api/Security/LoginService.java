@@ -2,11 +2,9 @@ package com.couto.chefe_api.Security;
 
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
-import com.couto.chefe_api.Config.Infra.ResendService;
 import com.couto.chefe_api.Dtos.*;
 import com.couto.chefe_api.Mapper.ChefeMapper;
 import com.couto.chefe_api.Mapper.UsuarioMapper;
-import com.couto.chefe_api.Security.otp.OtpService;
 import com.couto.chefe_api.User.UserModel;
 import com.couto.chefe_api.User.UsuarioRepository;
 import com.couto.chefe_api.domin.ChefeModel;
@@ -18,7 +16,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -30,8 +27,6 @@ public class LoginService {
     private final TokenService tokenService;
     private final ChefeMapper chefeMapper;
     private final ChefeRepository chefeRepository;
-    private final OtpService otpService;
-    private final ResendService resendService;
     private final Cloudinary cloudinary;
 
 
@@ -75,47 +70,6 @@ public class LoginService {
         return chefeMapper.toDto(chefeRepository.save(chefe));
     }
 
-
-
-    public String solicitarOtp(String email){
-
-        String otpId = UUID.randomUUID().toString();
-        String codigo = otpService.gerarCodigo();
-        otpService.salvarCodigo(otpId, email, codigo);
-        try {
-            resendService.enviarOtp(email, codigo);
-        } catch (RuntimeException ex) {
-            otpService.removerCodigo(otpId, email);
-            throw ex;
-        }
-        return otpId;
-    }
-
-
-    public LoginResult login(DadosLoginDto dados){
-
-
-       otpData data = otpService.validarCodigo(
-                dados.otpId(),
-                dados.codigo()
-
-        );
-
-        var usuario = repository.findByEmail(data.email());
-
-
-        if (usuario.isEmpty()){
-            return new LoginResult(null, new LoginResponseDto(
-                    true,
-                    data.email()
-            ));
-        }
-
-
-        String token = tokenService.gerarToken(usuario.get());
-
-        return new LoginResult(token, new LoginResponseDto(false, null));
-    }
 
 
     private String uploadImg(MultipartFile file) {
