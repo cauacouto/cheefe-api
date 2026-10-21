@@ -12,6 +12,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -21,42 +22,44 @@ import java.util.UUID;
 public class ChefeService {
 
     private final ChefeRepository chefeRepository;
-
-    private final ChefeMapper mapper;
     private final ChefeMapper chefeMapper;
 
-
-    public  ChefeResponseDto atualizarDados(ChefeRequestDto dto, UUID id){
-        ChefeModel chefe  = chefeRepository.findById(id).orElseThrow(ChefeNaoEncontradoException::new);
-        mapper.updateModelFromDto(dto,chefe);
-        ChefeModel salvar = chefeRepository.save(chefe);
-        return mapper.toDto(salvar);
+    @Transactional
+    public ChefeResponseDto atualizarDados(ChefeRequestDto dto, UUID id) {
+        ChefeModel chefe = chefeRepository.findById(id).orElseThrow(ChefeNaoEncontradoException::new);
+        chefeMapper.updateModelFromDto(dto, chefe);
+        return chefeMapper.toDto(chefeRepository.save(chefe));
     }
 
-    public Page<ChefeResponseDto> mostrarChefes (Pageable pageable, BigDecimal valorMnimmo, BigDecimal valorMaximo){
-        Specification<ChefeModel> spec = Specification
-                .where(ChefeSpecification.valorMinimoMaior(valorMnimmo))
+    @Transactional(readOnly = true)
+    public Page<ChefeResponseDto> mostrarChefes(Pageable pageable, BigDecimal valorMnimmo, BigDecimal valorMaximo) {
+        Specification<ChefeModel> spec = ChefeSpecification.ativo()
+                .and(ChefeSpecification.valorMinimoMaior(valorMnimmo))
                 .and(ChefeSpecification.valorMaximoMneor(valorMaximo));
 
-        return chefeRepository.findAll(spec,pageable)
+        return chefeRepository.findAll(spec, pageable)
                 .map(chefeMapper::toDto);
     }
 
-
+    @Transactional(readOnly = true)
     public Page<ChefeResponseDto> chefesMaisAgendados(Pageable pageable) {
         return chefeRepository.findMaisAgendados(pageable)
                 .map(chefeMapper::toDto);
     }
 
-    public void deletar(UUID id ){
-        chefeRepository.deleteById(id);
+    /**
+     * Soft delete: um chefe com agendamentos ou pratos não pode ser apagado
+     * (FK), e o histórico precisa continuar existindo.
+     */
+    @Transactional
+    public void deletar(UUID id) {
+        inativar(id);
     }
 
-    public void inativar(UUID id){
+    @Transactional
+    public void inativar(UUID id) {
         ChefeModel chefe = chefeRepository.findById(id).orElseThrow(ChefeNaoEncontradoException::new);
         chefe.setAtivo(false);
         chefeRepository.save(chefe);
     }
-
-
 }

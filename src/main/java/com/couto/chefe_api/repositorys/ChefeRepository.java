@@ -6,42 +6,18 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.math.BigDecimal;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface ChefeRepository extends JpaRepository<ChefeModel, UUID>,
-
-    JpaSpecificationExecutor<ChefeModel>{
-
-    List<ChefeModel> findByAtivoTrue();
-
-
-
-    List<ChefeModel> findByDisponivelTrue();
+public interface ChefeRepository extends JpaRepository<ChefeModel, UUID>, JpaSpecificationExecutor<ChefeModel> {
 
     Optional<ChefeModel> findByEmail(String usuarioLogado);
 
-
-@Query ("SELECT c FROM ChefeModel c WHERE " +
-           "(:valorMinimo IS NULL OR c.valorHora >= :valorMinimo) AND " +
-           "(:valorMaximo IS NULL OR c.valorHora <= :valorMaximo)")
-    Page<ChefeModel> findByFiltros(
-            @Param("valorMinimo") BigDecimal valorMinimo,
-            @Param("valorMaximo") BigDecimal valorMaximo,
-            Pageable pageable);
-
-
-    @Query("SELECT c FROM ChefeModel c LEFT JOIN c.agendamentos a " +
-            "GROUP BY c ORDER BY COUNT(a) DESC")
+    @Query(value = "SELECT c FROM ChefeModel c LEFT JOIN c.agendamentos a " +
+            "WHERE c.ativo = true GROUP BY c ORDER BY COUNT(a) DESC",
+            countQuery = "SELECT COUNT(c) FROM ChefeModel c WHERE c.ativo = true")
     Page<ChefeModel> findMaisAgendados(Pageable pageable);
-
-
-
-
 }
