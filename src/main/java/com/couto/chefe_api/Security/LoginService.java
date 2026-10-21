@@ -97,9 +97,10 @@ public class LoginService {
     }
 
     private Optional<UsuarioAutenticado> buscarConta(String email) {
-        return repository.findByEmail(email)
+        // IgnoreCase: contas da época do OTP guardam o e-mail como foi digitado
+        return repository.findByEmailIgnoreCase(email)
                 .map(usuario -> new UsuarioAutenticado(usuario.getId(), usuario.getEmail(), TipoUsuario.CLIENTE))
-                .or(() -> chefeRepository.findByEmail(email)
+                .or(() -> chefeRepository.findByEmailIgnoreCase(email)
                         .map(chefe -> new UsuarioAutenticado(chefe.getId(), chefe.getEmail(), TipoUsuario.CHEFE)));
     }
 

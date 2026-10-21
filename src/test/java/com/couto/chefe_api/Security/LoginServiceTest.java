@@ -59,8 +59,8 @@ class LoginServiceTest {
                 chefeRepository,
                 cloudinary
         );
-        when(usuarioRepository.findByEmail(any())).thenReturn(Optional.empty());
-        when(chefeRepository.findByEmail(any())).thenReturn(Optional.empty());
+        when(usuarioRepository.findByEmailIgnoreCase(any())).thenReturn(Optional.empty());
+        when(chefeRepository.findByEmailIgnoreCase(any())).thenReturn(Optional.empty());
         when(usuarioRepository.save(any())).thenAnswer(inv -> {
             UserModel usuario = inv.getArgument(0);
             usuario.setId(UUID.randomUUID());
@@ -78,7 +78,7 @@ class LoginServiceTest {
         UserModel usuario = new UserModel();
         usuario.setId(UUID.randomUUID());
         usuario.setEmail(EMAIL);
-        when(usuarioRepository.findByEmail(EMAIL)).thenReturn(Optional.of(usuario));
+        when(usuarioRepository.findByEmailIgnoreCase(EMAIL)).thenReturn(Optional.of(usuario));
 
         LoginResult result = loginService.loginGoogle(googleUser);
 
@@ -93,7 +93,7 @@ class LoginServiceTest {
         ChefeModel chefe = new ChefeModel();
         chefe.setId(UUID.randomUUID());
         chefe.setEmail(EMAIL);
-        when(chefeRepository.findByEmail(EMAIL)).thenReturn(Optional.of(chefe));
+        when(chefeRepository.findByEmailIgnoreCase(EMAIL)).thenReturn(Optional.of(chefe));
 
         LoginResult result = loginService.loginGoogle(googleUser);
 
@@ -164,7 +164,7 @@ class LoginServiceTest {
 
     @Test
     void registerComEmailJaExistenteEmQualquerTabelaLanca409() {
-        when(chefeRepository.findByEmail(EMAIL)).thenReturn(Optional.of(new ChefeModel()));
+        when(chefeRepository.findByEmailIgnoreCase(EMAIL)).thenReturn(Optional.of(new ChefeModel()));
 
         assertThrows(EmailJaCadastradoException.class,
                 () -> loginService.register(dto(TipoUsuario.CLIENTE, List.of()), null, tokenRegistro()));

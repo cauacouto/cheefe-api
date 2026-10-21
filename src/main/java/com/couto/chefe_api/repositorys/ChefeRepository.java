@@ -27,6 +27,8 @@ public interface ChefeRepository extends JpaRepository<ChefeModel, UUID>,
 
     Optional<ChefeModel> findByEmail(String usuarioLogado);
 
+    Optional<ChefeModel> findByEmailIgnoreCase(String email);
+
 
 @Query ("SELECT c FROM ChefeModel c WHERE " +
            "(:valorMinimo IS NULL OR c.valorHora >= :valorMinimo) AND " +
