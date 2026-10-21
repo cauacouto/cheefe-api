@@ -27,8 +27,6 @@ public class RegisterRequestDto {
 // campos usuario
     @NotBlank
     private String nome;
-    @NotBlank
-    private String email;
 
     private List<EnderecoRequestDto> endereco;
 

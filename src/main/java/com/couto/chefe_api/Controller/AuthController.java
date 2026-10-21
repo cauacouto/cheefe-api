@@ -3,6 +3,7 @@ package com.couto.chefe_api.Controller;
 import com.couto.chefe_api.Dtos.*;
 import com.couto.chefe_api.Security.AuthCookies;
 import com.couto.chefe_api.Security.LoginService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpStatus;
@@ -22,12 +23,16 @@ public class AuthController {
 
 
 
-    @PostMapping(value = "/register",consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> register(@RequestPart("dados") RegisterRequestDto dto, @RequestParam(value = "foto",required = false) MultipartFile foto){
-       return switch (dto.getTipoUsuario()){
-           case CLIENTE -> ResponseEntity.status(HttpStatus.CREATED).body(loginService.RegisterUsuario(dto,foto));
-           case CHEFE ->  ResponseEntity.status(HttpStatus.CREATED).body(loginService.registerChefe(dto,foto));
-       };
+    @PostMapping(value = "/register", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Object> register(
+            @Valid @RequestPart("dados") RegisterRequestDto dto,
+            @RequestParam(value = "foto", required = false) MultipartFile foto,
+            @CookieValue(name = AuthCookies.REGISTRO_TOKEN, required = false) String registroToken,
+            HttpServletResponse response) {
+        RegisterResult result = loginService.register(dto, foto, registroToken);
+        authCookies.adicionar(response, authCookies.accessToken(result.accessToken()));
+        authCookies.adicionar(response, authCookies.expirar(AuthCookies.REGISTRO_TOKEN, AuthCookies.PATH_REGISTRO));
+        return ResponseEntity.status(HttpStatus.CREATED).body(result.corpo());
     }
 
     @PostMapping("/logout")

@@ -14,6 +14,7 @@ public interface ChefeMapper {
     ChefeResponseDto toDto(ChefeModel model);
 
 
+    @Mapping(target = "email", ignore = true)
     ChefeModel toModel(RegisterRequestDto dto);
 
 @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
