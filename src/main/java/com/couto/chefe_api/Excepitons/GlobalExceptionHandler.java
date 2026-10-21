@@ -41,6 +41,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(NegocioException.class)
     public ResponseEntity<ProblemDetail> handleNegocio(NegocioException ex) {
+        if (ex.getStatus().is5xxServerError()) {
+            // falha de serviço externo (ex.: storage): o cliente só vê a mensagem genérica, a causa fica no log
+            log.error(ex.getMessage(), ex);
+        }
         return problema(ex.getStatus(), ex.getMessage());
     }
 
