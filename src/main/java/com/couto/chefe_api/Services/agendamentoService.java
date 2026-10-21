@@ -5,9 +5,10 @@ import com.couto.chefe_api.Dtos.AgendamentoResquestDto;
 import com.couto.chefe_api.Dtos.ListaAgendamentoChefeDto;
 import com.couto.chefe_api.Dtos.ListaAgendamentoUsuarioDto;
 import com.couto.chefe_api.Excepitons.AgendamentoException;
+import com.couto.chefe_api.Excepitons.AgendamentoInvalidoException;
 import com.couto.chefe_api.Excepitons.EnderecoException;
 import com.couto.chefe_api.Excepitons.UsuarioException;
-import com.couto.chefe_api.Excepitons.disponivelExcepiton;
+import com.couto.chefe_api.Excepitons.ChefeIndisponivelException;
 import com.couto.chefe_api.Mapper.AgendamentoMapper;
 import com.couto.chefe_api.User.UsuarioRepository;
 import com.couto.chefe_api.domin.Agendamento;
@@ -61,11 +62,11 @@ public class agendamentoService {
         boolean todosValidos = chefes.stream()
                 .allMatch(ChefeModel-> ChefeModel.isDisponivel() && ChefeModel.getAtivo());
         if (!todosValidos){
-            throw new disponivelExcepiton();
+            throw new ChefeIndisponivelException();
         }
 
         if (dto.getDataHoraFinal().isAfter(dto.getDataHoraInicial())){
-            throw new IllegalArgumentException("data/hora final deve ser maior que a inicial");
+            throw new AgendamentoInvalidoException("data/hora final deve ser maior que a inicial");
         }
 
        BigDecimal horas = BigDecimal.valueOf(
@@ -126,7 +127,7 @@ public class agendamentoService {
             boolean todosValidos = chefes.stream().allMatch(ChefeModel->
                     ChefeModel.isDisponivel() && ChefeModel.getAtivo());
             if (!todosValidos){
-                throw  new disponivelExcepiton();
+                throw  new ChefeIndisponivelException();
 
             }
             agenda.setChefes(chefes);

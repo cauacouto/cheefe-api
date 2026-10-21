@@ -3,7 +3,7 @@ package com.couto.chefe_api.Controller;
 import com.couto.chefe_api.Dtos.CadastraPratosDtoRequest;
 import com.couto.chefe_api.Dtos.CadastratPratosDtoResponse;
 import com.couto.chefe_api.Dtos.ListarPratosChefes;
-import com.couto.chefe_api.Excepitons.ChefeEception;
+import com.couto.chefe_api.Excepitons.ChefeNaoEncontradoException;
 import com.couto.chefe_api.Services.PratosService;
 import com.couto.chefe_api.domin.ChefeModel;
 import com.couto.chefe_api.repositorys.ChefeRepository;
@@ -33,7 +33,7 @@ public class PratosController {
     public ResponseEntity<CadastratPratosDtoResponse> cadastroPratos(@RequestPart("dados") CadastraPratosDtoRequest dto, @RequestParam MultipartFile foto, @AuthenticationPrincipal UserDetails usuarioLogado){
 
         ChefeModel chefe = chefeRepository.findByEmail(usuarioLogado.getUsername())
-                .orElseThrow(ChefeEception::new);
+                .orElseThrow(ChefeNaoEncontradoException::new);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(pratosService.cadastrarPratos(dto, foto, chefe.getId()));
@@ -54,7 +54,7 @@ public class PratosController {
     @GetMapping("/pratos/meus-pratos")
     public ResponseEntity<List<ListarPratosChefes>> meusPratos(@AuthenticationPrincipal UserDetails usuarioLogado) {
      ChefeModel chefe = chefeRepository.findByEmail(usuarioLogado.getUsername())
-             .orElseThrow(ChefeEception::new);
+             .orElseThrow(ChefeNaoEncontradoException::new);
         return ResponseEntity.ok(pratosService.listaPratos(chefe.getId()));
     }
 

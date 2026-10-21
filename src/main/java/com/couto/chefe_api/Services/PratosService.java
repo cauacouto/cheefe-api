@@ -5,7 +5,10 @@ import com.cloudinary.utils.ObjectUtils;
 import com.couto.chefe_api.Dtos.CadastraPratosDtoRequest;
 import com.couto.chefe_api.Dtos.CadastratPratosDtoResponse;
 import com.couto.chefe_api.Dtos.ListarPratosChefes;
-import com.couto.chefe_api.Excepitons.ChefeEception;
+import com.couto.chefe_api.Excepitons.ChefeNaoEncontradoException;
+import com.couto.chefe_api.Excepitons.FalhaUploadImagemException;
+import com.couto.chefe_api.Excepitons.ImagemInvalidaException;
+import com.couto.chefe_api.Excepitons.PratoNaoEncontradoException;
 import com.couto.chefe_api.Mapper.PratosMapper;
 import com.couto.chefe_api.domin.ChefeModel;
 import com.couto.chefe_api.domin.Pratos;
@@ -41,7 +44,7 @@ public class PratosService {
     public CadastratPratosDtoResponse cadastrarPratos(CadastraPratosDtoRequest dto, MultipartFile file, UUID id) {
 
         ChefeModel chefe = reposioty.findById(id)
-                .orElseThrow(ChefeEception::new);
+                .orElseThrow(ChefeNaoEncontradoException::new);
 
         String imageUrl = uploadImg(file);
 
@@ -67,7 +70,7 @@ public class PratosService {
     }
 
     public CadastratPratosDtoResponse updatePratos (CadastraPratosDtoRequest dto , Integer id){
-        Pratos pratos = patrosRepository.findById(id).orElseThrow(()-> new RuntimeException("prato não encontrado"));
+        Pratos pratos = patrosRepository.findById(id).orElseThrow(PratoNaoEncontradoException::new);
         pratosMapper.updatePrato(dto,pratos);
         Pratos salvar = patrosRepository.save(pratos);
         return pratosMapper.toDto(salvar);
@@ -76,10 +79,10 @@ public class PratosService {
 
     private String uploadImg(MultipartFile file) {
         if (!tiposPermitidos.contains(file.getContentType())) {
-            throw new RuntimeException("Apenas imagens são permitidas");
+            throw new ImagemInvalidaException("Apenas imagens são permitidas");
         }
         if (file.getSize() > tamanhoMaximo) {
-            throw new RuntimeException("Imagem muito grande");
+            throw new ImagemInvalidaException("Imagem muito grande");
         }
         try {
             Map uploadResult = cloudinary.uploader().upload(
@@ -88,7 +91,7 @@ public class PratosService {
             );
             return uploadResult.get("secure_url").toString();
         } catch (Exception e) {
-            throw new RuntimeException("Erro ao enviar imagem para Cloudinary", e);
+            throw new FalhaUploadImagemException(e);
         }
     }
 

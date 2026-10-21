@@ -3,7 +3,7 @@ package com.couto.chefe_api.Services;
 import com.couto.chefe_api.Chefe.ChefeSpecification;
 import com.couto.chefe_api.Dtos.ChefeRequestDto;
 import com.couto.chefe_api.Dtos.ChefeResponseDto;
-import com.couto.chefe_api.Excepitons.ChefeEception;
+import com.couto.chefe_api.Excepitons.ChefeNaoEncontradoException;
 import com.couto.chefe_api.Mapper.ChefeMapper;
 import com.couto.chefe_api.domin.ChefeModel;
 import com.couto.chefe_api.repositorys.ChefeRepository;
@@ -27,7 +27,7 @@ public class ChefeService {
 
 
     public  ChefeResponseDto atualizarDados(ChefeRequestDto dto, UUID id){
-        ChefeModel chefe  = chefeRepository.findById(id).orElseThrow(ChefeEception::new);
+        ChefeModel chefe  = chefeRepository.findById(id).orElseThrow(ChefeNaoEncontradoException::new);
         mapper.updateModelFromDto(dto,chefe);
         ChefeModel salvar = chefeRepository.save(chefe);
         return mapper.toDto(salvar);
@@ -53,7 +53,7 @@ public class ChefeService {
     }
 
     public void inativar(UUID id){
-        ChefeModel chefe = chefeRepository.findById(id).orElseThrow(ChefeEception::new);
+        ChefeModel chefe = chefeRepository.findById(id).orElseThrow(ChefeNaoEncontradoException::new);
         chefe.setAtivo(false);
         chefeRepository.save(chefe);
     }
