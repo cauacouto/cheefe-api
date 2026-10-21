@@ -12,6 +12,10 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
+import org.springframework.web.util.UriComponentsBuilder;
+
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -69,9 +73,41 @@ class OAuth2FlowIntegrationTest {
 
     @Test
     void usuarioCancelouRedirecionaParaErro() throws Exception {
-        mockMvc.perform(get("/login/oauth2/code/google").param("error", "access_denied").param("state", "xyz"))
+        FluxoIniciado fluxo = iniciarFluxo();
+
+        mockMvc.perform(get("/login/oauth2/code/google")
+                        .param("error", "access_denied")
+                        .param("state", fluxo.state())
+                        .cookie(fluxo.cookie()))
                 .andExpect(status().isFound())
                 .andExpect(redirectedUrl(ERRO));
+    }
+
+    @Test
+    void stateDivergenteComCookieRedirecionaParaErro() throws Exception {
+        FluxoIniciado fluxo = iniciarFluxo();
+
+        mockMvc.perform(get("/login/oauth2/code/google")
+                        .param("code", "abc")
+                        .param("state", "outro-state")
+                        .cookie(fluxo.cookie()))
+                .andExpect(status().isFound())
+                .andExpect(redirectedUrl(ERRO));
+    }
+
+    private FluxoIniciado iniciarFluxo() throws Exception {
+        MvcResult result = mockMvc.perform(get("/oauth2/authorization/google")).andReturn();
+        String location = result.getResponse().getHeader("Location");
+        String state = UriComponentsBuilder.fromUriString(location).build().getQueryParams().getFirst("state");
+        String header = result.getResponse().getHeaders("Set-Cookie").stream()
+                .filter(c -> c.startsWith(AuthCookies.OAUTH2_REQUEST + "="))
+                .findFirst()
+                .orElseThrow();
+        String valor = header.substring(header.indexOf('=') + 1, header.indexOf(';'));
+        return new FluxoIniciado(URLDecoder.decode(state, StandardCharsets.UTF_8), new Cookie(AuthCookies.OAUTH2_REQUEST, valor));
+    }
+
+    private record FluxoIniciado(String state, Cookie cookie) {
     }
 
     @Test
