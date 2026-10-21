@@ -1,6 +1,7 @@
 package com.couto.chefe_api.Security.bff;
 
 import com.couto.chefe_api.Dtos.LoginResult;
+import com.couto.chefe_api.Excepitons.ContaInativaException;
 import com.couto.chefe_api.Security.AuthCookies;
 import com.couto.chefe_api.Security.GoogleUser;
 import com.couto.chefe_api.Security.LoginService;
@@ -71,6 +72,17 @@ class GoogleLoginSuccessHandlerTest {
         assertEquals(FRONT + "/login?erro=google", response.getRedirectedUrl());
         assertTrue(response.getHeaders("Set-Cookie").isEmpty());
         verify(loginService, never()).loginGoogle(any());
+    }
+
+    @Test
+    void contaApagadaRedirecionaParaErroSemCookies() throws Exception {
+        when(loginService.loginGoogle(any())).thenThrow(new ContaInativaException());
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        handler.onAuthenticationSuccess(new MockHttpServletRequest(), response, autenticacao(true));
+
+        assertEquals(FRONT + "/login?erro=conta-inativa", response.getRedirectedUrl());
+        assertTrue(response.getHeaders("Set-Cookie").isEmpty());
     }
 
     @Test

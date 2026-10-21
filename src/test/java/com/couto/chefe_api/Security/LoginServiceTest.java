@@ -6,6 +6,7 @@ import com.couto.chefe_api.Dtos.RegisterRequestDto;
 import com.couto.chefe_api.Dtos.RegisterResult;
 import com.couto.chefe_api.Dtos.RegistroPendenteDto;
 import com.couto.chefe_api.Dtos.UserResponseDto;
+import com.couto.chefe_api.Excepitons.ContaInativaException;
 import com.couto.chefe_api.Excepitons.EmailJaCadastradoException;
 import com.couto.chefe_api.Excepitons.RegistroTokenInvalidoException;
 import com.couto.chefe_api.Mapper.ChefeMapper;
@@ -96,6 +97,17 @@ class LoginServiceTest {
         UsuarioAutenticado autenticado = tokenService.validarToken(result.accessToken()).orElseThrow();
         assertEquals(TipoUsuario.CHEFE, autenticado.tipo());
         assertEquals(chefe.getId(), autenticado.id());
+    }
+
+    @Test
+    void chefApagadoNaoRecebeToken() {
+        ChefeModel chefe = new ChefeModel();
+        chefe.setId(UUID.randomUUID());
+        chefe.setEmail(EMAIL);
+        chefe.setAtivo(false);
+        when(chefeRepository.findByEmailIgnoreCase(EMAIL)).thenReturn(Optional.of(chefe));
+
+        assertThrows(ContaInativaException.class, () -> loginService.loginGoogle(googleUser));
     }
 
     @Test

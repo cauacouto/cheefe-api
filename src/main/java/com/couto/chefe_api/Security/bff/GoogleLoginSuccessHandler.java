@@ -1,6 +1,7 @@
 package com.couto.chefe_api.Security.bff;
 
 import com.couto.chefe_api.Dtos.LoginResult;
+import com.couto.chefe_api.Excepitons.ContaInativaException;
 import com.couto.chefe_api.Security.AuthCookies;
 import com.couto.chefe_api.Security.GoogleUser;
 import com.couto.chefe_api.Security.LoginService;
@@ -44,7 +45,13 @@ public class GoogleLoginSuccessHandler implements AuthenticationSuccessHandler {
                 oidcUser.getFullName(),
                 oidcUser.getPicture()
         );
-        LoginResult result = loginService.loginGoogle(googleUser);
+        LoginResult result;
+        try {
+            result = loginService.loginGoogle(googleUser);
+        } catch (ContaInativaException e) {
+            response.sendRedirect(frontUrl + "/login?erro=conta-inativa");
+            return;
+        }
 
         if (result.accessToken() != null) {
             authCookies.adicionar(response, authCookies.accessToken(result.accessToken()));

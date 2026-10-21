@@ -88,7 +88,10 @@ public class LoginService {
         return repository.findByEmailIgnoreCase(email)
                 .map(usuario -> new UsuarioAutenticado(usuario.getId(), usuario.getEmail(), TipoUsuario.CLIENTE))
                 .or(() -> chefeRepository.findByEmailIgnoreCase(email)
-                        .map(chefe -> new UsuarioAutenticado(chefe.getId(), chefe.getEmail(), TipoUsuario.CHEFE)));
+                        .map(chefe -> {
+                            chefe.exigirAtivo();
+                            return new UsuarioAutenticado(chefe.getId(), chefe.getEmail(), TipoUsuario.CHEFE);
+                        }));
     }
 
     private GoogleUser validarRegistro(String registroToken) {

@@ -32,6 +32,7 @@ public class PratosService {
     public CadastratPratosDtoResponse cadastrarPratos(CadastraPratosDtoRequest dto, MultipartFile file, UUID id) {
         ChefeModel chefe = chefeRepository.findById(id)
                 .orElseThrow(ChefeNaoEncontradoException::new);
+        chefe.exigirAtivo();
 
         Pratos pratos = pratosMapper.toModel(dto);
         pratos.setChefeModel(chefe);
@@ -56,6 +57,7 @@ public class PratosService {
     public CadastratPratosDtoResponse updatePratos(CadastraPratosDtoRequest dto, Integer pratoId, UUID chefeId) {
         // prato de outro chef é tratado como inexistente
         Pratos pratos = patrosRepository.findByIdAndChefeModel_Id(pratoId, chefeId).orElseThrow(PratoNaoEncontradoException::new);
+        pratos.getChefeModel().exigirAtivo();
         pratosMapper.updatePrato(dto, pratos);
         Pratos salvar = patrosRepository.save(pratos);
         return pratosMapper.toDto(salvar);

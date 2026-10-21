@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -36,6 +37,7 @@ import static org.springframework.security.test.web.servlet.setup.SecurityMockMv
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -48,6 +50,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @ActiveProfiles("test")
 class AutorizacaoIntegrationTest {
+
+    private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n', 0, 0, 0, 0};
 
     @Autowired
     private WebApplicationContext context;
@@ -374,6 +378,32 @@ class AutorizacaoIntegrationTest {
                 + "\"enderecoId\":" + enderecoId + ","
                 + "\"chefeIds\":[\"" + chefe.getId() + "\"],"
                 + "\"quantidadePessoas\":2" + extras + "}";
+    }
+
+    @Test
+    void chefApagadoNaoOperaComTokenAntigo() throws Exception {
+        ChefeModel x = novoChefe();
+        Cookie tokenAntigo = cookieDe(x);
+        Pratos prato = novoPrato(x, "Moqueca");
+        Agendamento agendamento = novoAgendamento(novoCliente(), x);
+
+        mockMvc.perform(delete("/chefe/me").cookie(tokenAntigo)).andExpect(status().isNoContent());
+
+        mockMvc.perform(patch("/chefe/me").cookie(tokenAntigo).contentType(MediaType.APPLICATION_JSON).content("{\"nome\":\"Volta\"}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(put("/pratos/" + prato.getId()).cookie(tokenAntigo)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"nomePrato\":\"Novo\",\"descricao\":\"x\"}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(multipart("/pratos").file(new MockMultipartFile("dados", "", "application/json",
+                                "{\"nomePrato\":\"Novo\",\"descricao\":\"x\"}".getBytes()))
+                        .file(new MockMultipartFile("foto", "f.png", "image/png", PNG)).cookie(tokenAntigo))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(patch("/agendamentos/" + agendamento.getId() + "/confirmar").cookie(tokenAntigo))
+                .andExpect(status().isForbidden());
+
+        assertThat(agendamentoRepository.findById(agendamento.getId()).orElseThrow().getStatus())
+                .isEqualTo(StatusAgendamento.PENDENDE);
+        assertThat(pratosRepository.findById(prato.getId()).orElseThrow().getNomePrato()).isEqualTo("Moqueca");
     }
 
     UserModel novoCliente() {

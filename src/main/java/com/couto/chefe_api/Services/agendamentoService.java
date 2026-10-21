@@ -126,6 +126,9 @@ public class agendamentoService {
         Agendamento agendamento = agendamentoRepository.findById(idAgendamento)
                 .filter(a -> a.getChefes().stream().anyMatch(chefe -> chefe.getId().equals(chefeId)))
                 .orElseThrow(AgendamentoException::new);
+        agendamento.getChefes().stream()
+                .filter(chefe -> chefe.getId().equals(chefeId))
+                .forEach(ChefeModel::exigirAtivo);
         if (agendamento.getStatus() != StatusAgendamento.PENDENDE) {
             throw new AgendamentoNaoEditavelException(agendamento.getStatus());
         }

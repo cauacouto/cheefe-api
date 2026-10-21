@@ -27,6 +27,7 @@ public class ChefeService {
     @Transactional
     public ChefeResponseDto atualizarDados(ChefeRequestDto dto, UUID id) {
         ChefeModel chefe = chefeRepository.findById(id).orElseThrow(ChefeNaoEncontradoException::new);
+        chefe.exigirAtivo();
         chefeMapper.updateModelFromDto(dto, chefe);
         return chefeMapper.toDto(chefeRepository.save(chefe));
     }

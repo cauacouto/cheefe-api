@@ -1,5 +1,6 @@
 package com.couto.chefe_api.domin;
 
+import com.couto.chefe_api.Excepitons.ContaInativaException;
 import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.enums.Senioridade;
 import jakarta.persistence.*;
@@ -63,4 +64,11 @@ private Boolean ativo = true;
 
     @OneToMany(mappedBy = "chefeModel")
     private List<Pratos> pratos = new ArrayList<>();
+
+    /** Conta apagada não opera, mesmo com token ainda válido. */
+    public void exigirAtivo() {
+        if (!Boolean.TRUE.equals(ativo)) {
+            throw new ContaInativaException();
+        }
+    }
 }
