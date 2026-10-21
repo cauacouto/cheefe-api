@@ -6,6 +6,9 @@ import com.couto.chefe_api.Security.AuthCookies;
 import com.couto.chefe_api.Security.GoogleUser;
 import com.couto.chefe_api.Security.LoginService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
@@ -24,6 +27,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(OutputCaptureExtension.class)
 class GoogleLoginSuccessHandlerTest {
 
     private static final String FRONT = "http://localhost:5173";
@@ -83,6 +87,18 @@ class GoogleLoginSuccessHandlerTest {
 
         assertEquals(FRONT + "/login?erro=conta-inativa", response.getRedirectedUrl());
         assertTrue(response.getHeaders("Set-Cookie").isEmpty());
+    }
+
+    @Test
+    void erroInesperadoNoLoginRedirecionaParaErroERegistraNoLog(CapturedOutput output) throws Exception {
+        when(loginService.loginGoogle(any())).thenThrow(new IllegalStateException("banco fora do ar"));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        handler.onAuthenticationSuccess(new MockHttpServletRequest(), response, autenticacao(true));
+
+        assertEquals(FRONT + "/login?erro=google", response.getRedirectedUrl());
+        assertTrue(response.getHeaders("Set-Cookie").isEmpty());
+        assertTrue(output.getOut().contains("banco fora do ar"));
     }
 
     @Test

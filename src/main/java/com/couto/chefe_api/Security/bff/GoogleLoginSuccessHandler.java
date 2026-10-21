@@ -7,6 +7,7 @@ import com.couto.chefe_api.Security.GoogleUser;
 import com.couto.chefe_api.Security.LoginService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.util.Locale;
 
+@Slf4j
 @Component
 public class GoogleLoginSuccessHandler implements AuthenticationSuccessHandler {
 
@@ -50,6 +52,11 @@ public class GoogleLoginSuccessHandler implements AuthenticationSuccessHandler {
             result = loginService.loginGoogle(googleUser);
         } catch (ContaInativaException e) {
             response.sendRedirect(frontUrl + "/login?erro=conta-inativa");
+            return;
+        } catch (RuntimeException e) {
+            // ex.: banco fora do ar; o navegador está no meio do redirect, então volta ao front em vez de um JSON 500
+            log.error("Erro inesperado no login com Google", e);
+            response.sendRedirect(frontUrl + GoogleLoginFailureHandler.PATH_ERRO);
             return;
         }
 
