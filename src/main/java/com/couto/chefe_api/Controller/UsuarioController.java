@@ -1,6 +1,10 @@
 package com.couto.chefe_api.Controller;
 
 import com.couto.chefe_api.Dtos.EnderecoRequestDto;
+import com.couto.chefe_api.Dtos.FotoPerfilDto;
+import com.couto.chefe_api.Services.FotoPerfilService;
+import org.springframework.http.MediaType;
+import org.springframework.web.multipart.MultipartFile;
 import com.couto.chefe_api.Dtos.EnderecoResponseDto;
 import com.couto.chefe_api.Dtos.UserRequestDto;
 import com.couto.chefe_api.Dtos.UserResponseDto;
@@ -26,6 +30,7 @@ public class UsuarioController {
     private final UsuarioService usuarioService;
     private final EnderecoService enderecoService;
     private final AuthCookies authCookies;
+    private final FotoPerfilService fotoPerfilService;
 
     @GetMapping("/me")
     public ResponseEntity<UserResponseDto> buscar(@AuthenticationPrincipal UsuarioAutenticado usuario) {
@@ -43,6 +48,12 @@ public class UsuarioController {
         usuarioService.deletar(usuario.id());
         authCookies.adicionar(response, authCookies.expirar(AuthCookies.ACCESS_TOKEN, AuthCookies.PATH_RAIZ));
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping(value = "/me/foto", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<FotoPerfilDto> trocarFoto(@RequestParam MultipartFile foto,
+                                                    @AuthenticationPrincipal UsuarioAutenticado usuario) {
+        return ResponseEntity.ok(new FotoPerfilDto(fotoPerfilService.trocarFotoUsuario(usuario.id(), foto)));
     }
 
     @GetMapping("/enderecos")

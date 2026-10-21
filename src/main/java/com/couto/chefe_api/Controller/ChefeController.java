@@ -1,6 +1,10 @@
 package com.couto.chefe_api.Controller;
 
 import com.couto.chefe_api.Dtos.ChefePerfilDto;
+import com.couto.chefe_api.Dtos.FotoPerfilDto;
+import com.couto.chefe_api.Services.FotoPerfilService;
+import org.springframework.http.MediaType;
+import org.springframework.web.multipart.MultipartFile;
 import com.couto.chefe_api.Dtos.ChefeRequestDto;
 import com.couto.chefe_api.Dtos.ChefeResponseDto;
 import com.couto.chefe_api.Services.ChefeService;
@@ -24,6 +28,7 @@ public class ChefeController {
 
     private final ChefeService service;
     private final AuthCookies authCookies;
+    private final FotoPerfilService fotoPerfilService;
 
     @GetMapping
     public ResponseEntity <Page<ChefeResponseDto>> listarChefes(Pageable pageable,@RequestParam(required = false) BigDecimal valorMinimo,@RequestParam(required = false) BigDecimal valorMaximo){
@@ -51,6 +56,12 @@ public class ChefeController {
     public ResponseEntity<Void> ativar(@AuthenticationPrincipal UsuarioAutenticado chefe) {
         service.ativar(chefe.id());
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping(value = "/me/foto", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<FotoPerfilDto> trocarFoto(@RequestParam MultipartFile foto,
+                                                    @AuthenticationPrincipal UsuarioAutenticado chefe) {
+        return ResponseEntity.ok(new FotoPerfilDto(fotoPerfilService.trocarFotoChefe(chefe.id(), foto)));
     }
 
     @GetMapping("/destaque")

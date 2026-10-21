@@ -58,6 +58,7 @@ public class SecurityConfiguration  {
                         .requestMatchers(HttpMethod.GET, "/chefe/me").hasRole(CHEFE)
                         .requestMatchers(HttpMethod.PATCH, "/chefe/me", "/chefe/me/inativar", "/chefe/me/ativar").hasRole(CHEFE)
                         .requestMatchers(HttpMethod.DELETE, "/chefe/me").hasRole(CHEFE)
+                        .requestMatchers(HttpMethod.PUT, "/chefe/me/foto").hasRole(CHEFE)
                         .requestMatchers(HttpMethod.POST, "/pratos").hasRole(CHEFE)
                         .requestMatchers(HttpMethod.PUT, "/pratos/*").hasRole(CHEFE)
                         .requestMatchers(HttpMethod.GET, "/pratos/meus").hasRole(CHEFE)

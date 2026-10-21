@@ -7,6 +7,7 @@ import com.couto.chefe_api.Services.PratosService;
 import com.couto.chefe_api.Services.agendamentoService;
 import com.couto.chefe_api.User.UsuarioService;
 import com.couto.chefe_api.Security.AuthCookies;
+import com.couto.chefe_api.Services.FotoPerfilService;
 import com.couto.chefe_api.Security.UsuarioAutenticado;
 import com.couto.chefe_api.enums.TipoUsuario;
 import org.junit.jupiter.api.AfterEach;
@@ -57,8 +58,8 @@ class ValidacaoRequisicoesTest {
     void setUp() {
         mvc = MockMvcBuilders.standaloneSetup(
                         new AgendamentoController(agendamentoService),
-                        new UsuarioController(usuarioService, enderecoService, new AuthCookies(false)),
-                        new ChefeController(chefeService, new AuthCookies(false)),
+                        new UsuarioController(usuarioService, enderecoService, new AuthCookies(false), mock(FotoPerfilService.class)),
+                        new ChefeController(chefeService, new AuthCookies(false), mock(FotoPerfilService.class)),
                         new PratosController(pratosService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())

@@ -59,6 +59,14 @@ O `src/main/resources/application.yml` não é versionado. Use o modelo [`applic
 
 A aplicação **não sobe** sem o registro do Google e sem `FRONT_URL`.
 
+**Bancos criados antes do onboarding** (chef pode entrar só com o nome) precisam liberar as colunas uma vez, porque o `ddl-auto: update` não remove `NOT NULL`:
+
+```sql
+ALTER TABLE chefe ALTER COLUMN nacionalidade DROP NOT NULL;
+ALTER TABLE chefe ALTER COLUMN idiomas DROP NOT NULL;
+ALTER TABLE chefe ALTER COLUMN anos_de_experiencia DROP NOT NULL;
+```
+
 ### 🔐 Login com Google (BFF)
 
 O login é conduzido pela própria API (Authorization Code + PKCE). O navegador nunca recebe tokens do Google, só cookies HttpOnly.
@@ -87,10 +95,10 @@ Toda identidade vem do cookie de sessão: nenhuma rota recebe id ou e-mail de qu
 | Recurso | Rota | Papel |
 |---|---|---|
 | Sessão | `GET /auth/me` | qualquer logado |
-| Usuário | `GET` · `PUT` · `DELETE /usuario/me` (o e-mail não é editável; o DELETE encerra a sessão) | CLIENTE |
+| Usuário | `GET` · `PUT` · `DELETE /usuario/me` (o e-mail não é editável; o DELETE encerra a sessão); `PUT /usuario/me/foto` (multipart `foto`) | CLIENTE |
 | Endereços | `GET` · `POST /usuario/enderecos` | CLIENTE |
-| Chefs | `GET /chefe`, `GET /chefe/destaque` | qualquer logado |
-| Perfil do chef | `PATCH /chefe/me`; `PATCH /chefe/me/inativar` (pausa: some da busca e não recebe agendamentos novos) e `PATCH /chefe/me/ativar` (volta); `DELETE /chefe/me` (apaga a conta: não loga nem opera mais) | CHEFE |
+| Chefs | `GET /chefe`, `GET /chefe/destaque` (só chefs ativos, disponíveis e com perfil completo) | qualquer logado |
+| Perfil do chef | `GET /chefe/me` (inclui `perfilCompleto` e `camposPendentes`); `PATCH /chefe/me`; `PUT /chefe/me/foto` (multipart `foto`); `PATCH /chefe/me/inativar` (pausa: some da busca e não recebe agendamentos novos) e `PATCH /chefe/me/ativar` (volta); `DELETE /chefe/me` (apaga a conta: não loga nem opera mais) | CHEFE |
 | Pratos | `GET /pratos`, `GET /pratos/chefe/{chefeId}` | qualquer logado |
 | Meus pratos | `POST /pratos` (multipart `dados` + `foto`), `PUT /pratos/{id}`, `GET /pratos/meus` | CHEFE |
 | Agendamentos do cliente | `POST /agendamentos` (endereço precisa ser do cliente), `GET /agendamentos/meus`, `PUT /agendamentos/{id}` (só `PENDENTE`) | CLIENTE |
