@@ -1,6 +1,7 @@
 package com.couto.chefe_api.Services;
 
 import com.couto.chefe_api.Dtos.AgendamentoResquestDto;
+import com.couto.chefe_api.Dtos.AtualizarAgendamentoRequestDto;
 import com.couto.chefe_api.Excepitons.AgendamentoInvalidoException;
 import com.couto.chefe_api.Excepitons.AgendamentoNaoEditavelException;
 import com.couto.chefe_api.Excepitons.ChefeIndisponivelException;
@@ -171,7 +172,7 @@ class AgendamentoServiceTest {
 
         @Test
         void semEnderecoIdMantemEnderecoSemBuscar() {
-            service.atualizarAgedamento(dto(null, null, null, null, 5), 7L);
+            service.atualizarAgedamento(atualizacao(null, null, null, null, 5), 7L);
 
             assertThat(agendamentoSalvo().getEndereco()).isSameAs(endereco);
             verify(endercoRepository, never()).findById(any());
@@ -179,7 +180,7 @@ class AgendamentoServiceTest {
 
         @Test
         void atualizaQuantidadeDePessoas() {
-            service.atualizarAgedamento(dto(null, null, null, null, 5), 7L);
+            service.atualizarAgedamento(atualizacao(null, null, null, null, 5), 7L);
 
             assertThat(agendamentoSalvo().getQuantidadePessoas()).isEqualTo(5);
         }
@@ -188,7 +189,7 @@ class AgendamentoServiceTest {
         void listaDeChefesPreenchidaTrocaChefesERecalculaValor() {
             chefesExistentes(chefeB);
 
-            service.atualizarAgedamento(dto(null, null, null, ids(chefeB), null), 7L);
+            service.atualizarAgedamento(atualizacao(null, null, null, ids(chefeB), null), 7L);
 
             Agendamento salvo = agendamentoSalvo();
             assertThat(salvo.getChefes()).containsExactly(chefeB);
@@ -197,7 +198,7 @@ class AgendamentoServiceTest {
 
         @Test
         void listaDeChefesVaziaNaoRemoveOsChefes() {
-            service.atualizarAgedamento(dto(null, null, null, List.of(), null), 7L);
+            service.atualizarAgedamento(atualizacao(null, null, null, List.of(), null), 7L);
 
             assertThat(agendamentoSalvo().getChefes()).containsExactly(chefeA);
             verify(chefeRepository, never()).findAllById(anyIterable());
@@ -208,14 +209,14 @@ class AgendamentoServiceTest {
             chefesExistentes();
 
             assertThatThrownBy(() -> service.atualizarAgedamento(
-                    dto(null, null, null, List.of(UUID.randomUUID()), null), 7L))
+                    atualizacao(null, null, null, List.of(UUID.randomUUID()), null), 7L))
                     .isInstanceOf(ChefeNaoEncontradoException.class);
             assertThat(agenda.getChefes()).containsExactly(chefeA);
         }
 
         @Test
         void novasDatasSaoGravadasNaEntidadeERecalculamValor() {
-            service.atualizarAgedamento(dto(DIA.withHour(19), DIA.withHour(22), null, null, null), 7L);
+            service.atualizarAgedamento(atualizacao(DIA.withHour(19), DIA.withHour(22), null, null, null), 7L);
 
             Agendamento salvo = agendamentoSalvo();
             assertThat(salvo.getDataHoraInicial()).isEqualTo(DIA.withHour(19));
@@ -225,7 +226,7 @@ class AgendamentoServiceTest {
 
         @Test
         void soODataFinalUsaOInicioExistente() {
-            service.atualizarAgedamento(dto(null, DIA.withHour(21), null, null, null), 7L);
+            service.atualizarAgedamento(atualizacao(null, DIA.withHour(21), null, null, null), 7L);
 
             Agendamento salvo = agendamentoSalvo();
             assertThat(salvo.getDataHoraInicial()).isEqualTo(DIA.withHour(18));
@@ -235,7 +236,7 @@ class AgendamentoServiceTest {
         @Test
         void fimAntesDoInicioExistenteEhRejeitado() {
             assertThatThrownBy(() -> service.atualizarAgedamento(
-                    dto(null, DIA.withHour(17), null, null, null), 7L))
+                    atualizacao(null, DIA.withHour(17), null, null, null), 7L))
                     .isInstanceOf(AgendamentoInvalidoException.class);
             verify(agendamentoRepository, never()).save(any());
         }
@@ -244,7 +245,7 @@ class AgendamentoServiceTest {
         void agendamentoForaDePendenteNaoPodeSerEditado() {
             agenda.setStatus(StatusAgendamento.CONFIRMADO);
 
-            assertThatThrownBy(() -> service.atualizarAgedamento(dto(null, null, null, null, 5), 7L))
+            assertThatThrownBy(() -> service.atualizarAgedamento(atualizacao(null, null, null, null, 5), 7L))
                     .isInstanceOf(AgendamentoNaoEditavelException.class);
             verify(agendamentoRepository, never()).save(any());
         }
@@ -273,6 +274,11 @@ class AgendamentoServiceTest {
     private static AgendamentoResquestDto dto(LocalDateTime inicio, LocalDateTime fim, Long enderecoId,
                                               List<UUID> chefeIds, Integer quantidadePessoas) {
         return new AgendamentoResquestDto(inicio, fim, enderecoId, chefeIds, quantidadePessoas);
+    }
+
+    private static AtualizarAgendamentoRequestDto atualizacao(LocalDateTime inicio, LocalDateTime fim, Long enderecoId,
+                                                              List<UUID> chefeIds, Integer quantidadePessoas) {
+        return new AtualizarAgendamentoRequestDto(inicio, fim, enderecoId, chefeIds, quantidadePessoas);
     }
 
     private Agendamento agendamentoSalvo() {

@@ -2,6 +2,7 @@ package com.couto.chefe_api.Services;
 
 import com.couto.chefe_api.Dtos.AgendamentoResponseDto;
 import com.couto.chefe_api.Dtos.AgendamentoResquestDto;
+import com.couto.chefe_api.Dtos.AtualizarAgendamentoRequestDto;
 import com.couto.chefe_api.Dtos.ListaAgendamentoChefeDto;
 import com.couto.chefe_api.Dtos.ListaAgendamentoUsuarioDto;
 import com.couto.chefe_api.Excepitons.AgendamentoException;
@@ -79,7 +80,7 @@ public class agendamentoService {
      * Uma lista de chefes vazia é ignorada (não remove os chefes).
      */
     @Transactional
-    public AgendamentoResponseDto atualizarAgedamento(AgendamentoResquestDto dto, Long agendamentoId) {
+    public AgendamentoResponseDto atualizarAgedamento(AtualizarAgendamentoRequestDto dto, Long agendamentoId) {
         Agendamento agenda = agendamentoRepository.findById(agendamentoId)
                 .orElseThrow(AgendamentoException::new);
 
@@ -87,28 +88,28 @@ public class agendamentoService {
             throw new AgendamentoNaoEditavelException(agenda.getStatus());
         }
 
-        if (dto.getEnderecoId() != null) {
-            agenda.setEndereco(buscarEndereco(dto.getEnderecoId()));
+        if (dto.enderecoId() != null) {
+            agenda.setEndereco(buscarEndereco(dto.enderecoId()));
         }
 
         boolean recalcular = false;
 
-        if (dto.getChefeIds() != null && !dto.getChefeIds().isEmpty()) {
-            agenda.setChefes(validarChefes(dto.getChefeIds()));
+        if (dto.chefeIds() != null && !dto.chefeIds().isEmpty()) {
+            agenda.setChefes(validarChefes(dto.chefeIds()));
             recalcular = true;
         }
 
-        if (dto.getDataHoraInicial() != null || dto.getDataHoraFinal() != null) {
-            LocalDateTime inicio = dto.getDataHoraInicial() != null ? dto.getDataHoraInicial() : agenda.getDataHoraInicial();
-            LocalDateTime fim = dto.getDataHoraFinal() != null ? dto.getDataHoraFinal() : agenda.getDataHoraFinal();
+        if (dto.dataHoraInicial() != null || dto.dataHoraFinal() != null) {
+            LocalDateTime inicio = dto.dataHoraInicial() != null ? dto.dataHoraInicial() : agenda.getDataHoraInicial();
+            LocalDateTime fim = dto.dataHoraFinal() != null ? dto.dataHoraFinal() : agenda.getDataHoraFinal();
             validarPeriodo(inicio, fim);
             agenda.setDataHoraInicial(inicio);
             agenda.setDataHoraFinal(fim);
             recalcular = true;
         }
 
-        if (dto.getQuantidadePessoas() != null) {
-            agenda.setQuantidadePessoas(dto.getQuantidadePessoas());
+        if (dto.quantidadePessoas() != null) {
+            agenda.setQuantidadePessoas(dto.quantidadePessoas());
         }
 
         if (recalcular) {
