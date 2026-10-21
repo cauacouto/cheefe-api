@@ -3,6 +3,7 @@ package com.couto.chefe_api.Security;
 import com.couto.chefe_api.Security.bff.CookieOAuth2AuthorizationRequestRepository;
 import com.couto.chefe_api.Security.bff.GoogleLoginFailureHandler;
 import com.couto.chefe_api.Security.bff.GoogleLoginSuccessHandler;
+import com.couto.chefe_api.Security.bff.NaoArmazenarAuthorizedClientRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,6 +34,7 @@ public class SecurityConfiguration  {
     private final CookieOAuth2AuthorizationRequestRepository authorizationRequestRepository;
     private final GoogleLoginSuccessHandler successHandler;
     private final GoogleLoginFailureHandler failureHandler;
+    private final NaoArmazenarAuthorizedClientRepository authorizedClientRepository;
 
 
     @Bean
@@ -51,6 +53,7 @@ public class SecurityConfiguration  {
                         .authorizationEndpoint(endpoint -> endpoint
                                 .authorizationRequestRepository(authorizationRequestRepository)
                                 .authorizationRequestResolver(authorizationRequestResolver(clientRegistrationRepository)))
+                        .authorizedClientRepository(authorizedClientRepository)
                         .successHandler(successHandler)
                         .failureHandler(failureHandler)
                 )
