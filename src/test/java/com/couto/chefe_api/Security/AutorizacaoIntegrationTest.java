@@ -41,6 +41,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -107,6 +108,17 @@ class AutorizacaoIntegrationTest {
         mockMvc.perform(get("/pratos/meus").cookie(cliente)).andExpect(status().isForbidden());
         mockMvc.perform(patch("/agendamentos/1/confirmar").cookie(cliente)).andExpect(status().isForbidden());
         mockMvc.perform(get("/agendamentos/recebidos").cookie(cliente)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void papelErradoDa403ComProblemDetail() throws Exception {
+        mockMvc.perform(get("/pratos/meus").cookie(cookieDe(novoCliente())))
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.title").value("Forbidden"))
+                .andExpect(jsonPath("$.detail").value("acesso negado"))
+                .andExpect(jsonPath("$.instance").value("/pratos/meus"));
     }
 
     @Test
