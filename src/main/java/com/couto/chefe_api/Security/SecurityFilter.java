@@ -51,17 +51,10 @@ public class SecurityFilter extends OncePerRequestFilter {
     }
 
     private void autenticarUsuario(String token) {
-        String email = tokenService.validarToken(token);
-
-        if (email.isBlank()) {
-            return;
-        }
-
-        var usuario = usuarioRepository.findByEmail(email)
-                .orElseThrow(UsuarioException::new);
-
-        var authentication = new UsernamePasswordAuthenticationToken(usuario, null, List.of());
-        SecurityContextHolder.getContext().setAuthentication(authentication);
+        tokenService.validarToken(token).ifPresent(usuario -> {
+            var authentication = new UsernamePasswordAuthenticationToken(usuario, null, usuario.getAuthorities());
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+        });
     }
 
     private String recoverToken(HttpServletRequest request){
