@@ -3,6 +3,7 @@ package com.couto.chefe_api.Controller;
 import com.couto.chefe_api.Dtos.ChefeRequestDto;
 import com.couto.chefe_api.Dtos.ChefeResponseDto;
 import com.couto.chefe_api.Services.ChefeService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -24,7 +25,7 @@ public class ChefeController {
         return ResponseEntity.ok().body(service.mostrarChefes(pageable,valorMinimo,valorMaximo));
     }
     @PatchMapping("/{id}")
-    public ResponseEntity<ChefeResponseDto> atualizar(@RequestBody ChefeRequestDto dto, @PathVariable UUID id){
+    public ResponseEntity<ChefeResponseDto> atualizar(@Valid @RequestBody ChefeRequestDto dto, @PathVariable UUID id){
         var chefeAtualizado = service.atualizarDados(dto,id);
         return ResponseEntity.ok(chefeAtualizado);
 

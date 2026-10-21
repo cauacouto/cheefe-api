@@ -3,10 +3,11 @@ package com.couto.chefe_api.Controller;
 import com.couto.chefe_api.Dtos.CadastraPratosDtoRequest;
 import com.couto.chefe_api.Dtos.CadastratPratosDtoResponse;
 import com.couto.chefe_api.Dtos.ListarPratosChefes;
-import com.couto.chefe_api.Excepitons.ChefeEception;
+import com.couto.chefe_api.Excepitons.ChefeNaoEncontradoException;
 import com.couto.chefe_api.Services.PratosService;
 import com.couto.chefe_api.domin.ChefeModel;
 import com.couto.chefe_api.repositorys.ChefeRepository;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -30,10 +31,10 @@ public class PratosController {
 
                                                                                                                                                   //adicionar UserDeails
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<CadastratPratosDtoResponse> cadastroPratos(@RequestPart("dados") CadastraPratosDtoRequest dto, @RequestParam MultipartFile foto, @AuthenticationPrincipal UserDetails usuarioLogado){
+    public ResponseEntity<CadastratPratosDtoResponse> cadastroPratos(@Valid @RequestPart("dados") CadastraPratosDtoRequest dto, @RequestParam MultipartFile foto, @AuthenticationPrincipal UserDetails usuarioLogado){
 
         ChefeModel chefe = chefeRepository.findByEmail(usuarioLogado.getUsername())
-                .orElseThrow(ChefeEception::new);
+                .orElseThrow(ChefeNaoEncontradoException::new);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(pratosService.cadastrarPratos(dto, foto, chefe.getId()));
@@ -54,12 +55,12 @@ public class PratosController {
     @GetMapping("/pratos/meus-pratos")
     public ResponseEntity<List<ListarPratosChefes>> meusPratos(@AuthenticationPrincipal UserDetails usuarioLogado) {
      ChefeModel chefe = chefeRepository.findByEmail(usuarioLogado.getUsername())
-             .orElseThrow(ChefeEception::new);
+             .orElseThrow(ChefeNaoEncontradoException::new);
         return ResponseEntity.ok(pratosService.listaPratos(chefe.getId()));
     }
 
     @PutMapping
-    public ResponseEntity<CadastratPratosDtoResponse> updatePratos(@RequestBody CadastraPratosDtoRequest dto, Integer id){
+    public ResponseEntity<CadastratPratosDtoResponse> updatePratos(@Valid @RequestBody CadastraPratosDtoRequest dto, Integer id){
         CadastratPratosDtoResponse response = pratosService.updatePratos(dto,id);
         return ResponseEntity.ok().body(response);
     }

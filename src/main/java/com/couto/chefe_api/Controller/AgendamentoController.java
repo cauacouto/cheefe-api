@@ -2,9 +2,11 @@ package com.couto.chefe_api.Controller;
 
 import com.couto.chefe_api.Dtos.AgendamentoResponseDto;
 import com.couto.chefe_api.Dtos.AgendamentoResquestDto;
+import com.couto.chefe_api.Dtos.AtualizarAgendamentoRequestDto;
 import com.couto.chefe_api.Dtos.ListaAgendamentoChefeDto;
 import com.couto.chefe_api.Dtos.ListaAgendamentoUsuarioDto;
 import com.couto.chefe_api.Services.agendamentoService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,7 +24,7 @@ public class AgendamentoController {
 
 
 @PostMapping
-    public ResponseEntity<AgendamentoResponseDto> criarAgendamento(@RequestBody AgendamentoResquestDto dto,@RequestParam String email){
+    public ResponseEntity<AgendamentoResponseDto> criarAgendamento(@Valid @RequestBody AgendamentoResquestDto dto,@RequestParam String email){
         return ResponseEntity.status(HttpStatus.CREATED).body(service.criarAgendamento(dto,email));
     }
 
@@ -32,7 +34,7 @@ public class AgendamentoController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<AgendamentoResponseDto> atualizarAgendamento(@RequestBody AgendamentoResquestDto dto,@PathVariable Long id){
+    public ResponseEntity<AgendamentoResponseDto> atualizarAgendamento(@Valid @RequestBody AtualizarAgendamentoRequestDto dto,@PathVariable Long id){
         var update = service.atualizarAgedamento(dto, id);
         return ResponseEntity.ok().body(update);
     }

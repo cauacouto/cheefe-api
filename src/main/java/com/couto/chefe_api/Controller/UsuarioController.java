@@ -6,6 +6,7 @@ import com.couto.chefe_api.Dtos.UserRequestDto;
 import com.couto.chefe_api.Dtos.UserResponseDto;
 import com.couto.chefe_api.Services.EnderecoService;
 import com.couto.chefe_api.User.UsuarioService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -27,7 +28,7 @@ public class UsuarioController {
 
 
     @PutMapping
-    public ResponseEntity<UserResponseDto> atualizar(@RequestBody UserRequestDto dto, UUID id){
+    public ResponseEntity<UserResponseDto> atualizar(@Valid @RequestBody UserRequestDto dto, UUID id){
         var update = usuarioService.atualizarUsuario(dto,id);
         return ResponseEntity.ok().body(update);
     }
@@ -58,7 +59,7 @@ public ResponseEntity<Void> deletar (@PathVariable UUID id){
 
     @PostMapping("/enderecos")
     public ResponseEntity<EnderecoResponseDto> adicionarEndereco(
-            @RequestBody EnderecoRequestDto dto,
+            @Valid @RequestBody EnderecoRequestDto dto,
             Authentication authentication) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(enderecoService.adicionarEndereco(dto, authentication.getName()));

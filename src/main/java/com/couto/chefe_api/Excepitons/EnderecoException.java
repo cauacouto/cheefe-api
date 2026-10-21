@@ -1,6 +1,6 @@
 package com.couto.chefe_api.Excepitons;
 
-public class EnderecoException extends RuntimeException {
+public class EnderecoException extends RecursoNaoEncontradoException {
 
 
     public EnderecoException() {
