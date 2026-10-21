@@ -23,6 +23,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -74,6 +75,15 @@ class OnboardingIntegrationTest {
 
         ChefeModel chefe = chefeRepository.findByEmailIgnoreCase(email).orElseThrow();
         assertThat(chefe.isPerfilCompleto()).isFalse();
+    }
+
+    @Test
+    void chefComValoresInvalidosNoRegistroDa400() throws Exception {
+        registrar("{\"tipoUsuario\":\"CHEFE\",\"nome\":\"Bia\",\"valorHora\":-100,\"anosDeExperiencia\":-4}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.campos[*].campo").value(containsInAnyOrder("valorHora", "anosDeExperiencia")));
+
+        assertThat(chefeRepository.findByEmailIgnoreCase(email)).isEmpty();
     }
 
     @Test
