@@ -14,12 +14,10 @@ import java.util.UUID;
 @Repository
 public interface ChefeRepository extends JpaRepository<ChefeModel, UUID>, JpaSpecificationExecutor<ChefeModel> {
 
-    Optional<ChefeModel> findByEmail(String usuarioLogado);
-
     Optional<ChefeModel> findByEmailIgnoreCase(String email);
 
     @Query(value = "SELECT c FROM ChefeModel c LEFT JOIN c.agendamentos a " +
-            "WHERE c.ativo = true GROUP BY c ORDER BY COUNT(a) DESC",
-            countQuery = "SELECT COUNT(c) FROM ChefeModel c WHERE c.ativo = true")
+            "WHERE c.ativo = true AND c.disponivel = true GROUP BY c ORDER BY COUNT(a) DESC",
+            countQuery = "SELECT COUNT(c) FROM ChefeModel c WHERE c.ativo = true AND c.disponivel = true")
     Page<ChefeModel> findMaisAgendados(Pageable pageable);
 }

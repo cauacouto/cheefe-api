@@ -14,6 +14,10 @@ public final class ChefeSpecification {
         return (root, query, cb) -> cb.isTrue(root.get("ativo"));
     }
 
+    public static Specification<ChefeModel> disponivel() {
+        return (root, query, cb) -> cb.isTrue(root.get("disponivel"));
+    }
+
     public static Specification<ChefeModel> valorMinimoMaior(BigDecimal valorMinimo) {
         return (root, query, cb) ->
                 valorMinimo == null ? null : cb.greaterThanOrEqualTo(root.get("valorHora"), valorMinimo);

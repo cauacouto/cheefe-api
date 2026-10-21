@@ -1,7 +1,9 @@
 package com.couto.chefe_api.Services;
 
 import com.couto.chefe_api.Dtos.ChefeResponseDto;
+import com.couto.chefe_api.Dtos.ChefeRequestDto;
 import com.couto.chefe_api.Excepitons.ChefeNaoEncontradoException;
+import com.couto.chefe_api.Excepitons.ContaInativaException;
 import com.couto.chefe_api.domin.ChefeModel;
 import com.couto.chefe_api.repositorys.ChefeRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -74,6 +76,45 @@ class ChefeServiceIntegrationTest {
     void deletarChefeInexistenteDa404() {
         assertThatThrownBy(() -> chefeService.deletar(UUID.randomUUID()))
                 .isInstanceOf(ChefeNaoEncontradoException.class);
+    }
+
+    @Test
+    void pausarEscondeDaBuscaSemBloquearAConta() {
+        chefeService.inativar(ativo.getId());
+
+        ChefeModel pausado = chefeRepository.findById(ativo.getId()).orElseThrow();
+        assertThat(pausado.getAtivo()).isTrue();
+        assertThat(pausado.isDisponivel()).isFalse();
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null).getContent()).isEmpty();
+        assertThat(chefeService.chefesMaisAgendados(PageRequest.of(0, 10)).getContent()).isEmpty();
+    }
+
+    @Test
+    void chefPausadoContinuaEditandoOPerfil() {
+        chefeService.inativar(ativo.getId());
+
+        chefeService.atualizarDados(new ChefeRequestDto("Renomeado", null, null, null, null, null, null), ativo.getId());
+
+        assertThat(chefeRepository.findById(ativo.getId()).orElseThrow().getNome()).isEqualTo("Renomeado");
+    }
+
+    @Test
+    void ativarDepoisDaPausaVoltaAAparecer() {
+        chefeService.inativar(ativo.getId());
+
+        chefeService.ativar(ativo.getId());
+
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null).getContent())
+                .extracting(ChefeResponseDto::nome)
+                .containsExactly("Ativo");
+    }
+
+    @Test
+    void contaApagadaNaoPodeSerReativada() {
+        chefeService.deletar(ativo.getId());
+
+        assertThatThrownBy(() -> chefeService.ativar(ativo.getId()))
+                .isInstanceOf(ContaInativaException.class);
     }
 
     private static ChefeModel chefe(String nome, boolean ativo) {

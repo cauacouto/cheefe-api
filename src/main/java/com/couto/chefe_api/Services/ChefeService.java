@@ -35,6 +35,7 @@ public class ChefeService {
     @Transactional(readOnly = true)
     public Page<ChefeResponseDto> mostrarChefes(Pageable pageable, BigDecimal valorMnimmo, BigDecimal valorMaximo) {
         Specification<ChefeModel> spec = ChefeSpecification.ativo()
+                .and(ChefeSpecification.disponivel())
                 .and(ChefeSpecification.valorMinimoMaior(valorMnimmo))
                 .and(ChefeSpecification.valorMaximoMneor(valorMaximo));
 
@@ -49,18 +50,32 @@ public class ChefeService {
     }
 
     /**
-     * Soft delete: um chefe com agendamentos ou pratos não pode ser apagado
-     * (FK), e o histórico precisa continuar existindo.
+     * Apagar a conta: soft delete (ativo=false). Um chefe com agendamentos ou pratos não pode
+     * ser apagado de fato (FK), e o histórico precisa continuar existindo. Conta apagada não
+     * loga nem opera.
      */
     @Transactional
     public void deletar(UUID id) {
-        inativar(id);
+        ChefeModel chefe = chefeRepository.findById(id).orElseThrow(ChefeNaoEncontradoException::new);
+        chefe.setAtivo(false);
+        chefeRepository.save(chefe);
+    }
+
+    /** Pausa: some da busca e não recebe agendamentos novos, mas a conta continua operando. */
+    @Transactional
+    public void inativar(UUID id) {
+        alterarDisponibilidade(id, false);
     }
 
     @Transactional
-    public void inativar(UUID id) {
+    public void ativar(UUID id) {
+        alterarDisponibilidade(id, true);
+    }
+
+    private void alterarDisponibilidade(UUID id, boolean disponivel) {
         ChefeModel chefe = chefeRepository.findById(id).orElseThrow(ChefeNaoEncontradoException::new);
-        chefe.setAtivo(false);
+        chefe.exigirAtivo();
+        chefe.setDisponivel(disponivel);
         chefeRepository.save(chefe);
     }
 }

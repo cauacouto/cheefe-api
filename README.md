@@ -90,7 +90,7 @@ Toda identidade vem do cookie de sessão: nenhuma rota recebe id ou e-mail de qu
 | Usuário | `GET` · `PUT` · `DELETE /usuario/me` (o e-mail não é editável; o DELETE encerra a sessão) | CLIENTE |
 | Endereços | `GET` · `POST /usuario/enderecos` | CLIENTE |
 | Chefs | `GET /chefe`, `GET /chefe/destaque` | qualquer logado |
-| Perfil do chef | `PATCH /chefe/me`, `PATCH /chefe/me/inativar`, `DELETE /chefe/me` | CHEFE |
+| Perfil do chef | `PATCH /chefe/me`; `PATCH /chefe/me/inativar` (pausa: some da busca e não recebe agendamentos novos) e `PATCH /chefe/me/ativar` (volta); `DELETE /chefe/me` (apaga a conta: não loga nem opera mais) | CHEFE |
 | Pratos | `GET /pratos`, `GET /pratos/chefe/{chefeId}` | qualquer logado |
 | Meus pratos | `POST /pratos` (multipart `dados` + `foto`), `PUT /pratos/{id}`, `GET /pratos/meus` | CHEFE |
 | Agendamentos do cliente | `POST /agendamentos` (endereço precisa ser do cliente), `GET /agendamentos/meus`, `PUT /agendamentos/{id}` (só `PENDENTE`) | CLIENTE |

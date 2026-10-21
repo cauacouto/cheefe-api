@@ -41,6 +41,12 @@ public class ChefeController {
         return ResponseEntity.noContent().build();
     }
 
+    @PatchMapping("/me/ativar")
+    public ResponseEntity<Void> ativar(@AuthenticationPrincipal UsuarioAutenticado chefe) {
+        service.ativar(chefe.id());
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/destaque")
     public ResponseEntity<Page<ChefeResponseDto>> chefesMaisAgendados(Pageable pageable) {
         return ResponseEntity.ok(service.chefesMaisAgendados(pageable));
