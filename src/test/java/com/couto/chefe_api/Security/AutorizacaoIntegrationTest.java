@@ -1,5 +1,7 @@
 package com.couto.chefe_api.Security;
 
+import com.couto.chefe_api.enums.Senioridade;
+import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.User.UserModel;
 import com.couto.chefe_api.User.UsuarioRepository;
 import com.couto.chefe_api.domin.Agendamento;
@@ -496,6 +498,9 @@ class AutorizacaoIntegrationTest {
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
         chefe.setValorHora(new BigDecimal("100"));
+        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setSenioridade(Senioridade.HEAD_CHEF);
+        chefe.setAnosDeExperiencia(5);
         chefe.setDisponivel(true);
         chefe.setAtivo(true);
         return chefeRepository.save(chefe);

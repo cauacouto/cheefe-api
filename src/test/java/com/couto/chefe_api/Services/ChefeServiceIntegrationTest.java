@@ -1,5 +1,7 @@
 package com.couto.chefe_api.Services;
 
+import com.couto.chefe_api.enums.Senioridade;
+import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.Dtos.ChefeResponseDto;
 import com.couto.chefe_api.Dtos.ChefeRequestDto;
 import com.couto.chefe_api.Excepitons.ChefeNaoEncontradoException;
@@ -117,6 +119,38 @@ class ChefeServiceIntegrationTest {
                 .isInstanceOf(ContaInativaException.class);
     }
 
+    @Test
+    void chefIncompletoNaoApareceNaBuscaNemNosDestaques() {
+        ChefeModel incompleto = chefe("Incompleto", true);
+        incompleto.setSenioridade(null);
+        chefeRepository.save(incompleto);
+
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null).getContent())
+                .extracting(ChefeResponseDto::nome).containsExactly("Ativo");
+        assertThat(chefeService.chefesMaisAgendados(PageRequest.of(0, 10)).getContent())
+                .extracting(ChefeResponseDto::nome).containsExactly("Ativo");
+    }
+
+    @Test
+    void chefComIdiomasEmBrancoNaoAparece() {
+        ChefeModel semIdiomas = chefe("SemIdiomas", true);
+        semIdiomas.setIdiomas("   ");
+        chefeRepository.save(semIdiomas);
+
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null).getContent())
+                .extracting(ChefeResponseDto::nome).containsExactly("Ativo");
+        assertThat(chefeService.chefesMaisAgendados(PageRequest.of(0, 10)).getContent())
+                .extracting(ChefeResponseDto::nome).containsExactly("Ativo");
+    }
+
+    @Test
+    void chefCompletoMasPausadoNaoAparece() {
+        chefeService.inativar(ativo.getId());
+
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null).getContent()).isEmpty();
+        assertThat(chefeService.chefesMaisAgendados(PageRequest.of(0, 10)).getContent()).isEmpty();
+    }
+
     private static ChefeModel chefe(String nome, boolean ativo) {
         ChefeModel chefe = new ChefeModel();
         chefe.setNome(nome);
@@ -124,6 +158,9 @@ class ChefeServiceIntegrationTest {
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
         chefe.setValorHora(new BigDecimal("100.00"));
+        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setSenioridade(Senioridade.HEAD_CHEF);
+        chefe.setAnosDeExperiencia(5);
         chefe.setAtivo(ativo);
         return chefe;
     }

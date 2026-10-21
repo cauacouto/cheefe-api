@@ -177,6 +177,9 @@ public class agendamentoService {
         if (!todosValidos) {
             throw new ChefeIndisponivelException();
         }
+        if (!chefes.stream().allMatch(ChefeModel::isPerfilCompleto)) {
+            throw new AgendamentoInvalidoException("chef com perfil incompleto");
+        }
         return new ArrayList<>(chefes);
     }
 

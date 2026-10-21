@@ -1,5 +1,7 @@
 package com.couto.chefe_api.Services;
 
+import com.couto.chefe_api.enums.Senioridade;
+import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.Dtos.AgendamentoResquestDto;
 import com.couto.chefe_api.Dtos.AtualizarAgendamentoRequestDto;
 import com.couto.chefe_api.Excepitons.AgendamentoInvalidoException;
@@ -174,6 +176,18 @@ class AgendamentoServiceTest {
                 .isInstanceOf(AgendamentoException.class);
     }
 
+    @Test
+    void agendarChefIncompletoDa400() {
+        chefeA.setSenioridade(null);
+        chefesExistentes(chefeA);
+
+        assertThatThrownBy(() -> service.criarAgendamento(
+                dto(DIA.withHour(18), DIA.withHour(21), 1L, ids(chefeA), 2), USUARIO_ID))
+                .isInstanceOf(AgendamentoInvalidoException.class)
+                .hasMessage("chef com perfil incompleto");
+        verify(agendamentoRepository, never()).save(any());
+    }
+
     @Nested
     class Atualizar {
 
@@ -327,6 +341,11 @@ class AgendamentoServiceTest {
         chefe.setId(UUID.randomUUID());
         chefe.setNome("chefe " + valorHora);
         chefe.setValorHora(new BigDecimal(valorHora));
+        chefe.setNacionalidade("Brasileira");
+        chefe.setIdiomas("pt");
+        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setSenioridade(Senioridade.HEAD_CHEF);
+        chefe.setAnosDeExperiencia(5);
         chefe.setDisponivel(true);
         chefe.setAtivo(true);
         return chefe;

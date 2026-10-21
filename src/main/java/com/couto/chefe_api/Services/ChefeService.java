@@ -36,6 +36,7 @@ public class ChefeService {
     public Page<ChefeResponseDto> mostrarChefes(Pageable pageable, BigDecimal valorMnimmo, BigDecimal valorMaximo) {
         Specification<ChefeModel> spec = ChefeSpecification.ativo()
                 .and(ChefeSpecification.disponivel())
+                .and(ChefeSpecification.perfilCompleto())
                 .and(ChefeSpecification.valorMinimoMaior(valorMnimmo))
                 .and(ChefeSpecification.valorMaximoMneor(valorMaximo));
 

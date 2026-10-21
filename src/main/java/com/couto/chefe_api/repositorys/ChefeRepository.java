@@ -16,8 +16,14 @@ public interface ChefeRepository extends JpaRepository<ChefeModel, UUID>, JpaSpe
 
     Optional<ChefeModel> findByEmailIgnoreCase(String email);
 
-    @Query(value = "SELECT c FROM ChefeModel c LEFT JOIN c.agendamentos a " +
-            "WHERE c.ativo = true AND c.disponivel = true GROUP BY c ORDER BY COUNT(a) DESC",
-            countQuery = "SELECT COUNT(c) FROM ChefeModel c WHERE c.ativo = true AND c.disponivel = true")
+    // visível = ativo, disponível e perfil completo (mesma regra de ChefeModel.isPerfilCompleto)
+    String VISIVEL = "c.ativo = true AND c.disponivel = true " +
+            "AND TRIM(COALESCE(c.nacionalidade, '')) <> '' AND c.especialidade IS NOT NULL " +
+            "AND c.senioridade IS NOT NULL AND c.anosDeExperiencia IS NOT NULL " +
+            "AND TRIM(COALESCE(c.idiomas, '')) <> '' AND c.valorHora IS NOT NULL";
+
+    @Query(value = "SELECT c FROM ChefeModel c LEFT JOIN c.agendamentos a WHERE " + VISIVEL +
+            " GROUP BY c ORDER BY COUNT(a) DESC",
+            countQuery = "SELECT COUNT(c) FROM ChefeModel c WHERE " + VISIVEL)
     Page<ChefeModel> findMaisAgendados(Pageable pageable);
 }
