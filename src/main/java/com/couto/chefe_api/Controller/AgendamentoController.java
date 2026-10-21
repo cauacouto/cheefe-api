@@ -7,13 +7,14 @@ import com.couto.chefe_api.Dtos.ListaAgendamentoChefeDto;
 import com.couto.chefe_api.Dtos.ListaAgendamentoUsuarioDto;
 import com.couto.chefe_api.Services.agendamentoService;
 import jakarta.validation.Valid;
+import com.couto.chefe_api.Security.UsuarioAutenticado;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/agendamentos")
@@ -22,33 +23,32 @@ public class AgendamentoController {
 
     private final agendamentoService service;
 
-
-@PostMapping
-    public ResponseEntity<AgendamentoResponseDto> criarAgendamento(@Valid @RequestBody AgendamentoResquestDto dto,@RequestParam String email){
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.criarAgendamento(dto,email));
+    @PostMapping
+    public ResponseEntity<AgendamentoResponseDto> criarAgendamento(@Valid @RequestBody AgendamentoResquestDto dto,
+                                                                   @AuthenticationPrincipal UsuarioAutenticado cliente) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.criarAgendamento(dto, cliente.id()));
     }
 
-    @GetMapping("/chefe/{chefeId}")
-    public ResponseEntity<List<ListaAgendamentoChefeDto>> listarAgendamentoChefes(@PathVariable UUID chefeId){
-        return ResponseEntity.ok(service.listarAgendamentosChefe(chefeId));
+    @GetMapping("/meus")
+    public ResponseEntity<List<ListaAgendamentoUsuarioDto>> meus(@AuthenticationPrincipal UsuarioAutenticado cliente) {
+        return ResponseEntity.ok(service.listarAgendamentosUsuario(cliente.id()));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<AgendamentoResponseDto> atualizarAgendamento(@Valid @RequestBody AtualizarAgendamentoRequestDto dto,@PathVariable Long id){
-        var update = service.atualizarAgedamento(dto, id);
-        return ResponseEntity.ok().body(update);
+    public ResponseEntity<AgendamentoResponseDto> atualizarAgendamento(@Valid @RequestBody AtualizarAgendamentoRequestDto dto,
+                                                                       @PathVariable Long id,
+                                                                       @AuthenticationPrincipal UsuarioAutenticado cliente) {
+        return ResponseEntity.ok(service.atualizarAgedamento(dto, id, cliente.id()));
     }
 
-    @GetMapping("/usuario/{usuarioId}")
-    public ResponseEntity<List<ListaAgendamentoUsuarioDto>> listarAgedamentoUsuarios(@PathVariable UUID usuarioId){
-     return ResponseEntity.ok(service.listarAgendamentosUsuario(usuarioId));
+    @GetMapping("/recebidos")
+    public ResponseEntity<List<ListaAgendamentoChefeDto>> recebidos(@AuthenticationPrincipal UsuarioAutenticado chefe) {
+        return ResponseEntity.ok(service.listarAgendamentosChefe(chefe.id()));
     }
 
-    @PatchMapping("{id}/confirmar")
-    public ResponseEntity<Void> confirmarAgendamento(@PathVariable Long id){
-     service.confirmarAgendamento(id);
-     return ResponseEntity.ok().build();
+    @PatchMapping("/{id}/confirmar")
+    public ResponseEntity<Void> confirmarAgendamento(@PathVariable Long id, @AuthenticationPrincipal UsuarioAutenticado chefe) {
+        service.confirmarAgendamento(id, chefe.id());
+        return ResponseEntity.ok().build();
     }
-
-
 }

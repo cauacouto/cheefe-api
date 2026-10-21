@@ -3,6 +3,8 @@ package com.couto.chefe_api.Services;
 import com.couto.chefe_api.Dtos.AgendamentoResquestDto;
 import com.couto.chefe_api.Dtos.AtualizarAgendamentoRequestDto;
 import com.couto.chefe_api.Excepitons.AgendamentoInvalidoException;
+import com.couto.chefe_api.Excepitons.EnderecoException;
+import com.couto.chefe_api.Excepitons.AgendamentoException;
 import com.couto.chefe_api.Excepitons.AgendamentoNaoEditavelException;
 import com.couto.chefe_api.Excepitons.ChefeIndisponivelException;
 import com.couto.chefe_api.Excepitons.ChefeNaoEncontradoException;
@@ -46,7 +48,7 @@ import static org.mockito.Mockito.when;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class AgendamentoServiceTest {
 
-    private static final String EMAIL = "ana@x.com";
+    private static final UUID USUARIO_ID = UUID.randomUUID();
     private static final LocalDateTime DIA = LocalDateTime.now().plusDays(10).withHour(0).withMinute(0).withSecond(0).withNano(0);
 
     @Mock
@@ -71,8 +73,8 @@ class AgendamentoServiceTest {
     @BeforeEach
     void setUp() {
         endereco.setId(1L);
-        when(usuarioRepository.findByEmail(EMAIL)).thenReturn(Optional.of(usuario));
-        when(endercoRepository.findById(1L)).thenReturn(Optional.of(endereco));
+        when(usuarioRepository.findById(USUARIO_ID)).thenReturn(Optional.of(usuario));
+        when(endercoRepository.findByIdAndUsuario_Id(1L, USUARIO_ID)).thenReturn(Optional.of(endereco));
         when(agendamentoRepository.save(any(Agendamento.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 
@@ -83,7 +85,7 @@ class AgendamentoServiceTest {
         void periodoValidoCalculaValorPelaSomaDosChefes() {
             chefesExistentes(chefeA, chefeB);
 
-            service.criarAgendamento(dto(DIA.withHour(18), DIA.withHour(21), 1L, ids(chefeA, chefeB), 4), EMAIL);
+            service.criarAgendamento(dto(DIA.withHour(18), DIA.withHour(21), 1L, ids(chefeA, chefeB), 4), USUARIO_ID);
 
             Agendamento salvo = agendamentoSalvo();
             assertThat(salvo.getValorTotal()).isEqualByComparingTo("451.50");
@@ -97,7 +99,7 @@ class AgendamentoServiceTest {
             chefesExistentes(chefeA);
 
             assertThatThrownBy(() -> service.criarAgendamento(
-                    dto(DIA.withHour(21), DIA.withHour(18), 1L, ids(chefeA), 2), EMAIL))
+                    dto(DIA.withHour(21), DIA.withHour(18), 1L, ids(chefeA), 2), USUARIO_ID))
                     .isInstanceOf(AgendamentoInvalidoException.class);
             verify(agendamentoRepository, never()).save(any());
         }
@@ -107,7 +109,7 @@ class AgendamentoServiceTest {
             chefesExistentes(chefeA);
 
             assertThatThrownBy(() -> service.criarAgendamento(
-                    dto(DIA.withHour(18), DIA.withHour(18), 1L, ids(chefeA), 2), EMAIL))
+                    dto(DIA.withHour(18), DIA.withHour(18), 1L, ids(chefeA), 2), USUARIO_ID))
                     .isInstanceOf(AgendamentoInvalidoException.class);
         }
 
@@ -116,7 +118,7 @@ class AgendamentoServiceTest {
             chefesExistentes(chefeA);
 
             assertThatThrownBy(() -> service.criarAgendamento(
-                    dto(DIA.withHour(18), DIA.withHour(21), 1L, List.of(chefeA.getId(), UUID.randomUUID()), 2), EMAIL))
+                    dto(DIA.withHour(18), DIA.withHour(21), 1L, List.of(chefeA.getId(), UUID.randomUUID()), 2), USUARIO_ID))
                     .isInstanceOf(ChefeNaoEncontradoException.class);
             verify(agendamentoRepository, never()).save(any());
         }
@@ -124,10 +126,10 @@ class AgendamentoServiceTest {
         @Test
         void semChefesEhRejeitado() {
             assertThatThrownBy(() -> service.criarAgendamento(
-                    dto(DIA.withHour(18), DIA.withHour(21), 1L, null, 2), EMAIL))
+                    dto(DIA.withHour(18), DIA.withHour(21), 1L, null, 2), USUARIO_ID))
                     .isInstanceOf(AgendamentoInvalidoException.class);
             assertThatThrownBy(() -> service.criarAgendamento(
-                    dto(DIA.withHour(18), DIA.withHour(21), 1L, List.of(), 2), EMAIL))
+                    dto(DIA.withHour(18), DIA.withHour(21), 1L, List.of(), 2), USUARIO_ID))
                     .isInstanceOf(AgendamentoInvalidoException.class);
         }
 
@@ -137,7 +139,7 @@ class AgendamentoServiceTest {
             chefesExistentes(chefeA, chefeB);
 
             assertThatThrownBy(() -> service.criarAgendamento(
-                    dto(DIA.withHour(18), DIA.withHour(21), 1L, ids(chefeA, chefeB), 2), EMAIL))
+                    dto(DIA.withHour(18), DIA.withHour(21), 1L, ids(chefeA, chefeB), 2), USUARIO_ID))
                     .isInstanceOf(ChefeIndisponivelException.class);
         }
 
@@ -146,10 +148,29 @@ class AgendamentoServiceTest {
             chefesExistentes(chefeA);
 
             service.criarAgendamento(
-                    dto(DIA.withHour(18), DIA.withHour(20), 1L, List.of(chefeA.getId(), chefeA.getId()), 2), EMAIL);
+                    dto(DIA.withHour(18), DIA.withHour(20), 1L, List.of(chefeA.getId(), chefeA.getId()), 2), USUARIO_ID);
 
             assertThat(agendamentoSalvo().getValorTotal()).isEqualByComparingTo("200.00");
         }
+    }
+
+    @Test
+    void criarComEnderecoDeOutroUsuarioDa404() {
+        when(endercoRepository.findByIdAndUsuario_Id(2L, USUARIO_ID)).thenReturn(Optional.empty());
+        chefesExistentes(chefeA);
+
+        assertThatThrownBy(() -> service.criarAgendamento(
+                dto(DIA.withHour(18), DIA.withHour(21), 2L, ids(chefeA), 2), USUARIO_ID))
+                .isInstanceOf(EnderecoException.class);
+        verify(agendamentoRepository, never()).save(any());
+    }
+
+    @Test
+    void atualizarAgendamentoDeOutroUsuarioDa404() {
+        when(agendamentoRepository.findByIdAndUsuario_Id(8L, USUARIO_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.atualizarAgedamento(atualizacao(null, null, null, null, 5), 8L, USUARIO_ID))
+                .isInstanceOf(AgendamentoException.class);
     }
 
     @Nested
@@ -167,20 +188,20 @@ class AgendamentoServiceTest {
             agenda.setDataHoraFinal(DIA.withHour(20));
             agenda.setQuantidadePessoas(2);
             agenda.setValorTotal(new BigDecimal("200.00"));
-            when(agendamentoRepository.findById(7L)).thenReturn(Optional.of(agenda));
+            when(agendamentoRepository.findByIdAndUsuario_Id(7L, USUARIO_ID)).thenReturn(Optional.of(agenda));
         }
 
         @Test
         void semEnderecoIdMantemEnderecoSemBuscar() {
-            service.atualizarAgedamento(atualizacao(null, null, null, null, 5), 7L);
+            service.atualizarAgedamento(atualizacao(null, null, null, null, 5), 7L, USUARIO_ID);
 
             assertThat(agendamentoSalvo().getEndereco()).isSameAs(endereco);
-            verify(endercoRepository, never()).findById(any());
+            verify(endercoRepository, never()).findByIdAndUsuario_Id(any(), any());
         }
 
         @Test
         void atualizaQuantidadeDePessoas() {
-            service.atualizarAgedamento(atualizacao(null, null, null, null, 5), 7L);
+            service.atualizarAgedamento(atualizacao(null, null, null, null, 5), 7L, USUARIO_ID);
 
             assertThat(agendamentoSalvo().getQuantidadePessoas()).isEqualTo(5);
         }
@@ -189,7 +210,7 @@ class AgendamentoServiceTest {
         void listaDeChefesPreenchidaTrocaChefesERecalculaValor() {
             chefesExistentes(chefeB);
 
-            service.atualizarAgedamento(atualizacao(null, null, null, ids(chefeB), null), 7L);
+            service.atualizarAgedamento(atualizacao(null, null, null, ids(chefeB), null), 7L, USUARIO_ID);
 
             Agendamento salvo = agendamentoSalvo();
             assertThat(salvo.getChefes()).containsExactly(chefeB);
@@ -198,7 +219,7 @@ class AgendamentoServiceTest {
 
         @Test
         void listaDeChefesVaziaNaoRemoveOsChefes() {
-            service.atualizarAgedamento(atualizacao(null, null, null, List.of(), null), 7L);
+            service.atualizarAgedamento(atualizacao(null, null, null, List.of(), null), 7L, USUARIO_ID);
 
             assertThat(agendamentoSalvo().getChefes()).containsExactly(chefeA);
             verify(chefeRepository, never()).findAllById(anyIterable());
@@ -209,14 +230,14 @@ class AgendamentoServiceTest {
             chefesExistentes();
 
             assertThatThrownBy(() -> service.atualizarAgedamento(
-                    atualizacao(null, null, null, List.of(UUID.randomUUID()), null), 7L))
+                    atualizacao(null, null, null, List.of(UUID.randomUUID()), null), 7L, USUARIO_ID))
                     .isInstanceOf(ChefeNaoEncontradoException.class);
             assertThat(agenda.getChefes()).containsExactly(chefeA);
         }
 
         @Test
         void novasDatasSaoGravadasNaEntidadeERecalculamValor() {
-            service.atualizarAgedamento(atualizacao(DIA.withHour(19), DIA.withHour(22), null, null, null), 7L);
+            service.atualizarAgedamento(atualizacao(DIA.withHour(19), DIA.withHour(22), null, null, null), 7L, USUARIO_ID);
 
             Agendamento salvo = agendamentoSalvo();
             assertThat(salvo.getDataHoraInicial()).isEqualTo(DIA.withHour(19));
@@ -226,7 +247,7 @@ class AgendamentoServiceTest {
 
         @Test
         void soODataFinalUsaOInicioExistente() {
-            service.atualizarAgedamento(atualizacao(null, DIA.withHour(21), null, null, null), 7L);
+            service.atualizarAgedamento(atualizacao(null, DIA.withHour(21), null, null, null), 7L, USUARIO_ID);
 
             Agendamento salvo = agendamentoSalvo();
             assertThat(salvo.getDataHoraInicial()).isEqualTo(DIA.withHour(18));
@@ -236,8 +257,17 @@ class AgendamentoServiceTest {
         @Test
         void fimAntesDoInicioExistenteEhRejeitado() {
             assertThatThrownBy(() -> service.atualizarAgedamento(
-                    atualizacao(null, DIA.withHour(17), null, null, null), 7L))
+                    atualizacao(null, DIA.withHour(17), null, null, null), 7L, USUARIO_ID))
                     .isInstanceOf(AgendamentoInvalidoException.class);
+            verify(agendamentoRepository, never()).save(any());
+        }
+
+        @Test
+        void atualizarComEnderecoDeOutroUsuarioDa404() {
+            when(endercoRepository.findByIdAndUsuario_Id(2L, USUARIO_ID)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.atualizarAgedamento(atualizacao(null, null, 2L, null, null), 7L, USUARIO_ID))
+                    .isInstanceOf(EnderecoException.class);
             verify(agendamentoRepository, never()).save(any());
         }
 
@@ -245,7 +275,44 @@ class AgendamentoServiceTest {
         void agendamentoForaDePendenteNaoPodeSerEditado() {
             agenda.setStatus(StatusAgendamento.CONFIRMADO);
 
-            assertThatThrownBy(() -> service.atualizarAgedamento(atualizacao(null, null, null, null, 5), 7L))
+            assertThatThrownBy(() -> service.atualizarAgedamento(atualizacao(null, null, null, null, 5), 7L, USUARIO_ID))
+                    .isInstanceOf(AgendamentoNaoEditavelException.class);
+            verify(agendamentoRepository, never()).save(any());
+        }
+    }
+
+    @Nested
+    class Confirmar {
+
+        private Agendamento agenda;
+
+        @BeforeEach
+        void agendaComDoisChefs() {
+            agenda = new Agendamento();
+            agenda.setId(9L);
+            agenda.setChefes(new ArrayList<>(List.of(chefeA, chefeB)));
+            when(agendamentoRepository.findById(9L)).thenReturn(Optional.of(agenda));
+        }
+
+        @Test
+        void confirmarPorQualquerChefDoAgendamento() {
+            service.confirmarAgendamento(9L, chefeB.getId());
+
+            assertThat(agenda.getStatus()).isEqualTo(StatusAgendamento.CONFIRMADO);
+        }
+
+        @Test
+        void confirmarPorChefForaDoAgendamentoDa404() {
+            assertThatThrownBy(() -> service.confirmarAgendamento(9L, UUID.randomUUID()))
+                    .isInstanceOf(AgendamentoException.class);
+            verify(agendamentoRepository, never()).save(any());
+        }
+
+        @Test
+        void confirmarJaConfirmadoDa409() {
+            agenda.setStatus(StatusAgendamento.CONFIRMADO);
+
+            assertThatThrownBy(() -> service.confirmarAgendamento(9L, chefeA.getId()))
                     .isInstanceOf(AgendamentoNaoEditavelException.class);
             verify(agendamentoRepository, never()).save(any());
         }

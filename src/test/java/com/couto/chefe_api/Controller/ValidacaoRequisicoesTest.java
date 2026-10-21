@@ -75,7 +75,7 @@ class ValidacaoRequisicoesTest {
 
     @Test
     void criarAgendamentoSemCamposObrigatoriosDa400() throws Exception {
-        mvc.perform(post("/agendamentos").param("email", "ana@x.com")
+        mvc.perform(post("/agendamentos")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"chefeIds\":[]}"))
                 .andExpect(status().isBadRequest())
@@ -92,7 +92,7 @@ class ValidacaoRequisicoesTest {
                  "chefeIds":["%s"],"quantidadePessoas":0}
                 """.formatted(passado, passado, UUID.randomUUID());
 
-        mvc.perform(post("/agendamentos").param("email", "ana@x.com")
+        mvc.perform(post("/agendamentos")
                         .contentType(MediaType.APPLICATION_JSON).content(json))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.campos[*].campo").value(hasItems(
@@ -108,7 +108,7 @@ class ValidacaoRequisicoesTest {
                  "chefeIds":["%s"],"quantidadePessoas":4}
                 """.formatted(inicio.format(FORMATO), inicio.plusHours(3).format(FORMATO), UUID.randomUUID());
 
-        mvc.perform(post("/agendamentos").param("email", "ana@x.com")
+        mvc.perform(post("/agendamentos")
                         .contentType(MediaType.APPLICATION_JSON).content(json))
                 .andExpect(status().isCreated());
         verify(agendamentoService).criarAgendamento(any(), any());
@@ -126,7 +126,7 @@ class ValidacaoRequisicoesTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"quantidadePessoas\":3}"))
                 .andExpect(status().isOk());
-        verify(agendamentoService).atualizarAgedamento(any(), anyLong());
+        verify(agendamentoService).atualizarAgedamento(any(), anyLong(), any());
     }
 
     @Test

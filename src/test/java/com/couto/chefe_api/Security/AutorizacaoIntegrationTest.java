@@ -2,9 +2,15 @@ package com.couto.chefe_api.Security;
 
 import com.couto.chefe_api.User.UserModel;
 import com.couto.chefe_api.User.UsuarioRepository;
+import com.couto.chefe_api.domin.Agendamento;
 import com.couto.chefe_api.domin.ChefeModel;
+import com.couto.chefe_api.domin.EnderecoModel;
 import com.couto.chefe_api.domin.Pratos;
+import com.couto.chefe_api.enums.StatusAgendamento;
+import com.couto.chefe_api.enums.TipoDeResidencia;
 import com.couto.chefe_api.enums.TipoUsuario;
+import com.couto.chefe_api.repositorys.AgendamentoRepository;
+import com.couto.chefe_api.repositorys.EndercoRepository;
 import com.couto.chefe_api.repositorys.ChefeRepository;
 import com.couto.chefe_api.repositorys.PatrosRepository;
 import jakarta.servlet.http.Cookie;
@@ -19,7 +25,10 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
@@ -49,6 +58,10 @@ class AutorizacaoIntegrationTest {
     private ChefeRepository chefeRepository;
     @Autowired
     private PatrosRepository pratosRepository;
+    @Autowired
+    private EndercoRepository enderecoRepository;
+    @Autowired
+    private AgendamentoRepository agendamentoRepository;
 
     private MockMvc mockMvc;
 
@@ -218,6 +231,131 @@ class AutorizacaoIntegrationTest {
         prato.setDescricao("descrição");
         prato.setChefeModel(chefe);
         return pratosRepository.save(prato);
+    }
+
+    @Test
+    void clienteNaoAgendaComEnderecoDeOutro() throws Exception {
+        UserModel ana = novoCliente();
+        EnderecoModel enderecoDaBia = novoEndereco(novoCliente());
+
+        mockMvc.perform(post("/agendamentos").cookie(cookieDe(ana)).contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonAgendamento(enderecoDaBia.getId(), novoChefe(), "")))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void campoDeIdentidadeNoCorpoEhIgnorado() throws Exception {
+        UserModel ana = novoCliente();
+        UserModel bia = novoCliente();
+        EnderecoModel enderecoDaAna = novoEndereco(ana);
+        String extras = ",\"email\":\"" + bia.getEmail() + "\",\"usuarioId\":\"" + bia.getId() + "\"";
+
+        mockMvc.perform(post("/agendamentos").cookie(cookieDe(ana)).contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonAgendamento(enderecoDaAna.getId(), novoChefe(), extras)))
+                .andExpect(status().isCreated());
+
+        assertThat(agendamentoRepository.findAllByUsuario_Id(ana.getId())).hasSize(1);
+        assertThat(agendamentoRepository.findAllByUsuario_Id(bia.getId())).isEmpty();
+    }
+
+    @Test
+    void clienteNaoEditaAgendamentoDeOutro() throws Exception {
+        UserModel bia = novoCliente();
+        Agendamento daBia = novoAgendamento(bia, novoChefe());
+
+        mockMvc.perform(put("/agendamentos/" + daBia.getId()).cookie(cookieDe(novoCliente()))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"quantidadePessoas\":99}"))
+                .andExpect(status().isNotFound());
+
+        assertThat(agendamentoRepository.findById(daBia.getId()).orElseThrow().getQuantidadePessoas()).isEqualTo(2);
+    }
+
+    @Test
+    void meusListaSoOsDoCliente() throws Exception {
+        UserModel ana = novoCliente();
+        novoAgendamento(ana, novoChefe());
+        novoAgendamento(novoCliente(), novoChefe());
+
+        mockMvc.perform(get("/agendamentos/meus").cookie(cookieDe(ana)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    void clienteNaoConfirma() throws Exception {
+        UserModel ana = novoCliente();
+        Agendamento agendamento = novoAgendamento(ana, novoChefe());
+
+        mockMvc.perform(patch("/agendamentos/" + agendamento.getId() + "/confirmar").cookie(cookieDe(ana)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void chefForaDoAgendamentoNaoConfirma() throws Exception {
+        Agendamento agendamento = novoAgendamento(novoCliente(), novoChefe());
+
+        mockMvc.perform(patch("/agendamentos/" + agendamento.getId() + "/confirmar").cookie(cookieDe(novoChefe())))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void chefDoAgendamentoConfirmaUmaVez() throws Exception {
+        ChefeModel x = novoChefe();
+        Agendamento agendamento = novoAgendamento(novoCliente(), x);
+
+        mockMvc.perform(patch("/agendamentos/" + agendamento.getId() + "/confirmar").cookie(cookieDe(x)))
+                .andExpect(status().isOk());
+        assertThat(agendamentoRepository.findById(agendamento.getId()).orElseThrow().getStatus())
+                .isEqualTo(StatusAgendamento.CONFIRMADO);
+
+        mockMvc.perform(patch("/agendamentos/" + agendamento.getId() + "/confirmar").cookie(cookieDe(x)))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void recebidosListaSoOsDoChef() throws Exception {
+        ChefeModel x = novoChefe();
+        novoAgendamento(novoCliente(), x);
+        novoAgendamento(novoCliente(), novoChefe());
+
+        mockMvc.perform(get("/agendamentos/recebidos").cookie(cookieDe(x)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    EnderecoModel novoEndereco(UserModel dono) {
+        EnderecoModel endereco = new EnderecoModel();
+        endereco.setRua("Rua A");
+        endereco.setNumero("1");
+        endereco.setBairro("Centro");
+        endereco.setCidade("São Paulo");
+        endereco.setEstado("SP");
+        endereco.setCep("01001-000");
+        endereco.setTipoDeResidencia(TipoDeResidencia.CASA);
+        endereco.setUsuario(dono);
+        return enderecoRepository.save(endereco);
+    }
+
+    Agendamento novoAgendamento(UserModel cliente, ChefeModel chefe) {
+        Agendamento agendamento = new Agendamento();
+        agendamento.setUsuario(cliente);
+        agendamento.setEndereco(novoEndereco(cliente));
+        agendamento.setChefes(new ArrayList<>(List.of(chefe)));
+        agendamento.setDataHoraInicial(LocalDateTime.now().plusDays(10).withHour(18).withMinute(0).withSecond(0).withNano(0));
+        agendamento.setDataHoraFinal(LocalDateTime.now().plusDays(10).withHour(20).withMinute(0).withSecond(0).withNano(0));
+        agendamento.setQuantidadePessoas(2);
+        agendamento.setValorTotal(new BigDecimal("200.00"));
+        return agendamentoRepository.save(agendamento);
+    }
+
+    private static String jsonAgendamento(Long enderecoId, ChefeModel chefe, String extras) {
+        DateTimeFormatter formato = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
+        LocalDateTime dia = LocalDateTime.now().plusDays(10).withHour(0).withMinute(0);
+        return "{\"dataHoraInicial\":\"" + dia.withHour(18).format(formato) + "\","
+                + "\"dataHoraFinal\":\"" + dia.withHour(21).format(formato) + "\","
+                + "\"enderecoId\":" + enderecoId + ","
+                + "\"chefeIds\":[\"" + chefe.getId() + "\"],"
+                + "\"quantidadePessoas\":2" + extras + "}";
     }
 
     UserModel novoCliente() {

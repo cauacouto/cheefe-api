@@ -47,12 +47,12 @@ public class agendamentoService {
     private final AgendamentoRepository agendamentoRepository;
 
     @Transactional
-    public AgendamentoResponseDto criarAgendamento(AgendamentoResquestDto dto, String email) {
-        var user = usuarioRepository.findByEmail(email).orElseThrow(UsuarioException::new);
+    public AgendamentoResponseDto criarAgendamento(AgendamentoResquestDto dto, UUID usuarioId) {
+        var user = usuarioRepository.findById(usuarioId).orElseThrow(UsuarioException::new);
 
         validarPeriodo(dto.getDataHoraInicial(), dto.getDataHoraFinal());
         List<ChefeModel> chefes = validarChefes(dto.getChefeIds());
-        EnderecoModel endereco = buscarEndereco(dto.getEnderecoId());
+        EnderecoModel endereco = buscarEndereco(dto.getEnderecoId(), usuarioId);
 
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(user);
@@ -80,8 +80,9 @@ public class agendamentoService {
      * Uma lista de chefes vazia é ignorada (não remove os chefes).
      */
     @Transactional
-    public AgendamentoResponseDto atualizarAgedamento(AtualizarAgendamentoRequestDto dto, Long agendamentoId) {
-        Agendamento agenda = agendamentoRepository.findById(agendamentoId)
+    public AgendamentoResponseDto atualizarAgedamento(AtualizarAgendamentoRequestDto dto, Long agendamentoId, UUID usuarioId) {
+        // agendamento de outro cliente é tratado como inexistente
+        Agendamento agenda = agendamentoRepository.findByIdAndUsuario_Id(agendamentoId, usuarioId)
                 .orElseThrow(AgendamentoException::new);
 
         if (agenda.getStatus() != StatusAgendamento.PENDENDE) {
@@ -89,7 +90,7 @@ public class agendamentoService {
         }
 
         if (dto.enderecoId() != null) {
-            agenda.setEndereco(buscarEndereco(dto.enderecoId()));
+            agenda.setEndereco(buscarEndereco(dto.enderecoId(), usuarioId));
         }
 
         boolean recalcular = false;
@@ -120,19 +121,23 @@ public class agendamentoService {
     }
 
     @Transactional
-    public void confirmarAgendamento(Long idAgendamento) {
+    public void confirmarAgendamento(Long idAgendamento, UUID chefeId) {
+        // só um chef do agendamento o enxerga; para os demais ele não existe
         Agendamento agendamento = agendamentoRepository.findById(idAgendamento)
+                .filter(a -> a.getChefes().stream().anyMatch(chefe -> chefe.getId().equals(chefeId)))
                 .orElseThrow(AgendamentoException::new);
-
+        if (agendamento.getStatus() != StatusAgendamento.PENDENDE) {
+            throw new AgendamentoNaoEditavelException(agendamento.getStatus());
+        }
         agendamento.setStatus(StatusAgendamento.CONFIRMADO);
         agendamentoRepository.save(agendamento);
     }
 
-    private EnderecoModel buscarEndereco(Long enderecoId) {
+    private EnderecoModel buscarEndereco(Long enderecoId, UUID usuarioId) {
         if (enderecoId == null) {
             throw new AgendamentoInvalidoException("Informe o endereço do agendamento");
         }
-        return endercoRepository.findById(enderecoId).orElseThrow(EnderecoException::new);
+        return endercoRepository.findByIdAndUsuario_Id(enderecoId, usuarioId).orElseThrow(EnderecoException::new);
     }
 
     private static void validarPeriodo(LocalDateTime inicio, LocalDateTime fim) {

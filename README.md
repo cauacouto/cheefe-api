@@ -79,3 +79,19 @@ Fluxo para o front:
 | Sair | `POST /auth/logout` |
 
 Todas as chamadas do front precisam de `credentials: 'include'`.
+
+### 🛡️ Rotas por papel
+
+Toda identidade vem do cookie de sessão: nenhuma rota recebe id ou e-mail de quem está logado. Papel errado → **403**; recurso de outra pessoa → **404** (igual a inexistente); ação não permitida no status atual → **409**.
+
+| Recurso | Rota | Papel |
+|---|---|---|
+| Sessão | `GET /auth/me` | qualquer logado |
+| Usuário | `GET` · `PUT` · `DELETE /usuario/me` (o e-mail não é editável; o DELETE encerra a sessão) | CLIENTE |
+| Endereços | `GET` · `POST /usuario/enderecos` | CLIENTE |
+| Chefs | `GET /chefe`, `GET /chefe/destaque` | qualquer logado |
+| Perfil do chef | `PATCH /chefe/me`, `PATCH /chefe/me/inativar`, `DELETE /chefe/me` | CHEFE |
+| Pratos | `GET /pratos`, `GET /pratos/chefe/{chefeId}` | qualquer logado |
+| Meus pratos | `POST /pratos` (multipart `dados` + `foto`), `PUT /pratos/{id}`, `GET /pratos/meus` | CHEFE |
+| Agendamentos do cliente | `POST /agendamentos` (endereço precisa ser do cliente), `GET /agendamentos/meus`, `PUT /agendamentos/{id}` (só `PENDENTE`) | CLIENTE |
+| Agendamentos do chef | `GET /agendamentos/recebidos`, `PATCH /agendamentos/{id}/confirmar` (só chef do agendamento, só `PENDENTE`) | CHEFE |
