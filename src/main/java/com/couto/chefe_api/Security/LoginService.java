@@ -3,6 +3,7 @@ package com.couto.chefe_api.Security;
 import com.couto.chefe_api.Dtos.*;
 import com.couto.chefe_api.Excepitons.EmailJaCadastradoException;
 import com.couto.chefe_api.Excepitons.RegistroTokenInvalidoException;
+import com.couto.chefe_api.Excepitons.RegraDeNegocioException;
 import com.couto.chefe_api.Mapper.ChefeMapper;
 import com.couto.chefe_api.Mapper.UsuarioMapper;
 import com.couto.chefe_api.User.UserModel;
@@ -58,6 +59,9 @@ public class LoginService {
         GoogleUser googleUser = validarRegistro(registroToken);
         if (buscarConta(googleUser.email()).isPresent()) {
             throw new EmailJaCadastradoException();
+        }
+        if (dto.getTipoUsuario() == TipoUsuario.CLIENTE && (dto.getEndereco() == null || dto.getEndereco().isEmpty())) {
+            throw new RegraDeNegocioException("Informe ao menos um endereço");
         }
 
         return switch (dto.getTipoUsuario()) {

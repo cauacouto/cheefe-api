@@ -9,6 +9,7 @@ import com.couto.chefe_api.Dtos.UserResponseDto;
 import com.couto.chefe_api.Excepitons.ContaInativaException;
 import com.couto.chefe_api.Excepitons.EmailJaCadastradoException;
 import com.couto.chefe_api.Excepitons.RegistroTokenInvalidoException;
+import com.couto.chefe_api.Excepitons.RegraDeNegocioException;
 import com.couto.chefe_api.Mapper.ChefeMapper;
 import com.couto.chefe_api.Mapper.UsuarioMapper;
 import com.couto.chefe_api.User.UserModel;
@@ -132,7 +133,7 @@ class LoginServiceTest {
 
     @Test
     void registerClienteUsaEmailDoTokenELoga() {
-        RegisterResult result = loginService.register(dto(TipoUsuario.CLIENTE, List.of()), tokenRegistro());
+        RegisterResult result = loginService.register(dto(TipoUsuario.CLIENTE, List.of(enderecoValido())), tokenRegistro());
 
         UserModel salvo = usuarioSalvo();
         assertEquals(EMAIL, salvo.getEmail());
@@ -155,7 +156,7 @@ class LoginServiceTest {
 
     @Test
     void registerClienteUsaFotoDoGoogle() {
-        loginService.register(dto(TipoUsuario.CLIENTE, List.of()), tokenRegistro());
+        loginService.register(dto(TipoUsuario.CLIENTE, List.of(enderecoValido())), tokenRegistro());
 
         assertEquals("https://foto", usuarioSalvo().getImageUrl());
     }
@@ -173,7 +174,7 @@ class LoginServiceTest {
     void contaGoogleSemFotoGravaNulo() {
         String token = tokenService.gerarTokenRegistro(new GoogleUser(EMAIL, "Ana", null));
 
-        loginService.register(dto(TipoUsuario.CLIENTE, List.of()), token);
+        loginService.register(dto(TipoUsuario.CLIENTE, List.of(enderecoValido())), token);
 
         assertNull(usuarioSalvo().getImageUrl());
     }
@@ -183,7 +184,7 @@ class LoginServiceTest {
         when(chefeRepository.findByEmailIgnoreCase(EMAIL)).thenReturn(Optional.of(new ChefeModel()));
 
         assertThrows(EmailJaCadastradoException.class,
-                () -> loginService.register(dto(TipoUsuario.CLIENTE, List.of()), tokenRegistro()));
+                () -> loginService.register(dto(TipoUsuario.CLIENTE, List.of(enderecoValido())), tokenRegistro()));
         verify(usuarioRepository, never()).save(any());
         verify(chefeRepository, never()).save(any());
     }
@@ -193,16 +194,23 @@ class LoginServiceTest {
         String tokenDeAcesso = tokenService.gerarToken(new UsuarioAutenticado(UUID.randomUUID(), EMAIL, TipoUsuario.CLIENTE));
 
         assertThrows(RegistroTokenInvalidoException.class,
-                () -> loginService.register(dto(TipoUsuario.CLIENTE, List.of()), null));
+                () -> loginService.register(dto(TipoUsuario.CLIENTE, List.of(enderecoValido())), null));
         assertThrows(RegistroTokenInvalidoException.class,
-                () -> loginService.register(dto(TipoUsuario.CLIENTE, List.of()), tokenDeAcesso));
+                () -> loginService.register(dto(TipoUsuario.CLIENTE, List.of(enderecoValido())), tokenDeAcesso));
     }
 
     @Test
-    void registerClienteSemEnderecoNaoQuebra() {
-        loginService.register(dto(TipoUsuario.CLIENTE, null), tokenRegistro());
+    void clienteSemEnderecoDa400() {
+        assertThrows(RegraDeNegocioException.class,
+                () -> loginService.register(dto(TipoUsuario.CLIENTE, null), tokenRegistro()));
+        assertThrows(RegraDeNegocioException.class,
+                () -> loginService.register(dto(TipoUsuario.CLIENTE, List.of()), tokenRegistro()));
+        verify(usuarioRepository, never()).save(any());
+    }
 
-        assertTrue(usuarioSalvo().getEndereco().isEmpty());
+    private static com.couto.chefe_api.Dtos.EnderecoRequestDto enderecoValido() {
+        return new com.couto.chefe_api.Dtos.EnderecoRequestDto("Rua A", "1", null, "01001-000", "São Paulo", "Centro", "SP",
+                com.couto.chefe_api.enums.TipoDeResidencia.CASA);
     }
 
     private String tokenRegistro() {

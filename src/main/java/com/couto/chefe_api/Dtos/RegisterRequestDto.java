@@ -3,6 +3,7 @@ package com.couto.chefe_api.Dtos;
 import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.enums.Senioridade;
 import com.couto.chefe_api.enums.TipoUsuario;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -28,7 +29,7 @@ public class RegisterRequestDto {
     @NotBlank
     private String nome;
 
-    private List<EnderecoRequestDto> endereco;
+    private List<@Valid EnderecoRequestDto> endereco;
 
 
    // campos complmento chefe
