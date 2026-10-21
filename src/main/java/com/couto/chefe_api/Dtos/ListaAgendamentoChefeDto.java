@@ -10,6 +10,8 @@ import java.time.LocalDateTime;
 @Setter
 public class ListaAgendamentoChefeDto {
 
+    private Long id;
+
     @JsonFormat(pattern = "dd-MM-yyyy HH:mm")
     private LocalDateTime dataHora;
     private StatusAgendamento status;

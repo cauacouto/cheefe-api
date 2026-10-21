@@ -11,6 +11,8 @@ import java.time.LocalDateTime;
 @Setter
 public class ListaAgendamentoUsuarioDto {
 
+    private Long id;
+    @JsonFormat(pattern = "dd-MM-yyyy HH:mm")
     private LocalDateTime dataHora;
     private Integer quantidadePessoas;
     private StatusAgendamento status;

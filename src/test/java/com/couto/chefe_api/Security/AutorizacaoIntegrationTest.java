@@ -287,12 +287,14 @@ class AutorizacaoIntegrationTest {
     @Test
     void meusListaSoOsDoCliente() throws Exception {
         UserModel ana = novoCliente();
-        novoAgendamento(ana, novoChefe());
+        Agendamento daAna = novoAgendamento(ana, novoChefe());
         novoAgendamento(novoCliente(), novoChefe());
 
         mockMvc.perform(get("/agendamentos/meus").cookie(cookieDe(ana)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1));
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(daAna.getId()))
+                .andExpect(jsonPath("$[0].dataHora").isNotEmpty());
     }
 
     @Test
@@ -329,12 +331,14 @@ class AutorizacaoIntegrationTest {
     @Test
     void recebidosListaSoOsDoChef() throws Exception {
         ChefeModel x = novoChefe();
-        novoAgendamento(novoCliente(), x);
+        Agendamento deX = novoAgendamento(novoCliente(), x);
         novoAgendamento(novoCliente(), novoChefe());
 
         mockMvc.perform(get("/agendamentos/recebidos").cookie(cookieDe(x)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1));
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(deX.getId()))
+                .andExpect(jsonPath("$[0].dataHora").isNotEmpty());
     }
 
     EnderecoModel novoEndereco(UserModel dono) {

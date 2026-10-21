@@ -40,6 +40,7 @@ public interface AgendamentoMapper {
     @Mapping(source = "endereco.estado",           target = "estado")
     @Mapping(source = "endereco.cep",              target = "cep")
     @Mapping(source = "quantidadePessoas",           target = "quantidadePessoas")
+    @Mapping(source = "dataHoraInicial",             target = "dataHora")
     ListaAgendamentoChefeDto toChefeDto(Agendamento agendamento);
 
     @IterableMapping(qualifiedByName = "toChefeDto")
@@ -49,6 +50,7 @@ public interface AgendamentoMapper {
     @Named("toUsuarioDto")
     @Mapping(source = "chefes", target = "nomesChefes",    qualifiedByName = "mapNomeChefe")
     @Mapping(source = "chefes", target = "especialidades", qualifiedByName = "mapEspecialidade")
+    @Mapping(source = "dataHoraInicial", target = "dataHora")
     ListaAgendamentoUsuarioDto toUsuarioDto(Agendamento agendamento);
 
     @Mapping(source = "criadoEm",   target = "criadoEm")
