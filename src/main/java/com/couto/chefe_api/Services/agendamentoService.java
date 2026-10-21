@@ -7,6 +7,7 @@ import com.couto.chefe_api.Dtos.ListaAgendamentoChefeDto;
 import com.couto.chefe_api.Dtos.ListaAgendamentoUsuarioDto;
 import com.couto.chefe_api.Excepitons.AgendamentoException;
 import com.couto.chefe_api.Excepitons.AgendamentoInvalidoException;
+import com.couto.chefe_api.Excepitons.AgendamentoNaoConfirmavelException;
 import com.couto.chefe_api.Excepitons.AgendamentoNaoEditavelException;
 import com.couto.chefe_api.Excepitons.ChefeIndisponivelException;
 import com.couto.chefe_api.Excepitons.ChefeNaoEncontradoException;
@@ -130,7 +131,7 @@ public class agendamentoService {
                 .filter(chefe -> chefe.getId().equals(chefeId))
                 .forEach(ChefeModel::exigirAtivo);
         if (agendamento.getStatus() != StatusAgendamento.PENDENDE) {
-            throw new AgendamentoNaoEditavelException(agendamento.getStatus());
+            throw new AgendamentoNaoConfirmavelException(agendamento.getStatus());
         }
         agendamento.setStatus(StatusAgendamento.CONFIRMADO);
         agendamentoRepository.save(agendamento);

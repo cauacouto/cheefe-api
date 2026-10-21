@@ -41,6 +41,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -107,6 +108,17 @@ class AutorizacaoIntegrationTest {
         mockMvc.perform(get("/pratos/meus").cookie(cliente)).andExpect(status().isForbidden());
         mockMvc.perform(patch("/agendamentos/1/confirmar").cookie(cliente)).andExpect(status().isForbidden());
         mockMvc.perform(get("/agendamentos/recebidos").cookie(cliente)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void papelErradoDa403ComProblemDetail() throws Exception {
+        mockMvc.perform(get("/pratos/meus").cookie(cookieDe(novoCliente())))
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.title").value("Forbidden"))
+                .andExpect(jsonPath("$.detail").value("acesso negado"))
+                .andExpect(jsonPath("$.instance").value("/pratos/meus"));
     }
 
     @Test
@@ -243,6 +255,21 @@ class AutorizacaoIntegrationTest {
                 .andExpect(jsonPath("$[0].nomePrato").value("Prato de X"));
     }
 
+    @Test
+    void putDePratoIgnoraImageUrlNoCorpo() throws Exception {
+        ChefeModel x = novoChefe();
+        Pratos prato = novoPrato(x, "Moqueca");
+        prato.setImageUrl("http://localhost:9000/teste/pratos/ok.png");
+        pratosRepository.save(prato);
+
+        mockMvc.perform(put("/pratos/" + prato.getId()).cookie(cookieDe(x)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nomePrato\":\"Moqueca\",\"descricao\":\"x\",\"imageUrl\":\"https://evil.example/x.png\"}"))
+                .andExpect(status().isOk());
+
+        assertThat(pratosRepository.findById(prato.getId()).orElseThrow().getImageUrl())
+                .isEqualTo("http://localhost:9000/teste/pratos/ok.png");
+    }
+
     Pratos novoPrato(ChefeModel chefe, String nome) {
         Pratos prato = new Pratos();
         prato.setNomePrato(nome);
@@ -329,7 +356,21 @@ class AutorizacaoIntegrationTest {
                 .isEqualTo(StatusAgendamento.CONFIRMADO);
 
         mockMvc.perform(patch("/agendamentos/" + agendamento.getId() + "/confirmar").cookie(cookieDe(x)))
-                .andExpect(status().isConflict());
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Só é possível confirmar agendamentos pendentes (status atual: CONFIRMADO)"));
+    }
+
+    @Test
+    void segundoChefDoAgendamentoConfirma() throws Exception {
+        ChefeModel x = novoChefe();
+        ChefeModel y = novoChefe();
+        Agendamento agendamento = novoAgendamento(novoCliente(), x, y);
+
+        mockMvc.perform(patch("/agendamentos/" + agendamento.getId() + "/confirmar").cookie(cookieDe(y)))
+                .andExpect(status().isOk());
+
+        assertThat(agendamentoRepository.findById(agendamento.getId()).orElseThrow().getStatus())
+                .isEqualTo(StatusAgendamento.CONFIRMADO);
     }
 
     @Test
@@ -358,11 +399,11 @@ class AutorizacaoIntegrationTest {
         return enderecoRepository.save(endereco);
     }
 
-    Agendamento novoAgendamento(UserModel cliente, ChefeModel chefe) {
+    Agendamento novoAgendamento(UserModel cliente, ChefeModel... chefes) {
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(cliente);
         agendamento.setEndereco(novoEndereco(cliente));
-        agendamento.setChefes(new ArrayList<>(List.of(chefe)));
+        agendamento.setChefes(new ArrayList<>(List.of(chefes)));
         agendamento.setDataHoraInicial(LocalDateTime.now().plusDays(10).withHour(18).withMinute(0).withSecond(0).withNano(0));
         agendamento.setDataHoraFinal(LocalDateTime.now().plusDays(10).withHour(20).withMinute(0).withSecond(0).withNano(0));
         agendamento.setQuantidadePessoas(2);
@@ -404,6 +445,40 @@ class AutorizacaoIntegrationTest {
         assertThat(agendamentoRepository.findById(agendamento.getId()).orElseThrow().getStatus())
                 .isEqualTo(StatusAgendamento.PENDENDE);
         assertThat(pratosRepository.findById(prato.getId()).orElseThrow().getNomePrato()).isEqualTo("Moqueca");
+    }
+
+    @Test
+    void meDeClienteApagadoDa401EExpiraCookie() throws Exception {
+        UserModel ana = novoCliente();
+        Cookie tokenAntigo = cookieDe(ana);
+        usuarioRepository.deleteById(ana.getId());
+
+        mockMvc.perform(get("/auth/me").cookie(tokenAntigo))
+                .andExpect(status().isUnauthorized())
+                .andExpect(result -> assertThat(result.getResponse().getHeaders("Set-Cookie"))
+                        .anyMatch(c -> c.startsWith(AuthCookies.ACCESS_TOKEN + "=") && c.contains("Max-Age=0")));
+    }
+
+    @Test
+    void meDeChefInativoDa401EExpiraCookie() throws Exception {
+        ChefeModel x = novoChefe();
+        x.setAtivo(false);
+        chefeRepository.save(x);
+
+        mockMvc.perform(get("/auth/me").cookie(cookieDe(x)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(result -> assertThat(result.getResponse().getHeaders("Set-Cookie"))
+                        .anyMatch(c -> c.startsWith(AuthCookies.ACCESS_TOKEN + "=") && c.contains("Max-Age=0")));
+    }
+
+    @Test
+    void meDeContaAtivaDevolveSessao() throws Exception {
+        ChefeModel x = novoChefe();
+
+        mockMvc.perform(get("/auth/me").cookie(cookieDe(x)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value(x.getEmail()))
+                .andExpect(jsonPath("$.tipo").value("CHEFE"));
     }
 
     UserModel novoCliente() {

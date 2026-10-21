@@ -37,6 +37,18 @@ public class LoginService {
                 .orElseGet(() -> new LoginResult(null, tokenService.gerarTokenRegistro(googleUser)));
     }
 
+    /**
+     * A conta do token ainda existe e opera? Cliente apagado some do banco; chef apagado fica com ativo=false.
+     */
+    public boolean contaAtiva(UsuarioAutenticado usuario) {
+        return switch (usuario.tipo()) {
+            case CLIENTE -> repository.existsById(usuario.id());
+            case CHEFE -> chefeRepository.findById(usuario.id())
+                    .map(chefe -> Boolean.TRUE.equals(chefe.getAtivo()))
+                    .orElse(false);
+        };
+    }
+
     public RegistroPendenteDto dadosRegistro(String registroToken) {
         GoogleUser googleUser = validarRegistro(registroToken);
         return new RegistroPendenteDto(googleUser.email(), googleUser.nome(), googleUser.foto());

@@ -1,5 +1,7 @@
 package com.couto.chefe_api.Security;
 
+import com.couto.chefe_api.User.UserModel;
+import com.couto.chefe_api.User.UsuarioRepository;
 import com.couto.chefe_api.enums.TipoUsuario;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,6 +19,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -25,7 +28,9 @@ import static org.springframework.security.test.web.servlet.setup.SecurityMockMv
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
@@ -42,6 +47,9 @@ class OAuth2FlowIntegrationTest {
 
     @Autowired
     private TokenService tokenService;
+
+    @Autowired
+    private UsuarioRepository usuarioRepository;
 
     private MockMvc mockMvc;
 
@@ -129,12 +137,31 @@ class OAuth2FlowIntegrationTest {
 
     @Test
     void meComTokenValidoDevolveSessao() throws Exception {
-        String token = tokenService.gerarToken(new UsuarioAutenticado(UUID.randomUUID(), "ana@gmail.com", TipoUsuario.CLIENTE));
+        UserModel ana = new UserModel();
+        ana.setNome("Ana");
+        ana.setEmail("ana-" + UUID.randomUUID() + "@gmail.com");
+        ana.setEndereco(new ArrayList<>());
+        ana = usuarioRepository.save(ana);
+        try {
+            String token = tokenService.gerarToken(new UsuarioAutenticado(ana.getId(), ana.getEmail(), TipoUsuario.CLIENTE));
+
+            mockMvc.perform(get("/auth/me").cookie(new Cookie(AuthCookies.ACCESS_TOKEN, token)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.email").value(ana.getEmail()))
+                    .andExpect(jsonPath("$.tipo").value("CLIENTE"));
+        } finally {
+            usuarioRepository.deleteById(ana.getId());
+        }
+    }
+
+    @Test
+    void meComTokenDeContaInexistenteDa401EExpiraCookie() throws Exception {
+        String token = tokenService.gerarToken(new UsuarioAutenticado(UUID.randomUUID(), "fantasma@gmail.com", TipoUsuario.CLIENTE));
 
         mockMvc.perform(get("/auth/me").cookie(new Cookie(AuthCookies.ACCESS_TOKEN, token)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.email").value("ana@gmail.com"))
-                .andExpect(jsonPath("$.tipo").value("CLIENTE"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("Set-Cookie",
+                        allOf(startsWith(AuthCookies.ACCESS_TOKEN + "="), containsString("Max-Age=0"))));
     }
 
     @Test
@@ -152,6 +179,12 @@ class OAuth2FlowIntegrationTest {
                         .header("Access-Control-Request-Method", "PATCH"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Access-Control-Allow-Methods", containsString("PATCH")));
+    }
+
+    @Test
+    void faviconSemCookieNaoDa401() throws Exception {
+        mockMvc.perform(get("/favicon.ico"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
