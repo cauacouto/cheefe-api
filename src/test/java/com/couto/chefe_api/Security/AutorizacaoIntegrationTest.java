@@ -243,6 +243,21 @@ class AutorizacaoIntegrationTest {
                 .andExpect(jsonPath("$[0].nomePrato").value("Prato de X"));
     }
 
+    @Test
+    void putDePratoIgnoraImageUrlNoCorpo() throws Exception {
+        ChefeModel x = novoChefe();
+        Pratos prato = novoPrato(x, "Moqueca");
+        prato.setImageUrl("http://localhost:9000/teste/pratos/ok.png");
+        pratosRepository.save(prato);
+
+        mockMvc.perform(put("/pratos/" + prato.getId()).cookie(cookieDe(x)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nomePrato\":\"Moqueca\",\"descricao\":\"x\",\"imageUrl\":\"https://evil.example/x.png\"}"))
+                .andExpect(status().isOk());
+
+        assertThat(pratosRepository.findById(prato.getId()).orElseThrow().getImageUrl())
+                .isEqualTo("http://localhost:9000/teste/pratos/ok.png");
+    }
+
     Pratos novoPrato(ChefeModel chefe, String nome) {
         Pratos prato = new Pratos();
         prato.setNomePrato(nome);
