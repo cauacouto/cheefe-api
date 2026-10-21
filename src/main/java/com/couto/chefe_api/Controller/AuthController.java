@@ -1,13 +1,12 @@
 package com.couto.chefe_api.Controller;
 
 import com.couto.chefe_api.Dtos.*;
+import com.couto.chefe_api.Security.AuthCookies;
 import com.couto.chefe_api.Security.LoginService;
 import lombok.RequiredArgsConstructor;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -18,6 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class AuthController {
 
     private final LoginService loginService;
+    private final AuthCookies authCookies;
 
 
 
@@ -32,17 +32,8 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletResponse response) {
-        response.addHeader(HttpHeaders.SET_COOKIE, createAccessTokenCookie("", 0).toString());
+        authCookies.adicionar(response, authCookies.expirar(AuthCookies.ACCESS_TOKEN, AuthCookies.PATH_RAIZ));
+        authCookies.adicionar(response, authCookies.expirar(AuthCookies.REGISTRO_TOKEN, AuthCookies.PATH_REGISTRO));
         return ResponseEntity.ok().build();
-    }
-
-    private ResponseCookie createAccessTokenCookie(String token, long maxAge) {
-        return ResponseCookie.from("accessToken", token)
-                .httpOnly(true)
-                .secure(false)
-                .path("/")
-                .maxAge(maxAge)
-                .sameSite("Lax")
-                .build();
     }
 }
