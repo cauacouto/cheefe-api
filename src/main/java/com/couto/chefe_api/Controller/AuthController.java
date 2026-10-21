@@ -38,7 +38,13 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<SessaoDto> me(@AuthenticationPrincipal UsuarioAutenticado usuario) {
+    public ResponseEntity<SessaoDto> me(@AuthenticationPrincipal UsuarioAutenticado usuario,
+                                        HttpServletResponse response) {
+        if (!loginService.contaAtiva(usuario)) {
+            // token ainda válido, mas a conta foi apagada: derruba a sessão
+            authCookies.adicionar(response, authCookies.expirar(AuthCookies.ACCESS_TOKEN, AuthCookies.PATH_RAIZ));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         return ResponseEntity.ok(new SessaoDto(usuario.id(), usuario.email(), usuario.tipo()));
     }
 

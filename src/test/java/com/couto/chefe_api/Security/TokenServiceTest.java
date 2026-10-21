@@ -1,9 +1,12 @@
 package com.couto.chefe_api.Security;
 
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.algorithms.Algorithm;
 import com.couto.chefe_api.enums.TipoUsuario;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -69,6 +72,20 @@ class TokenServiceTest {
         String token = new TokenService("outra").gerarToken(usuario);
 
         assertEquals(Optional.empty(), tokenService.validarToken(token));
+    }
+
+    @Test
+    void tokenDeAcessoExpiradoEhRejeitado() {
+        String expirado = JWT.create()
+                .withIssuer("chefe-api")
+                .withSubject(usuario.email())
+                .withClaim("id", usuario.id().toString())
+                .withClaim("tipo", usuario.tipo().name())
+                .withClaim("finalidade", "acesso")
+                .withExpiresAt(Instant.now().minusSeconds(60))
+                .sign(Algorithm.HMAC256("teste"));
+
+        assertEquals(Optional.empty(), tokenService.validarToken(expirado));
     }
 
     @Test

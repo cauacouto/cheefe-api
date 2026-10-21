@@ -36,6 +36,13 @@ public class AuthCookies {
         return criar(REGISTRO_TOKEN, token, PATH_REGISTRO, Duration.ofMinutes(15));
     }
 
+    /**
+     * Path=/ de propósito: o cookie nasce em {@code /oauth2/authorization/google} e é lido no callback
+     * {@code /login/oauth2/code/google}. O navegador só envia o cookie quando o path dele é prefixo da URL,
+     * e o único prefixo comum aos dois é "/". Um path mais estreito exigiria mover o redirect URI
+     * (e o cadastro no Google Console). O custo (~3 KB por requisição) dura no máximo os 180s do Max-Age,
+     * e o cookie é expirado assim que o callback o consome.
+     */
     public ResponseCookie oauth2Request(String valor) {
         return criar(OAUTH2_REQUEST, valor, PATH_RAIZ, Duration.ofSeconds(180));
     }

@@ -12,8 +12,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestCustomizers;
@@ -51,6 +49,7 @@ public class SecurityConfiguration  {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/auth/me").authenticated()
                         .requestMatchers("/auth/**", "/oauth2/**", "/login/oauth2/**", "/error", "/enderecos/cep/**").permitAll()
+                        .requestMatchers("/favicon.ico").permitAll()
                         // papel por rota; o dono do recurso é checado nos serviços
                         .requestMatchers("/usuario/**").hasRole(CLIENTE)
                         .requestMatchers(HttpMethod.POST, "/agendamentos").hasRole(CLIENTE)
@@ -74,7 +73,8 @@ public class SecurityConfiguration  {
                         .failureHandler(failureHandler)
                 )
                 .exceptionHandling(exceptions -> exceptions
-                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+                        .accessDeniedHandler(new AcessoNegadoHandler()))
                 .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
@@ -101,10 +101,5 @@ public class SecurityConfiguration  {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
-    }
-
-    @Bean
-    public PasswordEncoder encoder(){
-        return new BCryptPasswordEncoder();
     }
 }

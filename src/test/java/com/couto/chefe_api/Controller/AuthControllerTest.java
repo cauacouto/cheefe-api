@@ -54,10 +54,25 @@ class AuthControllerTest {
     @Test
     void meDevolveSessao() {
         UUID id = UUID.randomUUID();
+        UsuarioAutenticado usuario = new UsuarioAutenticado(id, "ana@gmail.com", TipoUsuario.CHEFE);
+        when(loginService.contaAtiva(usuario)).thenReturn(true);
 
-        var result = controller.me(new UsuarioAutenticado(id, "ana@gmail.com", TipoUsuario.CHEFE));
+        var result = controller.me(usuario, new MockHttpServletResponse());
 
         assertEquals(new SessaoDto(id, "ana@gmail.com", TipoUsuario.CHEFE), result.getBody());
+    }
+
+    @Test
+    void meDeContaApagadaDa401EExpiraAccessToken() {
+        UsuarioAutenticado usuario = new UsuarioAutenticado(UUID.randomUUID(), "ana@gmail.com", TipoUsuario.CLIENTE);
+        when(loginService.contaAtiva(usuario)).thenReturn(false);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        var result = controller.me(usuario, response);
+
+        assertEquals(HttpStatus.UNAUTHORIZED, result.getStatusCode());
+        assertTrue(response.getHeaders("Set-Cookie").stream()
+                .anyMatch(c -> c.startsWith("accessToken=") && c.contains("Max-Age=0")));
     }
 
     @Test

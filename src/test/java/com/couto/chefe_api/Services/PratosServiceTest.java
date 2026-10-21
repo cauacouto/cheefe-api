@@ -48,7 +48,7 @@ class PratosServiceTest {
 
     @Test
     void cadastraPratoComImagemNaPastaDePratos() {
-        service.cadastrarPratos(new CadastraPratosDtoRequest("Moqueca", "Peixe", null), foto, chefe.getId());
+        service.cadastrarPratos(new CadastraPratosDtoRequest("Moqueca", "Peixe"), foto, chefe.getId());
 
         ArgumentCaptor<Pratos> salvo = ArgumentCaptor.forClass(Pratos.class);
         verify(pratosRepository).save(salvo.capture());
@@ -60,7 +60,7 @@ class PratosServiceTest {
     @Test
     void chefeInexistenteNaoFazUpload() {
         assertThatThrownBy(() -> service.cadastrarPratos(
-                new CadastraPratosDtoRequest("Moqueca", "Peixe", null), foto, UUID.randomUUID()))
+                new CadastraPratosDtoRequest("Moqueca", "Peixe"), foto, UUID.randomUUID()))
                 .isInstanceOf(ChefeNaoEncontradoException.class);
         verifyNoInteractions(imagemStorage);
     }
@@ -69,7 +69,7 @@ class PratosServiceTest {
     void atualizarPratoInexistenteDa404() {
         when(pratosRepository.findByIdAndChefeModel_Id(99, chefe.getId())).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.updatePratos(new CadastraPratosDtoRequest("a", "b", null), 99, chefe.getId()))
+        assertThatThrownBy(() -> service.updatePratos(new CadastraPratosDtoRequest("a", "b"), 99, chefe.getId()))
                 .isInstanceOf(PratoNaoEncontradoException.class);
     }
 
@@ -78,7 +78,7 @@ class PratosServiceTest {
         UUID outroChef = UUID.randomUUID();
         when(pratosRepository.findByIdAndChefeModel_Id(1, outroChef)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.updatePratos(new CadastraPratosDtoRequest("Hacked", "x", null), 1, outroChef))
+        assertThatThrownBy(() -> service.updatePratos(new CadastraPratosDtoRequest("Hacked", "x"), 1, outroChef))
                 .isInstanceOf(PratoNaoEncontradoException.class);
         verify(pratosRepository, never()).save(any());
     }
@@ -92,7 +92,7 @@ class PratosServiceTest {
         when(pratosRepository.findByIdAndChefeModel_Id(1, chefe.getId())).thenReturn(Optional.of(prato));
         when(pratosRepository.save(any(Pratos.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        service.updatePratos(new CadastraPratosDtoRequest("Novo", "desc", null), 1, chefe.getId());
+        service.updatePratos(new CadastraPratosDtoRequest("Novo", "desc"), 1, chefe.getId());
 
         assertThat(prato.getNomePrato()).isEqualTo("Novo");
     }

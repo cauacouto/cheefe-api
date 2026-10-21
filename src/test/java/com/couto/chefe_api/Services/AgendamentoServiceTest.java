@@ -5,6 +5,7 @@ import com.couto.chefe_api.Dtos.AtualizarAgendamentoRequestDto;
 import com.couto.chefe_api.Excepitons.AgendamentoInvalidoException;
 import com.couto.chefe_api.Excepitons.EnderecoException;
 import com.couto.chefe_api.Excepitons.AgendamentoException;
+import com.couto.chefe_api.Excepitons.AgendamentoNaoConfirmavelException;
 import com.couto.chefe_api.Excepitons.AgendamentoNaoEditavelException;
 import com.couto.chefe_api.Excepitons.ChefeIndisponivelException;
 import com.couto.chefe_api.Excepitons.ChefeNaoEncontradoException;
@@ -313,7 +314,8 @@ class AgendamentoServiceTest {
             agenda.setStatus(StatusAgendamento.CONFIRMADO);
 
             assertThatThrownBy(() -> service.confirmarAgendamento(9L, chefeA.getId()))
-                    .isInstanceOf(AgendamentoNaoEditavelException.class);
+                    .isInstanceOf(AgendamentoNaoConfirmavelException.class)
+                    .hasMessage("Só é possível confirmar agendamentos pendentes (status atual: CONFIRMADO)");
             verify(agendamentoRepository, never()).save(any());
         }
     }
