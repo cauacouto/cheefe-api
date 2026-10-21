@@ -1,5 +1,20 @@
 package com.couto.chefe_api.Security;
 
+import com.couto.chefe_api.User.UserModel;
+import com.couto.chefe_api.User.UsuarioRepository;
+import com.couto.chefe_api.domin.ChefeModel;
+import com.couto.chefe_api.domin.EnderecoModel;
+import com.couto.chefe_api.enums.Especialidades;
+import com.couto.chefe_api.enums.Senioridade;
+import com.couto.chefe_api.enums.TipoDeResidencia;
+import com.couto.chefe_api.repositorys.AgendamentoRepository;
+import com.couto.chefe_api.repositorys.ChefeRepository;
+import com.couto.chefe_api.repositorys.EndercoRepository;
+import org.springframework.http.MediaType;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import com.couto.chefe_api.domin.Notificacao;
 import com.couto.chefe_api.enums.EventoNotificacao;
 import com.couto.chefe_api.enums.TipoUsuario;
@@ -21,6 +36,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -34,6 +51,14 @@ class NotificacaoIntegrationTest {
     private TokenService tokenService;
     @Autowired
     private NotificacaoRepository notificacaoRepository;
+    @Autowired
+    private UsuarioRepository usuarioRepository;
+    @Autowired
+    private ChefeRepository chefeRepository;
+    @Autowired
+    private EndercoRepository enderecoRepository;
+    @Autowired
+    private AgendamentoRepository agendamentoRepository;
 
     private MockMvc mockMvc;
     private final UUID ana = UUID.randomUUID();
@@ -46,6 +71,10 @@ class NotificacaoIntegrationTest {
 
     @AfterEach
     void limparBanco() {
+        agendamentoRepository.deleteAll();
+        enderecoRepository.deleteAll();
+        usuarioRepository.deleteAll();
+        chefeRepository.deleteAll();
         notificacaoRepository.deleteAll();
     }
 
@@ -121,6 +150,116 @@ class NotificacaoIntegrationTest {
     @Test
     void semCookieDa401() throws Exception {
         mockMvc.perform(get("/notificacoes")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void criarAgendamentoNotificaOChef() throws Exception {
+        UserModel cliente = novoCliente();
+        ChefeModel chef = novoChefe(true);
+
+        criarAgendamento(cliente, chef).andExpect(status().isCreated());
+
+        mockMvc.perform(get("/notificacoes/nao-lidas/contagem").cookie(cookieDe(chef))).andExpect(jsonPath("$.total").value(1));
+        mockMvc.perform(get("/notificacoes").cookie(cookieDe(chef)))
+                .andExpect(jsonPath("$.content[0].evento").value("AGENDAMENTO_CRIADO"))
+                .andExpect(jsonPath("$.content[0].mensagem").value(org.hamcrest.Matchers.startsWith("Cliente pediu um agendamento para ")));
+    }
+
+    @Test
+    void editarNotificaOsChefsDepoisDaEdicao() throws Exception {
+        UserModel cliente = novoCliente();
+        ChefeModel x = novoChefe(true);
+        ChefeModel y = novoChefe(true);
+        criarAgendamento(cliente, x).andExpect(status().isCreated());
+        Long id = agendamentoRepository.findAllByUsuario_Id(cliente.getId()).get(0).getId();
+
+        mockMvc.perform(put("/agendamentos/" + id).cookie(cookieDe(cliente)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"chefeIds\":[\"" + y.getId() + "\"]}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/notificacoes").cookie(cookieDe(y)))
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].evento").value("AGENDAMENTO_EDITADO"));
+    }
+
+    @Test
+    void confirmarNotificaOCliente() throws Exception {
+        UserModel cliente = novoCliente();
+        ChefeModel chef = novoChefe(true);
+        criarAgendamento(cliente, chef).andExpect(status().isCreated());
+        Long id = agendamentoRepository.findAllByUsuario_Id(cliente.getId()).get(0).getId();
+
+        mockMvc.perform(patch("/agendamentos/" + id + "/confirmar").cookie(cookieDe(chef))).andExpect(status().isOk());
+
+        mockMvc.perform(get("/notificacoes").cookie(cookieDe(cliente)))
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].evento").value("AGENDAMENTO_CONFIRMADO"))
+                .andExpect(jsonPath("$.content[0].referenciaId").value(String.valueOf(id)));
+    }
+
+    @Test
+    void agendamentoRecusadoNaoNotifica() throws Exception {
+        UserModel cliente = novoCliente();
+        ChefeModel incompleto = novoChefe(false);
+
+        criarAgendamento(cliente, incompleto).andExpect(status().isBadRequest());
+
+        assertThat(notificacaoRepository.countByDestinatarioIdAndLidaFalse(incompleto.getId())).isZero();
+    }
+
+    private org.springframework.test.web.servlet.ResultActions criarAgendamento(UserModel cliente, ChefeModel chef) throws Exception {
+        EnderecoModel endereco = new EnderecoModel();
+        endereco.setRua("Rua A");
+        endereco.setNumero("1");
+        endereco.setBairro("Centro");
+        endereco.setCidade("São Paulo");
+        endereco.setEstado("SP");
+        endereco.setCep("01001-000");
+        endereco.setTipoDeResidencia(TipoDeResidencia.CASA);
+        endereco.setUsuario(cliente);
+        endereco = enderecoRepository.save(endereco);
+        DateTimeFormatter formato = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
+        LocalDateTime dia = LocalDateTime.now().plusDays(10);
+        String json = "{\"dataHoraInicial\":\"" + dia.withHour(18).withMinute(0).format(formato) + "\","
+                + "\"dataHoraFinal\":\"" + dia.withHour(21).withMinute(0).format(formato) + "\","
+                + "\"enderecoId\":" + endereco.getId() + ",\"chefeIds\":[\"" + chef.getId() + "\"],\"quantidadePessoas\":2}";
+        return mockMvc.perform(post("/agendamentos").cookie(cookie(cliente.getId(), cliente.getEmail(), TipoUsuario.CLIENTE))
+                .contentType(MediaType.APPLICATION_JSON).content(json));
+    }
+
+    private UserModel novoCliente() {
+        UserModel usuario = new UserModel();
+        usuario.setNome("Cliente");
+        usuario.setEmail("cliente-" + UUID.randomUUID() + "@x.com");
+        usuario.setEndereco(new ArrayList<>());
+        return usuarioRepository.save(usuario);
+    }
+
+    private ChefeModel novoChefe(boolean completo) {
+        ChefeModel chefe = new ChefeModel();
+        chefe.setNome("Chef");
+        chefe.setEmail("chef-" + UUID.randomUUID() + "@x.com");
+        chefe.setNacionalidade("Brasileira");
+        chefe.setIdiomas("pt");
+        chefe.setValorHora(new BigDecimal("100"));
+        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setAnosDeExperiencia(5);
+        if (completo) {
+            chefe.setSenioridade(Senioridade.HEAD_CHEF);
+        }
+        return chefeRepository.save(chefe);
+    }
+
+    private Cookie cookieDe(UserModel usuario) {
+        return cookie(usuario.getId(), usuario.getEmail(), TipoUsuario.CLIENTE);
+    }
+
+    private Cookie cookieDe(ChefeModel chefe) {
+        return cookie(chefe.getId(), chefe.getEmail(), TipoUsuario.CHEFE);
+    }
+
+    private Cookie cookie(UUID id, String email, TipoUsuario tipo) {
+        return new Cookie(AuthCookies.ACCESS_TOKEN, tokenService.gerarToken(new UsuarioAutenticado(id, email, tipo)));
     }
 
     private Notificacao notificacao(UUID destinatario, String mensagem) {

@@ -22,7 +22,11 @@ import com.couto.chefe_api.enums.StatusAgendamento;
 import com.couto.chefe_api.repositorys.AgendamentoRepository;
 import com.couto.chefe_api.repositorys.ChefeRepository;
 import com.couto.chefe_api.repositorys.EndercoRepository;
+import com.couto.chefe_api.Services.eventos.AgendamentoConfirmadoEvent;
+import com.couto.chefe_api.Services.eventos.AgendamentoCriadoEvent;
+import com.couto.chefe_api.Services.eventos.AgendamentoEditadoEvent;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,6 +50,7 @@ public class agendamentoService {
     private final AgendamentoMapper agendamentoMapper;
     private final EndercoRepository endercoRepository;
     private final AgendamentoRepository agendamentoRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public AgendamentoResponseDto criarAgendamento(AgendamentoResquestDto dto, UUID usuarioId) {
@@ -63,7 +68,9 @@ public class agendamentoService {
         agendamento.setDataHoraFinal(dto.getDataHoraFinal());
         agendamento.setQuantidadePessoas(dto.getQuantidadePessoas());
         agendamento.setValorTotal(calcularValor(chefes, dto.getDataHoraInicial(), dto.getDataHoraFinal()));
-        return agendamentoMapper.toDto(agendamentoRepository.save(agendamento));
+        Agendamento salvo = agendamentoRepository.save(agendamento);
+        eventPublisher.publishEvent(new AgendamentoCriadoEvent(salvo.getId()));
+        return agendamentoMapper.toDto(salvo);
     }
 
     @Transactional(readOnly = true)
@@ -118,7 +125,9 @@ public class agendamentoService {
             agenda.setValorTotal(calcularValor(agenda.getChefes(), agenda.getDataHoraInicial(), agenda.getDataHoraFinal()));
         }
 
-        return agendamentoMapper.toDto(agendamentoRepository.save(agenda));
+        Agendamento salvo = agendamentoRepository.save(agenda);
+        eventPublisher.publishEvent(new AgendamentoEditadoEvent(salvo.getId()));
+        return agendamentoMapper.toDto(salvo);
     }
 
     @Transactional
@@ -135,6 +144,7 @@ public class agendamentoService {
         }
         agendamento.setStatus(StatusAgendamento.CONFIRMADO);
         agendamentoRepository.save(agendamento);
+        eventPublisher.publishEvent(new AgendamentoConfirmadoEvent(agendamento.getId(), chefeId));
     }
 
     private EnderecoModel buscarEndereco(Long enderecoId, UUID usuarioId) {

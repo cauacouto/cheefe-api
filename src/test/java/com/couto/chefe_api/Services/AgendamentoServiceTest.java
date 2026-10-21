@@ -26,6 +26,10 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
+import com.couto.chefe_api.Services.eventos.AgendamentoConfirmadoEvent;
+import com.couto.chefe_api.Services.eventos.AgendamentoCriadoEvent;
+import com.couto.chefe_api.Services.eventos.AgendamentoEditadoEvent;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -64,6 +68,9 @@ class AgendamentoServiceTest {
     private EndercoRepository endercoRepository;
     @Mock
     private AgendamentoRepository agendamentoRepository;
+
+    @Mock
+    private ApplicationEventPublisher publisher;
 
     @InjectMocks
     private agendamentoService service;
@@ -188,6 +195,15 @@ class AgendamentoServiceTest {
         verify(agendamentoRepository, never()).save(any());
     }
 
+    @Test
+    void criarPublicaEventoDeCriacao() {
+        chefesExistentes(chefeA);
+
+        service.criarAgendamento(dto(DIA.withHour(18), DIA.withHour(21), 1L, ids(chefeA), 2), USUARIO_ID);
+
+        verify(publisher).publishEvent(any(AgendamentoCriadoEvent.class));
+    }
+
     @Nested
     class Atualizar {
 
@@ -287,6 +303,13 @@ class AgendamentoServiceTest {
         }
 
         @Test
+        void editarPublicaEventoDeEdicao() {
+            service.atualizarAgedamento(atualizacao(null, null, null, null, 5), 7L, USUARIO_ID);
+
+            verify(publisher).publishEvent(new AgendamentoEditadoEvent(7L));
+        }
+
+        @Test
         void agendamentoForaDePendenteNaoPodeSerEditado() {
             agenda.setStatus(StatusAgendamento.CONFIRMADO);
 
@@ -314,6 +337,7 @@ class AgendamentoServiceTest {
             service.confirmarAgendamento(9L, chefeB.getId());
 
             assertThat(agenda.getStatus()).isEqualTo(StatusAgendamento.CONFIRMADO);
+            verify(publisher).publishEvent(new AgendamentoConfirmadoEvent(9L, chefeB.getId()));
         }
 
         @Test
