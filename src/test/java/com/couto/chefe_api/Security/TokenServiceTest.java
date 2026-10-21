@@ -56,8 +56,10 @@ class TokenServiceTest {
     @Test
     void tokenAdulteradoEhRejeitado() {
         String token = tokenService.gerarToken(usuario);
-        char ultimo = token.charAt(token.length() - 1);
-        String adulterado = token.substring(0, token.length() - 1) + (ultimo == 'A' ? 'B' : 'A');
+        // altera um caractere do payload (o último caractere da assinatura tem bits de padding descartados)
+        int meioDoPayload = (token.indexOf('.') + token.lastIndexOf('.')) / 2;
+        char original = token.charAt(meioDoPayload);
+        String adulterado = token.substring(0, meioDoPayload) + (original == 'A' ? 'B' : 'A') + token.substring(meioDoPayload + 1);
 
         assertEquals(Optional.empty(), tokenService.validarToken(adulterado));
     }
