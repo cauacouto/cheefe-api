@@ -64,6 +64,11 @@ class MigracoesPostgresTest {
 
     @DynamicPropertySource
     static void bancoReal(DynamicPropertyRegistry registry) throws Exception {
+        configurarBancoReal(registry);
+    }
+
+    /** Container, setup das roles e migrations; a API conecta como chefhome_app com validate. Reusado por outros testes. */
+    static void configurarBancoReal(DynamicPropertyRegistry registry) throws Exception {
         POSTGRES.start();
         rodarSetup();
         Flyway.configure()
