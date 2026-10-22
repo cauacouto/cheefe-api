@@ -1,6 +1,11 @@
 package com.couto.chefe_api.Chefe;
 
+import com.couto.chefe_api.Services.DenunciaService;
 import com.couto.chefe_api.domin.ChefeModel;
+import com.couto.chefe_api.domin.Denuncia;
+import com.couto.chefe_api.enums.StatusDenuncia;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.math.BigDecimal;
@@ -16,6 +21,22 @@ public final class ChefeSpecification {
 
     public static Specification<ChefeModel> disponivel() {
         return (root, query, cb) -> cb.isTrue(root.get("disponivel"));
+    }
+
+    public static Specification<ChefeModel> naoSuspenso() {
+        return (root, query, cb) -> cb.isFalse(root.get("suspenso"));
+    }
+
+    /** Menos de {@link DenunciaService#LIMITE_OCULTACAO} clientes distintos com denúncia aberta. */
+    public static Specification<ChefeModel> semDenunciasEmExcesso() {
+        return (root, query, cb) -> {
+            Subquery<Long> denunciantes = query.subquery(Long.class);
+            Root<Denuncia> denuncia = denunciantes.from(Denuncia.class);
+            denunciantes.select(cb.countDistinct(denuncia.get("cliente").get("id")))
+                    .where(cb.equal(denuncia.get("chefe"), root),
+                            cb.equal(denuncia.get("status"), StatusDenuncia.ABERTA));
+            return cb.lessThan(denunciantes, DenunciaService.LIMITE_OCULTACAO);
+        };
     }
 
     /** Mesma regra de {@link ChefeModel#isPerfilCompleto()}. */

@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -106,6 +107,22 @@ class DenunciaIntegrationTest {
         Agendamento agendamento = agendamentoConfirmadoNoPassado(cliente, chefe);
 
         denunciar(cliente, agendamento, chefe, "\"descricao\":\"  \"").andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void chefSuspensoVeAvisoNoPerfilESomeDaBusca() throws Exception {
+        ChefeModel chefe = novoChefe();
+        chefe.setSuspenso(true);
+        chefeRepository.save(chefe);
+        Cookie cookie = cookie(chefe.getId(), chefe.getEmail(), TipoUsuario.CHEFE);
+
+        mockMvc.perform(get("/chefe/me").cookie(cookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.suspenso").value(true))
+                .andExpect(jsonPath("$.ocultoPorDenuncias").value(false));
+        mockMvc.perform(get("/chefe").cookie(cookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(0));
     }
 
     ResultActions denunciar(UserModel cliente, Agendamento agendamento, ChefeModel chefe, String descricao) throws Exception {

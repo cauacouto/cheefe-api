@@ -20,7 +20,9 @@ import com.couto.chefe_api.domin.ChefeModel;
 import com.couto.chefe_api.domin.EnderecoModel;
 import com.couto.chefe_api.enums.StatusAgendamento;
 import com.couto.chefe_api.repositorys.AgendamentoRepository;
+import com.couto.chefe_api.enums.StatusDenuncia;
 import com.couto.chefe_api.repositorys.ChefeRepository;
+import com.couto.chefe_api.repositorys.DenunciaRepository;
 import com.couto.chefe_api.repositorys.EndercoRepository;
 import com.couto.chefe_api.Services.eventos.AgendamentoConfirmadoEvent;
 import com.couto.chefe_api.Services.eventos.AgendamentoCriadoEvent;
@@ -51,6 +53,7 @@ public class agendamentoService {
     private final EndercoRepository endercoRepository;
     private final AgendamentoRepository agendamentoRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final DenunciaRepository denunciaRepository;
 
     @Transactional
     public AgendamentoResponseDto criarAgendamento(AgendamentoResquestDto dto, UUID usuarioId) {
@@ -183,7 +186,9 @@ public class agendamentoService {
         }
 
         boolean todosValidos = chefes.stream()
-                .allMatch(chefe -> chefe.isDisponivel() && Boolean.TRUE.equals(chefe.getAtivo()));
+                .allMatch(chefe -> chefe.isDisponivel() && Boolean.TRUE.equals(chefe.getAtivo()) && !chefe.isSuspenso()
+                        && denunciaRepository.countDistinctClienteByChefeIdAndStatus(chefe.getId(), StatusDenuncia.ABERTA)
+                        < DenunciaService.LIMITE_OCULTACAO);
         if (!todosValidos) {
             throw new ChefeIndisponivelException();
         }

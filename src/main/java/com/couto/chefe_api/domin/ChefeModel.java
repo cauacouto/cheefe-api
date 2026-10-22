@@ -4,6 +4,7 @@ import com.couto.chefe_api.Excepitons.ContaInativaException;
 import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.enums.Senioridade;
 import jakarta.persistence.*;
+import org.hibernate.annotations.ColumnDefault;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -52,6 +53,11 @@ public class ChefeModel implements Serializable {
     private boolean disponivel = true;
 
 private Boolean ativo = true;
+
+    /** Suspenso pela moderação: some da busca e não pode ser agendado, mas continua logando. */
+    @Column(nullable = false)
+    @ColumnDefault("false")
+    private boolean suspenso;
     private String idiomas;
 
     private String imageUrl;

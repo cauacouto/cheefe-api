@@ -65,6 +65,8 @@ A aplicação **não sobe** sem o registro do Google e sem `FRONT_URL`.
 ALTER TABLE chefe ALTER COLUMN nacionalidade DROP NOT NULL;
 ALTER TABLE chefe ALTER COLUMN idiomas DROP NOT NULL;
 ALTER TABLE chefe ALTER COLUMN anos_de_experiencia DROP NOT NULL;
+-- moderação (coluna nova com default; seguro rodar mais de uma vez)
+ALTER TABLE chefe ADD COLUMN IF NOT EXISTS suspenso boolean NOT NULL DEFAULT false;
 ```
 
 ### 🔐 Login com Google (BFF)

@@ -7,7 +7,9 @@ import com.couto.chefe_api.Dtos.ChefeResponseDto;
 import com.couto.chefe_api.Excepitons.ChefeNaoEncontradoException;
 import com.couto.chefe_api.Mapper.ChefeMapper;
 import com.couto.chefe_api.domin.ChefeModel;
+import com.couto.chefe_api.enums.StatusDenuncia;
 import com.couto.chefe_api.repositorys.ChefeRepository;
+import com.couto.chefe_api.repositorys.DenunciaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -24,6 +26,7 @@ public class ChefeService {
 
     private final ChefeRepository chefeRepository;
     private final ChefeMapper chefeMapper;
+    private final DenunciaRepository denunciaRepository;
 
     @Transactional
     public ChefeResponseDto atualizarDados(ChefeRequestDto dto, UUID id) {
@@ -35,7 +38,9 @@ public class ChefeService {
 
     @Transactional(readOnly = true)
     public ChefePerfilDto buscarPerfil(UUID chefeId) {
-        return ChefePerfilDto.de(chefeRepository.findById(chefeId).orElseThrow(ChefeNaoEncontradoException::new));
+        ChefeModel chefe = chefeRepository.findById(chefeId).orElseThrow(ChefeNaoEncontradoException::new);
+        long denunciantes = denunciaRepository.countDistinctClienteByChefeIdAndStatus(chefeId, StatusDenuncia.ABERTA);
+        return ChefePerfilDto.de(chefe, denunciantes >= DenunciaService.LIMITE_OCULTACAO);
     }
 
     @Transactional(readOnly = true)
@@ -43,6 +48,8 @@ public class ChefeService {
         Specification<ChefeModel> spec = ChefeSpecification.ativo()
                 .and(ChefeSpecification.disponivel())
                 .and(ChefeSpecification.perfilCompleto())
+                .and(ChefeSpecification.naoSuspenso())
+                .and(ChefeSpecification.semDenunciasEmExcesso())
                 .and(ChefeSpecification.valorMinimoMaior(valorMnimmo))
                 .and(ChefeSpecification.valorMaximoMneor(valorMaximo));
 

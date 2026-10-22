@@ -21,12 +21,15 @@ public record ChefePerfilDto(
         BigDecimal valorHora,
         String imageUrl,
         boolean perfilCompleto,
-        List<String> camposPendentes
+        List<String> camposPendentes,
+        boolean suspenso,
+        boolean ocultoPorDenuncias
 ) {
 
-    public static ChefePerfilDto de(ChefeModel chefe) {
+    public static ChefePerfilDto de(ChefeModel chefe, boolean ocultoPorDenuncias) {
         return new ChefePerfilDto(chefe.getId(), chefe.getNome(), chefe.getNacionalidade(), chefe.getEspecialidade(),
                 chefe.getAnosDeExperiencia(), chefe.getSenioridade(), chefe.isDisponivel(), chefe.getIdiomas(),
-                chefe.getValorHora(), chefe.getImageUrl(), chefe.isPerfilCompleto(), chefe.camposPendentes());
+                chefe.getValorHora(), chefe.getImageUrl(), chefe.isPerfilCompleto(), chefe.camposPendentes(),
+                chefe.isSuspenso(), ocultoPorDenuncias);
     }
 }

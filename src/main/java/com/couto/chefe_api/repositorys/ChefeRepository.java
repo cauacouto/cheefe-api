@@ -16,11 +16,14 @@ public interface ChefeRepository extends JpaRepository<ChefeModel, UUID>, JpaSpe
 
     Optional<ChefeModel> findByEmailIgnoreCase(String email);
 
-    // visível = ativo, disponível e perfil completo (mesma regra de ChefeModel.isPerfilCompleto)
+    // visível = ativo, disponível, perfil completo, não suspenso e < 3 denunciantes com denúncia aberta
     String VISIVEL = "c.ativo = true AND c.disponivel = true " +
             "AND TRIM(COALESCE(c.nacionalidade, '')) <> '' AND c.especialidade IS NOT NULL " +
             "AND c.senioridade IS NOT NULL AND c.anosDeExperiencia IS NOT NULL " +
-            "AND TRIM(COALESCE(c.idiomas, '')) <> '' AND c.valorHora IS NOT NULL";
+            "AND TRIM(COALESCE(c.idiomas, '')) <> '' AND c.valorHora IS NOT NULL " +
+            "AND c.suspenso = false " +
+            "AND (SELECT COUNT(DISTINCT d.cliente.id) FROM Denuncia d WHERE d.chefe = c " +
+            "AND d.status = com.couto.chefe_api.enums.StatusDenuncia.ABERTA) < 3";
 
     @Query(value = "SELECT c FROM ChefeModel c LEFT JOIN c.agendamentos a WHERE " + VISIVEL +
             " GROUP BY c ORDER BY COUNT(a) DESC",

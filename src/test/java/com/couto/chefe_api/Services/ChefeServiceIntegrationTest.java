@@ -8,6 +8,14 @@ import com.couto.chefe_api.Excepitons.ChefeNaoEncontradoException;
 import com.couto.chefe_api.Excepitons.ContaInativaException;
 import com.couto.chefe_api.domin.ChefeModel;
 import com.couto.chefe_api.repositorys.ChefeRepository;
+import com.couto.chefe_api.User.UserModel;
+import com.couto.chefe_api.User.UsuarioRepository;
+import com.couto.chefe_api.domin.Agendamento;
+import com.couto.chefe_api.domin.Denuncia;
+import com.couto.chefe_api.enums.MotivoDenuncia;
+import com.couto.chefe_api.enums.StatusDenuncia;
+import com.couto.chefe_api.repositorys.AgendamentoRepository;
+import com.couto.chefe_api.repositorys.DenunciaRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,6 +38,12 @@ class ChefeServiceIntegrationTest {
     private ChefeService chefeService;
     @Autowired
     private ChefeRepository chefeRepository;
+    @Autowired
+    private UsuarioRepository usuarioRepository;
+    @Autowired
+    private AgendamentoRepository agendamentoRepository;
+    @Autowired
+    private DenunciaRepository denunciaRepository;
 
     private ChefeModel ativo;
     private ChefeModel inativo;
@@ -42,6 +56,9 @@ class ChefeServiceIntegrationTest {
 
     @AfterEach
     void limpar() {
+        denunciaRepository.deleteAll();
+        agendamentoRepository.deleteAll();
+        usuarioRepository.deleteAll();
         chefeRepository.deleteAll();
     }
 
@@ -165,6 +182,54 @@ class ChefeServiceIntegrationTest {
         assertThat(chefeService.chefesMaisAgendados(PageRequest.of(0, 10)).getContent())
                 .extracting(ChefeResponseDto::nome).containsExactly("Ativo");
         assertThat(chefeRepository.findById(comTab.getId()).orElseThrow().getNacionalidade()).isNull();
+    }
+
+    @Test
+    void suspensoNaoApareceNaBuscaNemNosDestaques() {
+        ativo.setSuspenso(true);
+        chefeRepository.save(ativo);
+
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null).getContent()).isEmpty();
+        assertThat(chefeService.chefesMaisAgendados(PageRequest.of(0, 10)).getContent()).isEmpty();
+    }
+
+    @Test
+    void comTresDenunciantesAbertosNaoAparece() {
+        for (int i = 0; i < 3; i++) {
+            denunciar(ativo, StatusDenuncia.ABERTA);
+        }
+
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null).getContent()).isEmpty();
+        assertThat(chefeService.chefesMaisAgendados(PageRequest.of(0, 10)).getContent()).isEmpty();
+    }
+
+    @Test
+    void comDuasDenunciasAbertasOuComArquivadasAparece() {
+        denunciar(ativo, StatusDenuncia.ABERTA);
+        denunciar(ativo, StatusDenuncia.ABERTA);
+        denunciar(ativo, StatusDenuncia.ARQUIVADA);
+
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null).getContent())
+                .extracting(ChefeResponseDto::nome).containsExactly("Ativo");
+    }
+
+    private void denunciar(ChefeModel chefe, StatusDenuncia status) {
+        UserModel cliente = new UserModel();
+        cliente.setNome("Cliente");
+        cliente.setEmail("cliente-" + UUID.randomUUID() + "@x.com");
+        cliente = usuarioRepository.save(cliente);
+        Agendamento agendamento = new Agendamento();
+        agendamento.setUsuario(cliente);
+        agendamento.setChefes(new java.util.ArrayList<>(java.util.List.of(chefe)));
+        agendamento = agendamentoRepository.save(agendamento);
+        Denuncia denuncia = new Denuncia();
+        denuncia.setChefe(chefe);
+        denuncia.setCliente(cliente);
+        denuncia.setAgendamento(agendamento);
+        denuncia.setMotivo(MotivoDenuncia.OUTRO);
+        denuncia.setDescricao("x");
+        denuncia.setStatus(status);
+        denunciaRepository.save(denuncia);
     }
 
     private static ChefeModel chefe(String nome, boolean ativo) {

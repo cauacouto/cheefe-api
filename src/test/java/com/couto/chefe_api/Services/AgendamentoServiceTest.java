@@ -18,6 +18,8 @@ import com.couto.chefe_api.domin.Agendamento;
 import com.couto.chefe_api.domin.ChefeModel;
 import com.couto.chefe_api.domin.EnderecoModel;
 import com.couto.chefe_api.enums.StatusAgendamento;
+import com.couto.chefe_api.enums.StatusDenuncia;
+import com.couto.chefe_api.repositorys.DenunciaRepository;
 import com.couto.chefe_api.repositorys.AgendamentoRepository;
 import com.couto.chefe_api.repositorys.ChefeRepository;
 import com.couto.chefe_api.repositorys.EndercoRepository;
@@ -71,6 +73,8 @@ class AgendamentoServiceTest {
 
     @Mock
     private ApplicationEventPublisher publisher;
+    @Mock
+    private DenunciaRepository denunciaRepository;
 
     @InjectMocks
     private agendamentoService service;
@@ -202,6 +206,27 @@ class AgendamentoServiceTest {
         service.criarAgendamento(dto(DIA.withHour(18), DIA.withHour(21), 1L, ids(chefeA), 2), USUARIO_ID);
 
         verify(publisher).publishEvent(any(AgendamentoCriadoEvent.class));
+    }
+
+    @Test
+    void agendarChefSuspensoDa409() {
+        chefeA.setSuspenso(true);
+        chefesExistentes(chefeA);
+
+        assertThatThrownBy(() -> service.criarAgendamento(
+                dto(DIA.withHour(18), DIA.withHour(21), 1L, ids(chefeA), 2), USUARIO_ID))
+                .isInstanceOf(ChefeIndisponivelException.class);
+        verify(agendamentoRepository, never()).save(any());
+    }
+
+    @Test
+    void agendarChefOcultoPorDenunciasDa409() {
+        chefesExistentes(chefeA);
+        when(denunciaRepository.countDistinctClienteByChefeIdAndStatus(chefeA.getId(), StatusDenuncia.ABERTA)).thenReturn(3L);
+
+        assertThatThrownBy(() -> service.criarAgendamento(
+                dto(DIA.withHour(18), DIA.withHour(21), 1L, ids(chefeA), 2), USUARIO_ID))
+                .isInstanceOf(ChefeIndisponivelException.class);
     }
 
     @Nested
