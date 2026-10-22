@@ -65,9 +65,9 @@ ALTER DEFAULT PRIVILEGES FOR ROLE chefhome_migracao IN SCHEMA chefhome
 ALTER DEFAULT PRIVILEGES FOR ROLE chefhome_migracao IN SCHEMA chefhome
     GRANT USAGE, SELECT ON SEQUENCES TO chefhome_app;
 
--- se o setup rodar depois de migrations já aplicadas, cobre o que já existe
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA chefhome TO chefhome_app;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA chefhome TO chefhome_app;
+-- Sem GRANT ... ON ALL TABLES: as permissões de cada tabela nascem dos default privileges acima e das
+-- restrições das próprias migrations (ex.: auditoria só de inserção). Re-rodar o setup (para trocar
+-- senha) não pode devolver à API privilégios que uma migration retirou.
 
 -- o histórico de migrations é só do Flyway: a API não pode adulterá-lo
 SELECT 'REVOKE INSERT, UPDATE, DELETE ON chefhome.flyway_schema_history FROM chefhome_app'

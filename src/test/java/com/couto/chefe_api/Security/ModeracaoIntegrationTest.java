@@ -8,6 +8,7 @@ import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.enums.MotivoDenuncia;
 import com.couto.chefe_api.enums.Senioridade;
 import com.couto.chefe_api.enums.StatusDenuncia;
+import com.couto.chefe_api.repositorys.AcaoModeracaoRepository;
 import com.couto.chefe_api.repositorys.AgendamentoRepository;
 import com.couto.chefe_api.repositorys.ChefeRepository;
 import com.couto.chefe_api.repositorys.DenunciaRepository;
@@ -69,6 +70,8 @@ class ModeracaoIntegrationTest {
     private NotificacaoRepository notificacaoRepository;
     @Autowired
     private LoginService loginService;
+    @Autowired
+    private AcaoModeracaoRepository acaoModeracaoRepository;
 
     private MockMvc mockMvc;
 
@@ -79,6 +82,7 @@ class ModeracaoIntegrationTest {
 
     @AfterEach
     void limparBanco() {
+        acaoModeracaoRepository.deleteAll();
         denunciaRepository.deleteAll();
         agendamentoRepository.deleteAll();
         usuarioRepository.deleteAll();
@@ -232,6 +236,20 @@ class ModeracaoIntegrationTest {
         assertThat(escondida.getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
                 .isEqualTo(real.getContentAsString(java.nio.charset.StandardCharsets.UTF_8)
                         .replace("rota-que-nao-existe", "moderacao/denuncias"));
+    }
+
+    @Test
+    void historicoDeAcoesMostraQuemFezOQue() throws Exception {
+        ChefeModel chefe = novoChefe();
+
+        mockMvc.perform(patch("/moderacao/chefes/" + chefe.getId() + "/suspender").cookie(cookieModerador()))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/moderacao/acoes").cookie(cookieModerador()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].acao").value("SUSPENDER_CHEF"))
+                .andExpect(jsonPath("$.content[0].moderadorEmail").value(EMAIL_MODERACAO))
+                .andExpect(jsonPath("$.content[0].chefeId").value(chefe.getId().toString()));
     }
 
     Cookie cookieModerador() {

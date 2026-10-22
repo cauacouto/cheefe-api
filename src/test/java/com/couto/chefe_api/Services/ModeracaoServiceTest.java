@@ -2,6 +2,10 @@ package com.couto.chefe_api.Services;
 
 import com.couto.chefe_api.Excepitons.ChefeNaoEncontradoException;
 import com.couto.chefe_api.Excepitons.ConflitoException;
+import com.couto.chefe_api.domin.AcaoModeracao;
+import com.couto.chefe_api.enums.TipoAcaoModeracao;
+import com.couto.chefe_api.repositorys.AcaoModeracaoRepository;
+import org.mockito.ArgumentCaptor;
 import com.couto.chefe_api.domin.ChefeModel;
 import com.couto.chefe_api.domin.Denuncia;
 import com.couto.chefe_api.enums.EventoNotificacao;
@@ -18,7 +22,10 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -29,7 +36,8 @@ class ModeracaoServiceTest {
     private final DenunciaRepository denunciaRepository = mock(DenunciaRepository.class);
     private final ChefeRepository chefeRepository = mock(ChefeRepository.class);
     private final NotificacaoService notificacaoService = mock(NotificacaoService.class);
-    private final ModeracaoService service = new ModeracaoService(denunciaRepository, chefeRepository, notificacaoService);
+    private final AcaoModeracaoRepository acaoRepository = mock(AcaoModeracaoRepository.class);
+    private final ModeracaoService service = new ModeracaoService(denunciaRepository, chefeRepository, notificacaoService, acaoRepository);
 
     private final ChefeModel chefe = new ChefeModel();
     private final Denuncia aberta = new Denuncia();
@@ -43,6 +51,31 @@ class ModeracaoServiceTest {
         when(chefeRepository.findById(chefe.getId())).thenReturn(Optional.of(chefe));
         when(denunciaRepository.findById(5L)).thenReturn(Optional.of(aberta));
         when(denunciaRepository.findByChefe_IdAndStatus(chefe.getId(), StatusDenuncia.ABERTA)).thenReturn(List.of(aberta));
+    }
+
+    @Test
+    void cadaAcaoFicaRegistradaComQuemFez() {
+        service.arquivar(5L, MODERADOR);
+        service.suspender(chefe.getId(), MODERADOR);
+        service.reativar(chefe.getId(), MODERADOR);
+        service.banir(chefe.getId(), MODERADOR);
+
+        ArgumentCaptor<AcaoModeracao> captor = ArgumentCaptor.forClass(AcaoModeracao.class);
+        verify(acaoRepository, times(4)).save(captor.capture());
+        assertThat(captor.getAllValues()).extracting(AcaoModeracao::getAcao).containsExactly(
+                TipoAcaoModeracao.ARQUIVAR_DENUNCIA, TipoAcaoModeracao.SUSPENDER_CHEF,
+                TipoAcaoModeracao.REATIVAR_CHEF, TipoAcaoModeracao.BANIR_CHEF);
+        assertThat(captor.getAllValues()).allSatisfy(acao -> assertThat(acao.getModeradorEmail()).isEqualTo(MODERADOR));
+        assertThat(captor.getAllValues().get(0).getDenunciaId()).isEqualTo(5L);
+        assertThat(captor.getAllValues().get(1).getChefeId()).isEqualTo(chefe.getId());
+    }
+
+    @Test
+    void acaoRecusadaNaoFicaRegistrada() {
+        aberta.setStatus(StatusDenuncia.PROCEDENTE);
+
+        assertThatThrownBy(() -> service.arquivar(5L, MODERADOR)).isInstanceOf(ConflitoException.class);
+        verify(acaoRepository, never()).save(any());
     }
 
     @Test
@@ -76,7 +109,7 @@ class ModeracaoServiceTest {
     void reativarNotifica() {
         chefe.setSuspenso(true);
 
-        service.reativar(chefe.getId());
+        service.reativar(chefe.getId(), MODERADOR);
 
         assertThat(chefe.isSuspenso()).isFalse();
         verify(notificacaoService).notificar(chefe.getId(), TipoUsuario.CHEFE, EventoNotificacao.CHEF_REATIVADO,
@@ -96,7 +129,7 @@ class ModeracaoServiceTest {
         UUID inexistente = UUID.randomUUID();
 
         assertThatThrownBy(() -> service.suspender(inexistente, MODERADOR)).isInstanceOf(ChefeNaoEncontradoException.class);
-        assertThatThrownBy(() -> service.reativar(inexistente)).isInstanceOf(ChefeNaoEncontradoException.class);
+        assertThatThrownBy(() -> service.reativar(inexistente, MODERADOR)).isInstanceOf(ChefeNaoEncontradoException.class);
         assertThatThrownBy(() -> service.banir(inexistente, MODERADOR)).isInstanceOf(ChefeNaoEncontradoException.class);
     }
 }

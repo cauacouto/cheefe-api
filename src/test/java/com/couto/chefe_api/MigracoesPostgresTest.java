@@ -156,6 +156,20 @@ class MigracoesPostgresTest {
      * falharia em produção no primeiro INSERT. Aqui cada CHECK da migration é comparado com o enum Java.
      */
     @Test
+    void auditoriaDaModeracaoEhSoDeInsercaoParaAApi() throws Exception {
+        rodarSetup(); // re-rodar o setup (ex.: trocar senha) não pode devolver UPDATE/DELETE à API
+        try (Connection app = conectar("chefhome_app", SENHA_APP);
+             Statement st = app.createStatement()) {
+            st.execute("INSERT INTO chefhome.acao_moderacao (moderador_email, acao, realizada_em) "
+                    + "VALUES ('m@x.com', 'BANIR_CHEF', now())");
+            assertThat(st.executeQuery("SELECT count(*) FROM chefhome.acao_moderacao").next()).isTrue();
+            assertSemPermissao(app, "UPDATE chefhome.acao_moderacao SET moderador_email = 'outro@x.com'");
+            assertSemPermissao(app, "DELETE FROM chefhome.acao_moderacao");
+            assertSemPermissao(app, "TRUNCATE chefhome.acao_moderacao");
+        }
+    }
+
+    @Test
     void checksDeEnumBatemComOsEnumsJava() throws SQLException {
         assertCheckDeTexto("chefe", "especialidade", com.couto.chefe_api.enums.Especialidades.values());
         assertCheckDeTexto("chefe", "senioridade", Senioridade.values());
@@ -163,6 +177,7 @@ class MigracoesPostgresTest {
         assertCheckDeTexto("notificacao", "evento", com.couto.chefe_api.enums.EventoNotificacao.values());
         assertCheckDeTexto("denuncia", "motivo", com.couto.chefe_api.enums.MotivoDenuncia.values());
         assertCheckDeTexto("denuncia", "status", com.couto.chefe_api.enums.StatusDenuncia.values());
+        assertCheckDeTexto("acao_moderacao", "acao", com.couto.chefe_api.enums.TipoAcaoModeracao.values());
         assertCheckOrdinal("agendamentos", "status", com.couto.chefe_api.enums.StatusAgendamento.values().length);
         assertCheckOrdinal("endereco", "tipo_de_residencia", TipoDeResidencia.values().length);
     }

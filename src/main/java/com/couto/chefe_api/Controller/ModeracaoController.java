@@ -1,5 +1,6 @@
 package com.couto.chefe_api.Controller;
 
+import com.couto.chefe_api.Dtos.AcaoModeracaoDto;
 import com.couto.chefe_api.Dtos.DenunciaModeracaoDto;
 import com.couto.chefe_api.Security.UsuarioAutenticado;
 import com.couto.chefe_api.Services.ModeracaoService;
@@ -27,6 +28,11 @@ public class ModeracaoController {
         return ResponseEntity.ok(service.listar(status, pageable));
     }
 
+    @GetMapping("/acoes")
+    public ResponseEntity<Page<AcaoModeracaoDto>> historico(Pageable pageable) {
+        return ResponseEntity.ok(service.historico(pageable));
+    }
+
     @PatchMapping("/denuncias/{id}/arquivar")
     public ResponseEntity<Void> arquivar(@PathVariable Long id, @AuthenticationPrincipal UsuarioAutenticado moderador) {
         service.arquivar(id, moderador.email());
@@ -40,8 +46,8 @@ public class ModeracaoController {
     }
 
     @PatchMapping("/chefes/{id}/reativar")
-    public ResponseEntity<Void> reativar(@PathVariable UUID id) {
-        service.reativar(id);
+    public ResponseEntity<Void> reativar(@PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado moderador) {
+        service.reativar(id, moderador.email());
         return ResponseEntity.noContent().build();
     }
 
