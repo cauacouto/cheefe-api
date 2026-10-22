@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -123,6 +124,20 @@ class DenunciaIntegrationTest {
         mockMvc.perform(get("/chefe").cookie(cookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content.length()").value(0));
+    }
+
+    @Test
+    void clienteQueDenunciouConsegueApagarAConta() throws Exception {
+        UserModel cliente = novoCliente();
+        ChefeModel chefe = novoChefe();
+        Agendamento agendamento = agendamentoConfirmadoNoPassado(cliente, chefe);
+        denunciar(cliente, agendamento, chefe, "\"descricao\":\"grosseiro\"").andExpect(status().isCreated());
+
+        mockMvc.perform(delete("/usuario/me").cookie(cookie(cliente.getId(), cliente.getEmail(), TipoUsuario.CLIENTE)))
+                .andExpect(status().isNoContent());
+
+        org.assertj.core.api.Assertions.assertThat(usuarioRepository.findById(cliente.getId())).isEmpty();
+        org.assertj.core.api.Assertions.assertThat(denunciaRepository.count()).isZero();
     }
 
     ResultActions denunciar(UserModel cliente, Agendamento agendamento, ChefeModel chefe, String descricao) throws Exception {

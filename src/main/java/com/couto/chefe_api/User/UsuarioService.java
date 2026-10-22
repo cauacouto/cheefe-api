@@ -5,6 +5,7 @@ import com.couto.chefe_api.Dtos.UserResponseDto;
 import com.couto.chefe_api.Excepitons.UsuarioException;
 import com.couto.chefe_api.Mapper.UsuarioMapper;
 import com.couto.chefe_api.domin.EnderecoModel;
+import com.couto.chefe_api.repositorys.DenunciaRepository;
 import com.couto.chefe_api.repositorys.EndercoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,7 @@ public class UsuarioService {
     private final UsuarioRepository repository;
     private final UsuarioMapper usuarioMapper;
     private final EndercoRepository enderecoRepository;
+    private final DenunciaRepository denunciaRepository;
 
     /**
      * Substitui os dados e a lista de endereços do usuário.
@@ -66,6 +68,8 @@ public class UsuarioService {
     public void deletar(UUID usuarioId) {
         UserModel user = repository.findById(usuarioId)
                 .orElseThrow(UsuarioException::new);
+        // apagar a conta apaga os dados do cliente, inclusive as denúncias que ele fez (LGPD)
+        denunciaRepository.deleteByCliente_Id(usuarioId);
         repository.delete(user);
     }
 }

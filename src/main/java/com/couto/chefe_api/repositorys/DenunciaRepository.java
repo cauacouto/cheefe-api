@@ -20,5 +20,7 @@ public interface DenunciaRepository extends JpaRepository<Denuncia, Long> {
 
     List<Denuncia> findByChefe_IdAndStatus(UUID chefeId, StatusDenuncia status);
 
+    void deleteByCliente_Id(UUID clienteId);
+
     Page<Denuncia> findByStatusOrderByCriadaEmAscIdAsc(StatusDenuncia status, Pageable pageable);
 }
