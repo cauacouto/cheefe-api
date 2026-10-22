@@ -1,5 +1,9 @@
 package com.couto.chefe_api.Services;
 
+import java.util.Set;
+import java.util.List;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.PageRequest;
 import com.couto.chefe_api.Chefe.ChefeSpecification;
 import com.couto.chefe_api.Dtos.ChefePerfilDto;
 import com.couto.chefe_api.Dtos.ChefeRequestDto;
@@ -23,6 +27,9 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class ChefeService {
+
+    static final int TAMANHO_MAXIMO_PAGINA = 50;
+    static final Set<String> ORDENAVEIS = Set.of("nome", "valorHora", "anosDeExperiencia");
 
     private final ChefeRepository chefeRepository;
     private final ChefeMapper chefeMapper;
@@ -53,14 +60,27 @@ public class ChefeService {
                 .and(ChefeSpecification.valorMinimoMaior(valorMnimmo))
                 .and(ChefeSpecification.valorMaximoMneor(valorMaximo));
 
-        return chefeRepository.findAll(spec, pageable)
+        return chefeRepository.findAll(spec, paginaDaBusca(pageable))
                 .map(chefeMapper::toDto);
     }
 
     @Transactional(readOnly = true)
     public Page<ChefeResponseDto> chefesMaisAgendados(Pageable pageable) {
-        return chefeRepository.findMaisAgendados(pageable)
+        // a ordem é a da query (mais agendados primeiro); a do cliente é ignorada
+        return chefeRepository.findMaisAgendados(PageRequest.of(pageable.getPageNumber(), tamanho(pageable)))
                 .map(chefeMapper::toDto);
+    }
+
+    /** Ordenação só por campos que a própria resposta mostra; qualquer outro (ex.: e-mail) é descartado. */
+    private static PageRequest paginaDaBusca(Pageable pageable) {
+        List<Sort.Order> permitidas = pageable.getSort().stream()
+                .filter(ordem -> ORDENAVEIS.contains(ordem.getProperty()))
+                .toList();
+        return PageRequest.of(pageable.getPageNumber(), tamanho(pageable), Sort.by(permitidas));
+    }
+
+    private static int tamanho(Pageable pageable) {
+        return Math.max(1, Math.min(pageable.getPageSize(), TAMANHO_MAXIMO_PAGINA));
     }
 
     /**
