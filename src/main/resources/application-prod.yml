@@ -1,19 +1,25 @@
-# Modelo do src/main/resources/application.yml (que é ignorado pelo git).
-# Copie para src/main/resources/application.yml e preencha via variáveis de ambiente.
+# Perfil de produção (SPRING_PROFILES_ACTIVE=prod). Só referências a variáveis de ambiente:
+# nenhum valor real entra neste arquivo. A lista completa das variáveis está no README.
 
 spring:
   datasource:
+    # Usuário da API = chefhome_app (só SELECT/INSERT/UPDATE/DELETE). Nunca o chefhome_migracao.
+    # Ex.: jdbc:postgresql://host:5432/chefe_api?currentSchema=chefhome
     url: ${DATABASE_URL}
     username: ${DATABASE_USERNAME}
     password: ${DATABASE_PASSWORD}
 
-
-
   jpa:
     hibernate:
+      # O schema vem das migrations do Flyway (passo separado, antes do deploy).
+      # A API só confere: se o schema divergir das entidades, ela não sobe.
       ddl-auto: validate
 
-
+  servlet:
+    multipart:
+      # o validador de imagem aceita até 5MB; sem isso o Spring corta em 1MB
+      max-file-size: 5MB
+      max-request-size: 6MB
 
   security:
     oauth2:
@@ -34,6 +40,12 @@ server:
 jwt:
   key: ${JWT_KEY}
 
+# E-mails (separados por vírgula) que entram como moderação ao logar com o Google.
+# Moderadores não existem no banco; tirar um e-mail daqui derruba a sessão dele na hora.
+moderacao:
+  emails: ${MODERACAO_EMAILS:}
+
+# Fotos de pratos e de perfil: bucket compatível com S3 (Cloudflare R2, AWS S3, MinIO...).
 storage:
   endpoint: ${R2_ENDPOINT}
   bucket: ${R2_BUCKET}
