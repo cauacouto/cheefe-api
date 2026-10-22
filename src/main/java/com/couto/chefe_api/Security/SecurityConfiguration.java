@@ -54,6 +54,7 @@ public class SecurityConfiguration  {
                         // papel por rota; o dono do recurso é checado nos serviços
                         .requestMatchers("/moderacao/**").hasRole(MODERADOR)
                         .requestMatchers("/usuario/**").hasRole(CLIENTE)
+                        .requestMatchers(HttpMethod.POST, "/denuncias").hasRole(CLIENTE)
                         .requestMatchers(HttpMethod.POST, "/agendamentos").hasRole(CLIENTE)
                         .requestMatchers(HttpMethod.PUT, "/agendamentos/*").hasRole(CLIENTE)
                         .requestMatchers(HttpMethod.GET, "/agendamentos/meus").hasRole(CLIENTE)
