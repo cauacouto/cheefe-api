@@ -54,6 +54,7 @@ O `src/main/resources/application.yml` não é versionado. Use o modelo [`applic
 | `FRONT_URL` | URL do front, sem barra no final (ex.: `http://localhost:5173`) |
 | `AUTH_COOKIE_SECURE` | `false` só em dev via HTTP; `true` em produção |
 | `JWT_KEY` | segredo aleatório longo (`openssl rand -base64 48`) |
+| `MODERACAO_EMAILS` | e-mails (separados por vírgula) que entram como moderação ao logar com o Google; não existem contas de moderação no banco |
 | `DATABASE_*` | banco de dados |
 | `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_PUBLIC_URL` | bucket de fotos dos pratos (Cloudflare R2 ou outro compatível com S3, com leitura pública) |
 
@@ -106,3 +107,5 @@ Toda identidade vem do cookie de sessão: nenhuma rota recebe id ou e-mail de qu
 | Meus pratos | `POST /pratos` (multipart `dados` + `foto`), `PUT /pratos/{id}`, `GET /pratos/meus` | CHEFE |
 | Agendamentos do cliente | `POST /agendamentos` (endereço precisa ser do cliente), `GET /agendamentos/meus`, `PUT /agendamentos/{id}` (só `PENDENTE`) | CLIENTE |
 | Agendamentos do chef | `GET /agendamentos/recebidos`, `PATCH /agendamentos/{id}/confirmar` (só chef do agendamento, só `PENDENTE`) | CHEFE |
+| Denúncias | `POST /denuncias` (só de chef com quem teve agendamento confirmado e já ocorrido) | CLIENTE |
+| Moderação | `GET /moderacao/denuncias?status=`, `PATCH /moderacao/denuncias/{id}/arquivar`, `PATCH /moderacao/chefes/{id}/suspender`·`reativar`·`banir` (para quem não modera, a área responde 404) | MODERADOR |

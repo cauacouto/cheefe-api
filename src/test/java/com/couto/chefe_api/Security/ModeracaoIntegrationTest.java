@@ -1,5 +1,20 @@
 package com.couto.chefe_api.Security;
 
+import com.couto.chefe_api.Excepitons.ContaInativaException;
+import com.couto.chefe_api.domin.Agendamento;
+import com.couto.chefe_api.domin.ChefeModel;
+import com.couto.chefe_api.domin.Denuncia;
+import com.couto.chefe_api.enums.Especialidades;
+import com.couto.chefe_api.enums.MotivoDenuncia;
+import com.couto.chefe_api.enums.Senioridade;
+import com.couto.chefe_api.enums.StatusDenuncia;
+import com.couto.chefe_api.repositorys.AgendamentoRepository;
+import com.couto.chefe_api.repositorys.ChefeRepository;
+import com.couto.chefe_api.repositorys.DenunciaRepository;
+import com.couto.chefe_api.repositorys.NotificacaoRepository;
+import org.springframework.http.MediaType;
+import java.math.BigDecimal;
+import java.util.List;
 import com.couto.chefe_api.User.UserModel;
 import com.couto.chefe_api.User.UsuarioRepository;
 import com.couto.chefe_api.enums.TipoUsuario;
@@ -18,7 +33,11 @@ import java.util.ArrayList;
 import java.util.UUID;
 
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -40,6 +59,16 @@ class ModeracaoIntegrationTest {
     private ModeracaoRegistry moderacaoRegistry;
     @Autowired
     private UsuarioRepository usuarioRepository;
+    @Autowired
+    private ChefeRepository chefeRepository;
+    @Autowired
+    private AgendamentoRepository agendamentoRepository;
+    @Autowired
+    private DenunciaRepository denunciaRepository;
+    @Autowired
+    private NotificacaoRepository notificacaoRepository;
+    @Autowired
+    private LoginService loginService;
 
     private MockMvc mockMvc;
 
@@ -50,7 +79,11 @@ class ModeracaoIntegrationTest {
 
     @AfterEach
     void limparBanco() {
+        denunciaRepository.deleteAll();
+        agendamentoRepository.deleteAll();
         usuarioRepository.deleteAll();
+        chefeRepository.deleteAll();
+        notificacaoRepository.deleteAll();
     }
 
     @Test
@@ -71,6 +104,106 @@ class ModeracaoIntegrationTest {
     void moderadorEmRotaDeClienteDa403() throws Exception {
         mockMvc.perform(get("/usuario/me").cookie(cookieModerador()))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void filaListaAbertas() throws Exception {
+        ChefeModel chefe = novoChefe();
+        denunciar(chefe, StatusDenuncia.ABERTA);
+        denunciar(chefe, StatusDenuncia.ARQUIVADA);
+
+        mockMvc.perform(get("/moderacao/denuncias").cookie(cookieModerador()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].chefe.nome").value("Bia"))
+                .andExpect(jsonPath("$.content[0].status").value("ABERTA"));
+    }
+
+    @Test
+    void arquivarFazChefVoltar() throws Exception {
+        ChefeModel chefe = novoChefe();
+        Denuncia primeira = denunciar(chefe, StatusDenuncia.ABERTA);
+        denunciar(chefe, StatusDenuncia.ABERTA);
+        denunciar(chefe, StatusDenuncia.ABERTA);
+        Cookie moderador = cookieModerador();
+        Cookie cliente = cookieCliente();
+
+        mockMvc.perform(get("/chefe").cookie(cliente)).andExpect(jsonPath("$.content.length()").value(0));
+        mockMvc.perform(patch("/moderacao/denuncias/" + primeira.getId() + "/arquivar").cookie(moderador))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/chefe").cookie(cliente)).andExpect(jsonPath("$.content.length()").value(1));
+    }
+
+    @Test
+    void suspenderEReativarPelaApi() throws Exception {
+        ChefeModel chefe = novoChefe();
+
+        mockMvc.perform(patch("/moderacao/chefes/" + chefe.getId() + "/suspender").cookie(cookieModerador()))
+                .andExpect(status().isNoContent());
+        assertThat(chefeRepository.findById(chefe.getId()).orElseThrow().isSuspenso()).isTrue();
+        mockMvc.perform(patch("/moderacao/chefes/" + chefe.getId() + "/reativar").cookie(cookieModerador()))
+                .andExpect(status().isNoContent());
+        assertThat(chefeRepository.findById(chefe.getId()).orElseThrow().isSuspenso()).isFalse();
+    }
+
+    @Test
+    void banidoNaoLoga() throws Exception {
+        ChefeModel chefe = novoChefe();
+
+        mockMvc.perform(patch("/moderacao/chefes/" + chefe.getId() + "/banir").cookie(cookieModerador()))
+                .andExpect(status().isNoContent());
+
+        assertThatThrownBy(() -> loginService.loginGoogle(new GoogleUser(chefe.getEmail(), "Bia", null)))
+                .isInstanceOf(ContaInativaException.class);
+    }
+
+    @Test
+    void clienteNaoUsaModeracao() throws Exception {
+        ChefeModel chefe = novoChefe();
+
+        mockMvc.perform(patch("/moderacao/chefes/" + chefe.getId() + "/banir").cookie(cookieCliente()))
+                .andExpect(status().isNotFound());
+        assertThat(chefeRepository.findById(chefe.getId()).orElseThrow().getAtivo()).isTrue();
+    }
+
+    @Test
+    void moderadorNaoDenunciaNemAgenda() throws Exception {
+        mockMvc.perform(post("/denuncias").cookie(cookieModerador()).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/agendamentos").cookie(cookieModerador()).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isForbidden());
+    }
+
+    ChefeModel novoChefe() {
+        ChefeModel chefe = new ChefeModel();
+        chefe.setNome("Bia");
+        chefe.setEmail("chef-" + UUID.randomUUID() + "@x.com");
+        chefe.setNacionalidade("Brasileira");
+        chefe.setIdiomas("pt");
+        chefe.setValorHora(new BigDecimal("100"));
+        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setSenioridade(Senioridade.HEAD_CHEF);
+        chefe.setAnosDeExperiencia(5);
+        return chefeRepository.save(chefe);
+    }
+
+    Denuncia denunciar(ChefeModel chefe, StatusDenuncia status) {
+        UserModel cliente = new UserModel();
+        cliente.setNome("Cliente");
+        cliente.setEmail("cliente-" + UUID.randomUUID() + "@x.com");
+        cliente = usuarioRepository.save(cliente);
+        Agendamento agendamento = new Agendamento();
+        agendamento.setUsuario(cliente);
+        agendamento.setChefes(new ArrayList<>(List.of(chefe)));
+        agendamento = agendamentoRepository.save(agendamento);
+        Denuncia denuncia = new Denuncia();
+        denuncia.setChefe(chefe);
+        denuncia.setCliente(cliente);
+        denuncia.setAgendamento(agendamento);
+        denuncia.setMotivo(MotivoDenuncia.COMPORTAMENTO);
+        denuncia.setDescricao("grosseiro");
+        denuncia.setStatus(status);
+        return denunciaRepository.save(denuncia);
     }
 
     Cookie cookieModerador() {
