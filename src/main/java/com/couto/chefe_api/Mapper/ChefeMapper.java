@@ -18,7 +18,6 @@ public interface ChefeMapper {
     @Mapping(target = "email", ignore = true)
     @Mapping(target = "imageUrl", ignore = true)
     @Mapping(target = "id", ignore = true)
-    @Mapping(target = "password", ignore = true)
     @Mapping(target = "agendamentos", ignore = true)
     @Mapping(target = "pratos", ignore = true)
     @Mapping(target = "disponivel", ignore = true)
@@ -30,7 +29,6 @@ public interface ChefeMapper {
     // PATCH /chefe/me: só os campos do perfil; conta, moderação, foto e relações nunca vêm do corpo
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "email", ignore = true)
-    @Mapping(target = "password", ignore = true)
     @Mapping(target = "imageUrl", ignore = true)
     @Mapping(target = "agendamentos", ignore = true)
     @Mapping(target = "pratos", ignore = true)

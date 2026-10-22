@@ -200,8 +200,8 @@ class MigracoesPostgresTest {
         assertCheckDeTexto("denuncia_mensagem", "status", com.couto.chefe_api.enums.StatusDenuncia.values());
         assertCheckDeTexto("denuncia_mensagem", "denunciante_tipo", com.couto.chefe_api.enums.TipoUsuario.values());
         assertCheckDeTexto("denuncia_mensagem", "autor_tipo", com.couto.chefe_api.enums.TipoUsuario.values());
-        assertCheckOrdinal("agendamentos", "status", com.couto.chefe_api.enums.StatusAgendamento.values().length);
-        assertCheckOrdinal("endereco", "tipo_de_residencia", TipoDeResidencia.values().length);
+        assertCheckDeTexto("agendamentos", "status", com.couto.chefe_api.enums.StatusAgendamento.values());
+        assertCheckDeTexto("endereco", "tipo_de_residencia", TipoDeResidencia.values());
     }
 
     static String definicaoDoCheck(String tabela, String coluna) throws SQLException {
@@ -230,10 +230,66 @@ class MigracoesPostgresTest {
                 .containsExactlyInAnyOrderElementsOf(java.util.Arrays.stream(valores).map(Enum::name).toList());
     }
 
-    static void assertCheckOrdinal(String tabela, String coluna, int quantidade) throws SQLException {
-        String definicao = definicaoDoCheck(tabela, coluna);
-        assertThat(definicao).as("CHECK de %s.%s", tabela, coluna)
-                .contains(">= 0").contains("<= " + (quantidade - 1));
+    /**
+     * V5 sobre dados que já existem: enums gravados pela posição viram o nome, a tabela de junção
+     * troca de nome sem perder linhas e a coluna morta chefe.password some. Banco próprio no mesmo
+     * container, migrado só até a V4 antes de inserir os dados no formato antigo.
+     */
+    @Test
+    void v5ConverteOsDadosExistentes() throws Exception {
+        executarComoSuperusuario(POSTGRES, "CREATE DATABASE conversao_v5");
+        Container.ExecResult setup = POSTGRES.execInContainer("psql",
+                "-U", POSTGRES.getUsername(), "-d", "conversao_v5", "-v", "ON_ERROR_STOP=1",
+                "-v", "senha_migracao=" + SENHA_MIGRACAO, "-v", "senha_app=" + SENHA_APP,
+                "-v", "nome_banco=conversao_v5", "-f", SCRIPT_NO_CONTAINER);
+        assertThat(setup.getExitCode()).as(setup.getStderr()).isZero();
+        String url = POSTGRES.getJdbcUrl().replace("/" + POSTGRES.getDatabaseName(), "/conversao_v5")
+                + (POSTGRES.getJdbcUrl().contains("?") ? "&" : "?") + "currentSchema=chefhome";
+        Flyway.configure().dataSource(url, "chefhome_migracao", SENHA_MIGRACAO).schemas("chefhome")
+                .locations("classpath:db/migration").target("4").load().migrate();
+
+        try (Connection app = DriverManager.getConnection(url, "chefhome_app", SENHA_APP);
+             Statement st = app.createStatement()) {
+            st.execute("INSERT INTO usuarios (id, email, nome) VALUES ('00000000-0000-0000-0000-000000000001', 'a@x.com', 'Ana')");
+            st.execute("INSERT INTO chefe (id, email, nome, password) VALUES "
+                    + "('00000000-0000-0000-0000-000000000002', 'b@x.com', 'Bia', 'resto-do-otp')");
+            st.execute("INSERT INTO endereco (id, user_id, rua, tipo_de_residencia) VALUES "
+                    + "(1, '00000000-0000-0000-0000-000000000001', 'Rua A', 0), "
+                    + "(2, '00000000-0000-0000-0000-000000000001', 'Rua B', 1)");
+            st.execute("INSERT INTO agendamentos (id, user_id, endereco_id, status) VALUES "
+                    + "(1, '00000000-0000-0000-0000-000000000001', 1, 0), (2, '00000000-0000-0000-0000-000000000001', 1, 1), "
+                    + "(3, '00000000-0000-0000-0000-000000000001', 2, 2), (4, '00000000-0000-0000-0000-000000000001', 2, 3)");
+            st.execute("INSERT INTO agedamento_chefe (agendamento_id, chefe_id) VALUES "
+                    + "(1, '00000000-0000-0000-0000-000000000002'), (2, '00000000-0000-0000-0000-000000000002')");
+        }
+
+        Flyway.configure().dataSource(url, "chefhome_migracao", SENHA_MIGRACAO).schemas("chefhome")
+                .locations("classpath:db/migration").load().migrate();
+
+        try (Connection app = DriverManager.getConnection(url, "chefhome_app", SENHA_APP);
+             Statement st = app.createStatement()) {
+            assertThat(coluna(st, "SELECT status FROM agendamentos ORDER BY id"))
+                    .containsExactly("PENDENTE", "CONFIRMADO", "CANCELADO", "CONCLUIDO");
+            assertThat(coluna(st, "SELECT tipo_de_residencia FROM endereco ORDER BY id")).containsExactly("CASA", "APARTAMENTO");
+            assertThat(coluna(st, "SELECT agendamento_id::text FROM agendamento_chefe ORDER BY agendamento_id"))
+                    .containsExactly("1", "2");
+            assertThat(coluna(st, "SELECT count(*)::text FROM information_schema.columns WHERE table_schema = 'chefhome' "
+                    + "AND ((table_name = 'chefe' AND column_name = 'password') OR table_name = 'agedamento_chefe')"))
+                    .containsExactly("0");
+            // a API continua só com DML na tabela renomeada
+            st.execute("INSERT INTO agendamento_chefe (agendamento_id, chefe_id) VALUES (3, '00000000-0000-0000-0000-000000000002')");
+            assertSemPermissao(app, "DROP TABLE chefhome.agendamento_chefe");
+        }
+    }
+
+    static java.util.List<String> coluna(Statement st, String sql) throws SQLException {
+        java.util.List<String> valores = new java.util.ArrayList<>();
+        try (ResultSet rs = st.executeQuery(sql)) {
+            while (rs.next()) {
+                valores.add(rs.getString(1));
+            }
+        }
+        return valores;
     }
 
     @Test

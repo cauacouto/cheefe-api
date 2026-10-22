@@ -39,7 +39,7 @@ public class Agendamento  implements Serializable {
     @ManyToMany
     @BatchSize(size = 50)
     @JoinTable(
-            name = "agedamento_chefe",
+            name = "agendamento_chefe",
             joinColumns = @JoinColumn(name = "agendamento_id"),
             inverseJoinColumns = @JoinColumn(name = "chefe_id")
     )
@@ -59,6 +59,7 @@ public class Agendamento  implements Serializable {
     private BigDecimal valorTotal;
 
 
+    @Enumerated(EnumType.STRING)
     private StatusAgendamento status = StatusAgendamento.PENDENTE;
 
 

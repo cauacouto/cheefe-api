@@ -26,6 +26,7 @@ public class EnderecoModel implements Serializable {
     private String numero;
     private String bairro;
     private String cidade;
+    @Enumerated(EnumType.STRING)
     private TipoDeResidencia tipoDeResidencia;
     private String complemento;
     private String estado;

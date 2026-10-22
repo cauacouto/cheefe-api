@@ -35,8 +35,6 @@ public class ChefeModel implements Serializable {
     @Column(nullable = false, unique = true)
     private String email;
 
-    private String password;
-
     private String nacionalidade;
 
     @Enumerated(EnumType.STRING)

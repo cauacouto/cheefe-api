@@ -20,7 +20,7 @@ public class Pratos {
     @Column(name = "nome_prato")
     private String nomePrato;
     private String descricao;
-    @Column(name = "image_Url")
+    @Column(name = "image_url")
     private String imageUrl;
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "chefe_id", nullable = false)
