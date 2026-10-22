@@ -7,7 +7,7 @@ import com.couto.chefe_api.mapper.UsuarioMapper;
 import com.couto.chefe_api.domain.UserModel;
 import com.couto.chefe_api.repository.UsuarioRepository;
 import com.couto.chefe_api.domain.EnderecoModel;
-import com.couto.chefe_api.repository.EndercoRepository;
+import com.couto.chefe_api.repository.EnderecoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,7 +21,7 @@ public class EnderecoService {
 
     private final UsuarioRepository usuarioRepository;
     private final UsuarioMapper usuarioMapper;
-    private final EndercoRepository enderecoRepository;
+    private final EnderecoRepository enderecoRepository;
 
     @Transactional
     public EnderecoResponseDto adicionarEndereco(EnderecoRequestDto dto, UUID usuarioId) {

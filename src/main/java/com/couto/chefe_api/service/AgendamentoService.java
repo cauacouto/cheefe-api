@@ -5,7 +5,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Page;
 import com.couto.chefe_api.dto.AgendamentoResponseDto;
-import com.couto.chefe_api.dto.AgendamentoResquestDto;
+import com.couto.chefe_api.dto.AgendamentoRequestDto;
 import com.couto.chefe_api.dto.AtualizarAgendamentoRequestDto;
 import com.couto.chefe_api.dto.ListaAgendamentoChefeDto;
 import com.couto.chefe_api.dto.ListaAgendamentoUsuarioDto;
@@ -27,7 +27,7 @@ import com.couto.chefe_api.repository.AgendamentoRepository;
 import com.couto.chefe_api.enums.StatusDenuncia;
 import com.couto.chefe_api.repository.ChefeRepository;
 import com.couto.chefe_api.repository.DenunciaRepository;
-import com.couto.chefe_api.repository.EndercoRepository;
+import com.couto.chefe_api.repository.EnderecoRepository;
 import com.couto.chefe_api.service.eventos.AgendamentoConfirmadoEvent;
 import com.couto.chefe_api.service.eventos.AgendamentoCriadoEvent;
 import com.couto.chefe_api.service.eventos.AgendamentoEditadoEvent;
@@ -49,20 +49,20 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class agendamentoService {
+public class AgendamentoService {
 
     static final int TAMANHO_MAXIMO_PAGINA = 50;
 
     private final UsuarioRepository usuarioRepository;
     private final ChefeRepository chefeRepository;
     private final AgendamentoMapper agendamentoMapper;
-    private final EndercoRepository endercoRepository;
+    private final EnderecoRepository enderecoRepository;
     private final AgendamentoRepository agendamentoRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final DenunciaRepository denunciaRepository;
 
     @Transactional
-    public AgendamentoResponseDto criarAgendamento(AgendamentoResquestDto dto, UUID usuarioId) {
+    public AgendamentoResponseDto criarAgendamento(AgendamentoRequestDto dto, UUID usuarioId) {
         var user = usuarioRepository.findById(usuarioId).orElseThrow(UsuarioException::new);
 
         validarPeriodo(dto.getDataHoraInicial(), dto.getDataHoraFinal());
@@ -104,7 +104,7 @@ public class agendamentoService {
      * Uma lista de chefes vazia é ignorada (não remove os chefes).
      */
     @Transactional
-    public AgendamentoResponseDto atualizarAgedamento(AtualizarAgendamentoRequestDto dto, Long agendamentoId, UUID usuarioId) {
+    public AgendamentoResponseDto atualizarAgendamento(AtualizarAgendamentoRequestDto dto, Long agendamentoId, UUID usuarioId) {
         // agendamento de outro cliente é tratado como inexistente
         Agendamento agenda = agendamentoRepository.findByIdAndUsuario_Id(agendamentoId, usuarioId)
                 .orElseThrow(AgendamentoException::new);
@@ -183,7 +183,7 @@ public class agendamentoService {
         if (enderecoId == null) {
             throw new AgendamentoInvalidoException("Informe o endereço do agendamento");
         }
-        return endercoRepository.findByIdAndUsuario_Id(enderecoId, usuarioId).orElseThrow(EnderecoException::new);
+        return enderecoRepository.findByIdAndUsuario_Id(enderecoId, usuarioId).orElseThrow(EnderecoException::new);
     }
 
     private static void validarPeriodo(LocalDateTime inicio, LocalDateTime fim) {

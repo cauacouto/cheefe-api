@@ -9,8 +9,8 @@ import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.enums.Senioridade;
 import com.couto.chefe_api.enums.TipoDeResidencia;
 import com.couto.chefe_api.repository.ChefeRepository;
-import com.couto.chefe_api.repository.EndercoRepository;
-import com.couto.chefe_api.repository.PatrosRepository;
+import com.couto.chefe_api.repository.EnderecoRepository;
+import com.couto.chefe_api.repository.PratosRepository;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,9 +58,9 @@ class MigracoesPostgresTest {
     @Autowired
     ChefeRepository chefeRepository;
     @Autowired
-    EndercoRepository enderecoRepository;
+    EnderecoRepository enderecoRepository;
     @Autowired
-    PatrosRepository pratosRepository;
+    PratosRepository pratosRepository;
 
     @DynamicPropertySource
     static void bancoReal(DynamicPropertyRegistry registry) throws Exception {

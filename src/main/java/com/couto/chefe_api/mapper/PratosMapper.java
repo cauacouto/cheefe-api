@@ -1,7 +1,7 @@
 package com.couto.chefe_api.mapper;
 
 import com.couto.chefe_api.dto.CadastraPratosDtoRequest;
-import com.couto.chefe_api.dto.CadastratPratosDtoResponse;
+import com.couto.chefe_api.dto.CadastraPratosDtoResponse;
 import com.couto.chefe_api.dto.ListarPratosChefes;
 import com.couto.chefe_api.domain.Pratos;
 import org.mapstruct.*;
@@ -17,7 +17,7 @@ public interface PratosMapper {
 
     @Mapping(source = "chefeModel.nome", target = "nomeChefe")
     @Mapping(source = "nomePrato", target = "nomePrato") // mesmo nome agora
-    CadastratPratosDtoResponse toDto(Pratos model);
+    CadastraPratosDtoResponse toDto(Pratos model);
 
     @Mapping(source = "chefeModel.id", target = "chefeId")
     @Mapping(source = "chefeModel.nome", target = "nomeChefe")

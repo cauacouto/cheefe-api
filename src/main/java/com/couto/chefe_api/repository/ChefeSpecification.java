@@ -55,7 +55,7 @@ public final class ChefeSpecification {
                 valorMinimo == null ? null : cb.greaterThanOrEqualTo(root.get("valorHora"), valorMinimo);
     }
 
-    public static Specification<ChefeModel> valorMaximoMneor(BigDecimal valorMaximo) {
+    public static Specification<ChefeModel> valorMaximoMenor(BigDecimal valorMaximo) {
         return (root, query, cb) ->
                 valorMaximo == null ? null : cb.lessThanOrEqualTo(root.get("valorHora"), valorMaximo);
     }

@@ -51,14 +51,14 @@ public class ChefeService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ChefeResponseDto> mostrarChefes(Pageable pageable, BigDecimal valorMnimmo, BigDecimal valorMaximo) {
+    public Page<ChefeResponseDto> mostrarChefes(Pageable pageable, BigDecimal valorMinimo, BigDecimal valorMaximo) {
         Specification<ChefeModel> spec = ChefeSpecification.ativo()
                 .and(ChefeSpecification.disponivel())
                 .and(ChefeSpecification.perfilCompleto())
                 .and(ChefeSpecification.naoSuspenso())
                 .and(ChefeSpecification.semDenunciasEmExcesso())
-                .and(ChefeSpecification.valorMinimoMaior(valorMnimmo))
-                .and(ChefeSpecification.valorMaximoMneor(valorMaximo));
+                .and(ChefeSpecification.valorMinimoMaior(valorMinimo))
+                .and(ChefeSpecification.valorMaximoMenor(valorMaximo));
 
         return chefeRepository.findAll(spec, paginaDaBusca(pageable))
                 .map(chefeMapper::toDto);

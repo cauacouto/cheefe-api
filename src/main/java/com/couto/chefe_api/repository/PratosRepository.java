@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface PatrosRepository extends JpaRepository<Pratos , Integer> {
+public interface PratosRepository extends JpaRepository<Pratos , Integer> {
 
     /** Pratos do próprio chef (inclusive pausado): é dele, ele sempre vê. */
     @EntityGraph(attributePaths = "chefeModel")

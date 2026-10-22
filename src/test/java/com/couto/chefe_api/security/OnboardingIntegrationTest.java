@@ -5,7 +5,7 @@ import com.couto.chefe_api.repository.UsuarioRepository;
 import com.couto.chefe_api.domain.ChefeModel;
 import com.couto.chefe_api.enums.TipoUsuario;
 import com.couto.chefe_api.repository.ChefeRepository;
-import com.couto.chefe_api.repository.EndercoRepository;
+import com.couto.chefe_api.repository.EnderecoRepository;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,7 +51,7 @@ class OnboardingIntegrationTest {
     @Autowired
     private ChefeRepository chefeRepository;
     @Autowired
-    private EndercoRepository enderecoRepository;
+    private EnderecoRepository enderecoRepository;
 
     private MockMvc mockMvc;
     private String email;

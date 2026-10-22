@@ -8,7 +8,7 @@ import com.couto.chefe_api.domain.ChefeModel;
 import com.couto.chefe_api.domain.Pratos;
 import com.couto.chefe_api.enums.PastaImagem;
 import com.couto.chefe_api.repository.ChefeRepository;
-import com.couto.chefe_api.repository.PatrosRepository;
+import com.couto.chefe_api.repository.PratosRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -28,7 +28,7 @@ import static org.mockito.Mockito.when;
 
 class PratosServiceTest {
 
-    private final PatrosRepository pratosRepository = mock(PatrosRepository.class);
+    private final PratosRepository pratosRepository = mock(PratosRepository.class);
     private final ChefeRepository chefeRepository = mock(ChefeRepository.class);
     private final ImagemStorageService imagemStorage = mock(ImagemStorageService.class);
     private PratosService service;

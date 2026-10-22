@@ -4,11 +4,11 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Page;
 import com.couto.chefe_api.dto.AgendamentoResponseDto;
-import com.couto.chefe_api.dto.AgendamentoResquestDto;
+import com.couto.chefe_api.dto.AgendamentoRequestDto;
 import com.couto.chefe_api.dto.AtualizarAgendamentoRequestDto;
 import com.couto.chefe_api.dto.ListaAgendamentoChefeDto;
 import com.couto.chefe_api.dto.ListaAgendamentoUsuarioDto;
-import com.couto.chefe_api.service.agendamentoService;
+import com.couto.chefe_api.service.AgendamentoService;
 import jakarta.validation.Valid;
 import com.couto.chefe_api.security.UsuarioAutenticado;
 import lombok.RequiredArgsConstructor;
@@ -24,10 +24,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AgendamentoController {
 
-    private final agendamentoService service;
+    private final AgendamentoService service;
 
     @PostMapping
-    public ResponseEntity<AgendamentoResponseDto> criarAgendamento(@Valid @RequestBody AgendamentoResquestDto dto,
+    public ResponseEntity<AgendamentoResponseDto> criarAgendamento(@Valid @RequestBody AgendamentoRequestDto dto,
                                                                    @AuthenticationPrincipal UsuarioAutenticado cliente) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.criarAgendamento(dto, cliente.id()));
     }
@@ -42,7 +42,7 @@ public class AgendamentoController {
     public ResponseEntity<AgendamentoResponseDto> atualizarAgendamento(@Valid @RequestBody AtualizarAgendamentoRequestDto dto,
                                                                        @PathVariable Long id,
                                                                        @AuthenticationPrincipal UsuarioAutenticado cliente) {
-        return ResponseEntity.ok(service.atualizarAgedamento(dto, id, cliente.id()));
+        return ResponseEntity.ok(service.atualizarAgendamento(dto, id, cliente.id()));
     }
 
     @GetMapping("/recebidos")

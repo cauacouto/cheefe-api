@@ -9,7 +9,7 @@ import com.couto.chefe_api.enums.Senioridade;
 import com.couto.chefe_api.enums.TipoDeResidencia;
 import com.couto.chefe_api.repository.AgendamentoRepository;
 import com.couto.chefe_api.repository.ChefeRepository;
-import com.couto.chefe_api.repository.EndercoRepository;
+import com.couto.chefe_api.repository.EnderecoRepository;
 import org.springframework.http.MediaType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -56,7 +56,7 @@ class NotificacaoIntegrationTest {
     @Autowired
     private ChefeRepository chefeRepository;
     @Autowired
-    private EndercoRepository enderecoRepository;
+    private EnderecoRepository enderecoRepository;
     @Autowired
     private AgendamentoRepository agendamentoRepository;
 

@@ -4,7 +4,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Page;
 import com.couto.chefe_api.dto.CadastraPratosDtoRequest;
-import com.couto.chefe_api.dto.CadastratPratosDtoResponse;
+import com.couto.chefe_api.dto.CadastraPratosDtoResponse;
 import com.couto.chefe_api.dto.ListarPratosChefes;
 import com.couto.chefe_api.service.PratosService;
 import jakarta.validation.Valid;
@@ -28,7 +28,7 @@ public class PratosController {
     private final PratosService pratosService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<CadastratPratosDtoResponse> cadastroPratos(@Valid @RequestPart("dados") CadastraPratosDtoRequest dto,
+    public ResponseEntity<CadastraPratosDtoResponse> cadastroPratos(@Valid @RequestPart("dados") CadastraPratosDtoRequest dto,
                                                                      @RequestParam MultipartFile foto,
                                                                      @AuthenticationPrincipal UsuarioAutenticado chefe) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -51,7 +51,7 @@ public class PratosController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<CadastratPratosDtoResponse> updatePratos(@Valid @RequestBody CadastraPratosDtoRequest dto,
+    public ResponseEntity<CadastraPratosDtoResponse> updatePratos(@Valid @RequestBody CadastraPratosDtoRequest dto,
                                                                    @PathVariable Integer id,
                                                                    @AuthenticationPrincipal UsuarioAutenticado chefe) {
         return ResponseEntity.ok(pratosService.updatePratos(dto, id, chefe.id()));

@@ -9,7 +9,7 @@ import com.couto.chefe_api.domain.UserModel;
 import com.couto.chefe_api.repository.UsuarioRepository;
 import com.couto.chefe_api.domain.EnderecoModel;
 import com.couto.chefe_api.enums.TipoDeResidencia;
-import com.couto.chefe_api.repository.EndercoRepository;
+import com.couto.chefe_api.repository.EnderecoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,7 +38,7 @@ class EnderecoServiceTest {
     @Mock
     private UsuarioRepository usuarioRepository;
     @Mock
-    private EndercoRepository enderecoRepository;
+    private EnderecoRepository enderecoRepository;
 
     private final UsuarioMapper usuarioMapper = new UsuarioMapperImpl();
     private final UserModel usuario = new UserModel();

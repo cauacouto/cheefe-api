@@ -15,7 +15,7 @@ import com.couto.chefe_api.repository.ConversaRepository;
 import com.couto.chefe_api.repository.DenunciaMensagemRepository;
 import com.couto.chefe_api.repository.DenunciaRepository;
 import com.couto.chefe_api.repository.MensagemRepository;
-import com.couto.chefe_api.repository.EndercoRepository;
+import com.couto.chefe_api.repository.EnderecoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,7 +32,7 @@ public class UsuarioService {
 
     private final UsuarioRepository repository;
     private final UsuarioMapper usuarioMapper;
-    private final EndercoRepository enderecoRepository;
+    private final EnderecoRepository enderecoRepository;
     private final DenunciaRepository denunciaRepository;
     private final DenunciaMensagemRepository denunciaMensagemRepository;
     private final MensagemRepository mensagemRepository;

@@ -4,7 +4,7 @@ import com.couto.chefe_api.exception.GlobalExceptionHandler;
 import com.couto.chefe_api.service.ChefeService;
 import com.couto.chefe_api.service.EnderecoService;
 import com.couto.chefe_api.service.PratosService;
-import com.couto.chefe_api.service.agendamentoService;
+import com.couto.chefe_api.service.AgendamentoService;
 import com.couto.chefe_api.service.UsuarioService;
 import com.couto.chefe_api.security.AuthCookies;
 import com.couto.chefe_api.service.FotoPerfilService;
@@ -46,7 +46,7 @@ class ValidacaoRequisicoesTest {
 
     private static final DateTimeFormatter FORMATO = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
 
-    private final agendamentoService agendamentoService = mock(agendamentoService.class);
+    private final AgendamentoService agendamentoService = mock(AgendamentoService.class);
     private final UsuarioService usuarioService = mock(UsuarioService.class);
     private final EnderecoService enderecoService = mock(EnderecoService.class);
     private final ChefeService chefeService = mock(ChefeService.class);
@@ -127,7 +127,7 @@ class ValidacaoRequisicoesTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"quantidadePessoas\":3}"))
                 .andExpect(status().isOk());
-        verify(agendamentoService).atualizarAgedamento(any(), anyLong(), any());
+        verify(agendamentoService).atualizarAgendamento(any(), anyLong(), any());
     }
 
     @Test

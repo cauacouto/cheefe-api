@@ -12,7 +12,7 @@ public enum TipoDeResidencia {
     APARTAMENTO {
         public void validar(EnderecoModel endereco) {
             if (endereco.getComplemento() == null || endereco.getComplemento().isBlank()) {
-                throw new EnderecoInvalidoException("Apartamento exige complemento (bloco/número do apto/nomeCondomino)");
+                throw new EnderecoInvalidoException("Apartamento exige complemento (bloco, número do apartamento ou nome do condomínio)");
             }
         }
     };

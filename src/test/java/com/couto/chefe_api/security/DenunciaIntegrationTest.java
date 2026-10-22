@@ -13,7 +13,7 @@ import com.couto.chefe_api.enums.TipoUsuario;
 import com.couto.chefe_api.repository.AgendamentoRepository;
 import com.couto.chefe_api.repository.ChefeRepository;
 import com.couto.chefe_api.repository.DenunciaRepository;
-import com.couto.chefe_api.repository.EndercoRepository;
+import com.couto.chefe_api.repository.EnderecoRepository;
 import com.couto.chefe_api.repository.NotificacaoRepository;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterEach;
@@ -54,7 +54,7 @@ class DenunciaIntegrationTest {
     @Autowired
     ChefeRepository chefeRepository;
     @Autowired
-    EndercoRepository enderecoRepository;
+    EnderecoRepository enderecoRepository;
     @Autowired
     AgendamentoRepository agendamentoRepository;
     @Autowired

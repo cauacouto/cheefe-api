@@ -21,7 +21,7 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class AgendamentoResquestDto {
+public class AgendamentoRequestDto {
 
     @NotNull
     @Future

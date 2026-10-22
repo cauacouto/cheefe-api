@@ -8,7 +8,7 @@ import com.couto.chefe_api.dto.UserResponseDto;
 import com.couto.chefe_api.exception.EnderecoInvalidoException;
 import com.couto.chefe_api.domain.EnderecoModel;
 import com.couto.chefe_api.enums.TipoDeResidencia;
-import com.couto.chefe_api.repository.EndercoRepository;
+import com.couto.chefe_api.repository.EnderecoRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,7 +37,7 @@ class UsuarioServiceIntegrationTest {
     @Autowired
     private UsuarioRepository usuarioRepository;
     @Autowired
-    private EndercoRepository enderecoRepository;
+    private EnderecoRepository enderecoRepository;
     @Autowired
     private TransactionTemplate transactionTemplate;
 
