@@ -23,6 +23,8 @@ import com.couto.chefe_api.repositorys.MensagemRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -52,7 +54,8 @@ class ChatServiceTest {
     private final UsuarioRepository usuarioRepository = mock(UsuarioRepository.class);
     private final ChefeRepository chefeRepository = mock(ChefeRepository.class);
     private final ChatService service = new ChatService(conversaRepository, mensagemRepository,
-            usuarioRepository, chefeRepository, mock(NotificacaoService.class), eventPublisher, RELOGIO);
+            usuarioRepository, chefeRepository, mock(NotificacaoService.class), eventPublisher, RELOGIO,
+            new TransactionTemplate(mock(PlatformTransactionManager.class)));
 
     private final UserModel cliente = new UserModel();
     private final ChefeModel chefe = new ChefeModel();
@@ -80,6 +83,7 @@ class ChatServiceTest {
         mensagem.setTexto("original");
         mensagem.setEnviadaEm(AGORA.minusMinutes(5));
         when(conversaRepository.findById(1L)).thenReturn(Optional.of(conversa));
+        when(conversaRepository.travarPorId(1L)).thenReturn(Optional.of(conversa));
         when(mensagemRepository.findByIdAndConversa_Id(10L, 1L)).thenReturn(Optional.of(mensagem));
     }
 
@@ -241,12 +245,12 @@ class ChatServiceTest {
         when(chefeRepository.findById(chefe.getId())).thenReturn(Optional.of(chefe));
         when(usuarioRepository.findById(cliente.getId())).thenReturn(Optional.of(cliente));
         when(conversaRepository.findByCliente_IdAndChefe_Id(cliente.getId(), chefe.getId())).thenReturn(Optional.empty());
-        when(conversaRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(conversaRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
 
         service.abrirConversa(cliente.getId(), chefe.getId());
 
         ArgumentCaptor<Conversa> captor = ArgumentCaptor.forClass(Conversa.class);
-        verify(conversaRepository).save(captor.capture());
+        verify(conversaRepository).saveAndFlush(captor.capture());
         assertThat(captor.getValue().getCriadaEm()).isEqualTo(AGORA);
         assertThat(captor.getValue().getUltimaMensagemEm()).isEqualTo(AGORA);
     }

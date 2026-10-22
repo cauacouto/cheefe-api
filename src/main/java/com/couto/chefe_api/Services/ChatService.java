@@ -26,7 +26,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -50,12 +52,24 @@ public class ChatService {
     private final NotificacaoService notificacaoService;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
+    private final TransactionTemplate transacao;
 
     public record ConversaAberta(ConversaDto conversa, boolean criada) {
     }
 
-    @Transactional
+    /**
+     * Idempotente também em paralelo (duplo clique, duas abas): se outro pedido criou a conversa no meio,
+     * a constraint única barra a segunda e uma nova transação devolve a que ficou.
+     */
     public ConversaAberta abrirConversa(UUID clienteId, UUID chefeId) {
+        try {
+            return transacao.execute(status -> abrirOuCriar(clienteId, chefeId));
+        } catch (DataIntegrityViolationException corrida) {
+            return transacao.execute(status -> abrirOuCriar(clienteId, chefeId));
+        }
+    }
+
+    private ConversaAberta abrirOuCriar(UUID clienteId, UUID chefeId) {
         ChefeModel chefe = chefeRepository.findById(chefeId)
                 .filter(c -> Boolean.TRUE.equals(c.getAtivo()))
                 .orElseThrow(ChefeNaoEncontradoException::new);
@@ -69,7 +83,8 @@ public class ChatService {
                     nova.setChefe(chefe);
                     nova.setCriadaEm(agora);
                     nova.setUltimaMensagemEm(agora);
-                    return new ConversaAberta(paraDto(conversaRepository.save(nova), clienteId, TipoUsuario.CLIENTE), true);
+                    // flush aqui: a violação da constraint sai dentro da transação, onde abrirConversa a trata
+                    return new ConversaAberta(paraDto(conversaRepository.saveAndFlush(nova), clienteId, TipoUsuario.CLIENTE), true);
                 });
     }
 
@@ -95,7 +110,9 @@ public class ChatService {
 
     @Transactional
     public MensagemDto enviar(Long conversaId, UsuarioAutenticado usuario, String texto) {
-        Conversa conversa = doParticipante(conversaId, usuario);
+        Conversa conversa = conversaRepository.travarPorId(conversaId)
+                .filter(c -> participa(c, usuario))
+                .orElseThrow(() -> new RecursoNaoEncontradoException("conversa não encontrada"));
         // chef apagado/banido: ninguém escreve mais nessa conversa (o histórico continua visível)
         conversa.getChefe().exigirAtivo();
         String normalizado = normalizar(texto);
