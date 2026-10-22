@@ -8,10 +8,13 @@ import com.couto.chefe_api.enums.Senioridade;
 import com.couto.chefe_api.enums.TipoUsuario;
 import com.couto.chefe_api.Services.NotificacaoService;
 import com.couto.chefe_api.domin.Agendamento;
+import com.couto.chefe_api.domin.Denuncia;
+import com.couto.chefe_api.enums.MotivoDenuncia;
 import com.couto.chefe_api.enums.EventoNotificacao;
 import com.couto.chefe_api.enums.StatusAgendamento;
 import com.couto.chefe_api.repositorys.AcaoModeracaoRepository;
 import com.couto.chefe_api.repositorys.AgendamentoRepository;
+import com.couto.chefe_api.repositorys.DenunciaRepository;
 import com.couto.chefe_api.repositorys.ChefeRepository;
 import com.couto.chefe_api.repositorys.ConversaRepository;
 import com.couto.chefe_api.repositorys.DenunciaMensagemRepository;
@@ -60,6 +63,7 @@ class ConversaIntegrationTest {
     @Autowired NotificacaoRepository notificacaoRepository;
     @Autowired AcaoModeracaoRepository acaoModeracaoRepository;
     @Autowired AgendamentoRepository agendamentoRepository;
+    @Autowired DenunciaRepository denunciaRepository;
     @Autowired NotificacaoService notificacaoService;
     @Autowired ModeracaoRegistry moderacaoRegistry;
 
@@ -81,6 +85,7 @@ class ConversaIntegrationTest {
         mensagemRepository.deleteAll();
         conversaRepository.deleteAll();
         notificacaoRepository.deleteAll();
+        denunciaRepository.deleteAll();
         agendamentoRepository.deleteAll();
         usuarioRepository.deleteAll();
         chefeRepository.deleteAll();
@@ -348,15 +353,32 @@ class ConversaIntegrationTest {
         agendamento = agendamentoRepository.save(agendamento);
         notificacaoService.notificar(bia.getId(), TipoUsuario.CHEFE, EventoNotificacao.AGENDAMENTO_CRIADO,
                 "Ana pediu um agendamento", String.valueOf(agendamento.getId()));
-        long notificacaoQueFica = notificacaoRepository.findAll().stream()
-                .filter(n -> n.getReferenciaId().equals(String.valueOf(conversaDeOutra))
+        Denuncia denuncia = new Denuncia();
+        denuncia.setCliente(ana);
+        denuncia.setChefe(bia);
+        denuncia.setAgendamento(agendamento);
+        denuncia.setMotivo(MotivoDenuncia.COMPORTAMENTO);
+        denuncia.setDescricao("atrasou");
+        denuncia = denunciaRepository.save(denuncia);
+        notificacaoService.notificar(moderacaoRegistry.idDe("moderacao@chefhome.test"), TipoUsuario.MODERADOR,
+                EventoNotificacao.DENUNCIA_CRIADA, "Nova denúncia contra o chef Bia", String.valueOf(denuncia.getId()));
+        // mesmo número de uma conversa apagada, mas de outro tipo (agendamento de outro cliente): tem de ficar
+        String idDeConversaApagada = String.valueOf(comBia);
+        assertThat(idDeConversaApagada).isNotEqualTo(String.valueOf(agendamento.getId()));
+        notificacaoService.notificar(bia.getId(), TipoUsuario.CHEFE, EventoNotificacao.AGENDAMENTO_CRIADO,
+                "Outra pediu um agendamento", idDeConversaApagada);
+        java.util.List<Long> notificacoesQueFicam = notificacaoRepository.findAll().stream()
+                .filter(n -> (n.getReferenciaId().equals(String.valueOf(conversaDeOutra))
                         && n.getEvento() == EventoNotificacao.MENSAGEM_RECEBIDA)
-                .findFirst().orElseThrow().getId();
+                        || (n.getReferenciaId().equals(idDeConversaApagada) && n.getEvento() == EventoNotificacao.AGENDAMENTO_CRIADO))
+                .map(n -> n.getId()).toList();
+        assertThat(notificacoesQueFicam).hasSize(2);
 
         mockMvc.perform(delete("/usuario/me").cookie(cookie(ana))).andExpect(status().isNoContent());
 
         // LGPD: nada que cite a Ana ou aponte para dados dela fica para trás, nem nas notificações dos outros
-        assertThat(notificacaoRepository.findAll()).extracting("id").containsExactly(notificacaoQueFica);
+        assertThat(notificacaoRepository.findAll()).extracting("id").containsExactlyInAnyOrderElementsOf(notificacoesQueFicam);
+        assertThat(denunciaRepository.count()).isZero();
         assertThat(usuarioRepository.findById(ana.getId())).isEmpty();
         assertThat(conversaRepository.findAll()).extracting("id").containsExactly(conversaDeOutra);
         assertThat(mensagemRepository.findAll()).extracting("texto").containsExactly("fico");

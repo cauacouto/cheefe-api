@@ -191,6 +191,7 @@ class ChatServiceTest {
 
         service.marcarLidas(1L, bia);
 
+        verify(conversaRepository).travarPorId(1L);
         // o "visto" vai só até a última mensagem que existia antes do UPDATE (nada chega depois sem lidaEm)
         verify(mensagemRepository).marcarLidas(1L, bia.id(), 10L, AGORA);
         verify(eventPublisher).publishEvent(new MensagensLidasEvent(1L, bia.id(), ana.id(), 10L, AGORA));

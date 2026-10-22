@@ -178,7 +178,10 @@ public class ChatService {
 
     @Transactional
     public void marcarLidas(Long conversaId, UsuarioAutenticado usuario) {
-        Conversa conversa = doParticipante(conversaId, usuario);
+        // mesma trava do enviar: um envio no meio não pode ter a notificação dele marcada como lida sem ser visto
+        Conversa conversa = conversaRepository.travarPorId(conversaId)
+                .filter(c -> participa(c, usuario))
+                .orElseThrow(() -> new RecursoNaoEncontradoException("conversa não encontrada"));
         exigirChefAtivo(conversa, usuario);
         LocalDateTime agora = LocalDateTime.now(clock);
         notificacaoService.marcarLidasDaReferencia(usuario.id(), EventoNotificacao.MENSAGEM_RECEBIDA,

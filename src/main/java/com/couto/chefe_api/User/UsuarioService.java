@@ -5,6 +5,7 @@ import com.couto.chefe_api.Dtos.UserResponseDto;
 import com.couto.chefe_api.Excepitons.UsuarioException;
 import com.couto.chefe_api.Mapper.UsuarioMapper;
 import com.couto.chefe_api.domin.EnderecoModel;
+import com.couto.chefe_api.domin.Conversa;
 import com.couto.chefe_api.enums.EventoNotificacao;
 import com.couto.chefe_api.repositorys.AgendamentoRepository;
 import com.couto.chefe_api.repositorys.ConversaRepository;
@@ -81,8 +82,10 @@ public class UsuarioService {
     public void deletar(UUID usuarioId) {
         UserModel user = repository.findById(usuarioId)
                 .orElseThrow(UsuarioException::new);
+        // antes de juntar ids: um envio que estava no meio entra na conta e é apagado junto
+        List<Long> conversas = conversaRepository.travarDoCliente(usuarioId).stream().map(Conversa::getId).toList();
         // apagar a conta apaga os dados do cliente, inclusive as denúncias que ele fez (LGPD)
-        apagarNotificacoes(usuarioId);
+        apagarNotificacoes(usuarioId, conversas);
         denunciaRepository.deleteByCliente_Id(usuarioId);
         // o chat do cliente vai junto (ordem das FKs): denúncias de mensagens, mensagens e conversas
         denunciaMensagemRepository.deleteByMensagem_Conversa_Cliente_Id(usuarioId);
@@ -96,13 +99,13 @@ public class UsuarioService {
      * pedidos de agendamento recebidos pelo chef, mensagens recebidas e denúncias que chegaram à moderação.
      * Filtra pelo evento porque referenciaId de tipos diferentes pode coincidir (agendamento 5 x conversa 5).
      */
-    private void apagarNotificacoes(UUID clienteId) {
+    private void apagarNotificacoes(UUID clienteId, List<Long> conversas) {
         notificacaoRepository.apagarDoDestinatario(clienteId);
         apagarDasReferencias(EnumSet.of(EventoNotificacao.AGENDAMENTO_CRIADO, EventoNotificacao.AGENDAMENTO_EDITADO,
                 EventoNotificacao.AGENDAMENTO_CONFIRMADO), agendamentoRepository.idsDoCliente(clienteId));
-        apagarDasReferencias(EnumSet.of(EventoNotificacao.MENSAGEM_RECEBIDA), conversaRepository.idsDoCliente(clienteId));
+        apagarDasReferencias(EnumSet.of(EventoNotificacao.MENSAGEM_RECEBIDA), conversas);
         apagarDasReferencias(EnumSet.of(EventoNotificacao.MENSAGEM_DENUNCIADA),
-                denunciaMensagemRepository.idsDasConversasDoCliente(clienteId));
+                denunciaMensagemRepository.idsDasDenunciasNasConversasDoCliente(clienteId));
         apagarDasReferencias(EnumSet.of(EventoNotificacao.DENUNCIA_CRIADA), denunciaRepository.idsDoCliente(clienteId));
     }
 

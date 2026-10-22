@@ -30,8 +30,10 @@ public interface ConversaRepository extends JpaRepository<Conversa, Long> {
     @EntityGraph(attributePaths = {"cliente", "chefe"})
     Page<Conversa> findByChefe_IdOrderByUltimaMensagemEmDescIdDesc(UUID chefeId, Pageable pageable);
 
-    @Query("SELECT c.id FROM Conversa c WHERE c.cliente.id = :clienteId")
-    List<Long> idsDoCliente(@Param("clienteId") UUID clienteId);
+    /** Trava as conversas do cliente (sempre na mesma ordem): um envio em andamento termina antes da exclusão. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM Conversa c WHERE c.cliente.id = :clienteId ORDER BY c.id")
+    List<Conversa> travarDoCliente(@Param("clienteId") UUID clienteId);
 
     void deleteByCliente_Id(UUID clienteId);
 }

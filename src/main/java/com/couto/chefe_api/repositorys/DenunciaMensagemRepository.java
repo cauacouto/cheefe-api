@@ -20,7 +20,7 @@ public interface DenunciaMensagemRepository extends JpaRepository<DenunciaMensag
     Page<DenunciaMensagem> findByStatusOrderByCriadaEmAscIdAsc(StatusDenuncia status, Pageable pageable);
 
     @Query("SELECT d.id FROM DenunciaMensagem d WHERE d.mensagem.conversa.cliente.id = :clienteId")
-    List<Long> idsDasConversasDoCliente(@Param("clienteId") UUID clienteId);
+    List<Long> idsDasDenunciasNasConversasDoCliente(@Param("clienteId") UUID clienteId);
 
     void deleteByMensagem_Conversa_Cliente_Id(UUID clienteId);
 }
