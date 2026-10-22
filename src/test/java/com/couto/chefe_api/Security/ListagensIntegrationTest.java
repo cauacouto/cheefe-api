@@ -149,6 +149,49 @@ class ListagensIntegrationTest {
                 .andExpect(jsonPath("$.imageUrl").value("https://img.test/ana.jpg"));
     }
 
+    @Test
+    void destaqueSoComChefsVisiveisDoMaisAgendadoAoMenosEOrdenacaoDoClienteIgnorada() throws Exception {
+        ChefeModel bia = novoChefe("Bia");
+        ChefeModel caio = novoChefe("Caio");
+        ChefeModel suspenso = novoChefe("Dani");
+        suspenso.setSuspenso(true);
+        chefeRepository.save(suspenso);
+        UserModel ana = novoCliente("Ana");
+        novoAgendamento(ana, BASE, caio);
+        novoAgendamento(ana, BASE.plusDays(1), caio);
+        novoAgendamento(ana, BASE.plusDays(2), bia);
+        for (int i = 0; i < 5; i++) {
+            novoAgendamento(ana, BASE.plusDays(10 + i), suspenso);
+        }
+
+        mockMvc.perform(get("/chefe/destaque").param("sort", "email").param("size", "1000").cookie(cookieDe(ana)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.content[0].nome").value("Caio"))
+                .andExpect(jsonPath("$.content[1].nome").value("Bia"))
+                .andExpect(jsonPath("$.page.size").value(50));
+    }
+
+    @Test
+    void buscaOrdenaSoPorCamposVisiveisELimitaAPagina() throws Exception {
+        ChefeModel barato = novoChefe("Bia");
+        ChefeModel caro = novoChefe("Caio");
+        caro.setValorHora(new BigDecimal("300"));
+        chefeRepository.save(caro);
+        Cookie ana = cookieDe(novoCliente("Ana"));
+
+        mockMvc.perform(get("/chefe").param("sort", "valorHora,desc").cookie(ana))
+                .andExpect(jsonPath("$.content[0].nome").value("Caio"))
+                .andExpect(jsonPath("$.content[1].nome").value("Bia"));
+        mockMvc.perform(get("/chefe").param("sort", "valorHora,asc").cookie(ana))
+                .andExpect(jsonPath("$.content[0].nome").value("Bia"));
+        // campo que a resposta não mostra: ordenação ignorada (sem 500 e sem vazar a ordem dos e-mails)
+        mockMvc.perform(get("/chefe").param("sort", "email").param("size", "1000").cookie(ana))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.page.size").value(50));
+    }
+
     // ---------------------------------------------------------------------
 
     Agendamento novoAgendamento(UserModel cliente, LocalDateTime inicio, ChefeModel... chefes) {

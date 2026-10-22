@@ -168,7 +168,7 @@ Todas as chamadas do front precisam de `credentials: 'include'`.
 
 Toda identidade vem do cookie de sessão: nenhuma rota recebe id ou e-mail de quem está logado. Papel errado → **403**; recurso de outra pessoa → **404** (igual a inexistente); ação não permitida no status atual → **409**.
 
-Listas paginadas respondem `{ "content": [...], "page": { "size", "number", "totalElements", "totalPages" } }`; a ordenação é sempre a do servidor (o parâmetro `sort` é ignorado).
+Listas paginadas respondem `{ "content": [...], "page": { "size", "number", "totalElements", "totalPages" } }`; a ordenação é a do servidor (o parâmetro `sort` é ignorado, exceto na busca de chefs).
 
 | Recurso | Rota | Papel |
 |---|---|---|
@@ -177,7 +177,7 @@ Listas paginadas respondem `{ "content": [...], "page": { "size", "number", "tot
 | Tempo real | `GET /eventos` (SSE, `text/event-stream`; eventos `mensagem`, `mensagem_editada`, `mensagem_apagada`, `mensagens_lidas` e `notificacao`) | qualquer logado |
 | Usuário | `GET` · `PUT` · `DELETE /usuario/me` (o e-mail não é editável; o DELETE encerra a sessão e apaga também as conversas, mensagens e denúncias de mensagens do cliente); `PUT /usuario/me/foto` (multipart `foto`) | CLIENTE |
 | Endereços | `GET` · `POST /usuario/enderecos` | CLIENTE |
-| Chefs | `GET /chefe`, `GET /chefe/destaque` (só chefs ativos, disponíveis e com perfil completo) | qualquer logado |
+| Chefs | `GET /chefe?page=&size=&sort=` (ordenação só por `nome`, `valorHora` ou `anosDeExperiencia`), `GET /chefe/destaque` (mais agendados primeiro); os dois paginados até 50 e só com chefs visíveis (ativos, disponíveis, perfil completo, não suspensos e não ocultados por denúncias) | qualquer logado |
 | Perfil do chef | `GET /chefe/me` (inclui `perfilCompleto` e `camposPendentes`); `PATCH /chefe/me`; `PUT /chefe/me/foto` (multipart `foto`); `PATCH /chefe/me/inativar` (pausa: some da busca e não recebe agendamentos novos) e `PATCH /chefe/me/ativar` (volta); `DELETE /chefe/me` (apaga a conta: não loga nem opera mais) | CHEFE |
 | Pratos | `GET /pratos?page=&size=` (paginado, até 50) e `GET /pratos/chefe/{chefeId}`: só pratos de chefs visíveis na busca (chef pausado, suspenso, banido ou ocultado por denúncias não aparece) | qualquer logado |
 | Meus pratos | `POST /pratos` (multipart `dados` + `foto`), `PUT /pratos/{id}`, `GET /pratos/meus` (todos os do chef, mesmo pausado) | CHEFE |
