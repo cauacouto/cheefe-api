@@ -1,5 +1,10 @@
 package com.couto.chefe_api.service;
 
+import java.time.Clock;
+import com.couto.chefe_api.enums.TipoUsuario;
+import com.couto.chefe_api.enums.AcaoAgendamento;
+import com.couto.chefe_api.dto.RecusaRequestDto;
+import com.couto.chefe_api.dto.CancelamentoRequestDto;
 import com.couto.chefe_api.exception.HorarioIndisponivelException;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
@@ -57,6 +62,8 @@ public class AgendamentoService {
     private final AgendamentoRepository agendamentoRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final DenunciaRepository denunciaRepository;
+    private final HistoricoAgendamentoService historico;
+    private final Clock clock;
 
     @Transactional
     public AgendamentoResponseDto criarAgendamento(AgendamentoRequestDto dto, UUID usuarioId) {
@@ -76,6 +83,7 @@ public class AgendamentoService {
         agendamento.setValorTotal(Agendamento.calcularValor(chefes, dto.getDataHoraInicial(), dto.getDataHoraFinal()));
         exigirHorarioLivre(agendamento);
         Agendamento salvo = agendamentoRepository.save(agendamento);
+        historico.registrar(salvo, AcaoAgendamento.CRIADO, usuarioId, TipoUsuario.CLIENTE, null, null);
         eventPublisher.publishEvent(new AgendamentoCriadoEvent(salvo.getId()));
         return agendamentoMapper.toDto(salvo);
     }
@@ -109,6 +117,7 @@ public class AgendamentoService {
         if (agenda.getStatus() != StatusAgendamento.PENDENTE) {
             throw new AgendamentoNaoEditavelException(agenda.getStatus());
         }
+        agenda.exigirEditavel(agora());
 
         if (dto.enderecoId() != null) {
             agenda.setEndereco(buscarEndereco(dto.enderecoId(), usuarioId));
@@ -140,6 +149,7 @@ public class AgendamentoService {
         }
 
         Agendamento salvo = agendamentoRepository.save(agenda);
+        historico.registrar(salvo, AcaoAgendamento.EDITADO, usuarioId, TipoUsuario.CLIENTE, null, null);
         eventPublisher.publishEvent(new AgendamentoEditadoEvent(salvo.getId()));
         return agendamentoMapper.toDto(salvo);
     }
@@ -158,10 +168,66 @@ public class AgendamentoService {
         }
         // confirmar vale para todos os chefs do agendamento: trava todos e confere a agenda de cada um
         chefeRepository.travar(agendamento.getChefes().stream().map(ChefeModel::getId).toList());
+        agendamento.confirmar(agora());
         exigirHorarioLivre(agendamento);
-        agendamento.setStatus(StatusAgendamento.CONFIRMADO);
         agendamentoRepository.save(agendamento);
+        historico.registrar(agendamento, AcaoAgendamento.CONFIRMADO, chefeId, TipoUsuario.CHEFE, null, null);
         eventPublisher.publishEvent(new AgendamentoConfirmadoEvent(agendamento.getId(), chefeId));
+    }
+
+    @Transactional
+    public void cancelarAgendamento(Long id, UUID clienteId, CancelamentoRequestDto dto) {
+        // agendamento de outro cliente é tratado como inexistente
+        Agendamento agendamento = agendamentoRepository.findByIdAndUsuario_Id(id, clienteId)
+                .orElseThrow(AgendamentoException::new);
+        agendamento.cancelarPeloCliente(agora());
+        historico.registrar(agendamento, AcaoAgendamento.CANCELADO, clienteId, TipoUsuario.CLIENTE,
+                dto == null ? null : dto.motivo(), dto == null ? null : dto.descricao());
+    }
+
+    @Transactional
+    public void recusarAgendamento(Long id, UUID chefeId, RecusaRequestDto dto) {
+        Agendamento agendamento = doChef(id, chefeId);
+        agendamento.recusar(chefeDoAgendamento(agendamento, chefeId), agora());
+        historico.registrar(agendamento, AcaoAgendamento.RECUSADO, chefeId, TipoUsuario.CHEFE,
+                dto == null ? null : dto.motivo(), dto == null ? null : dto.descricao());
+    }
+
+    @Transactional
+    public void desistirDoAgendamento(Long id, UUID chefeId, RecusaRequestDto dto) {
+        Agendamento agendamento = doChef(id, chefeId);
+        agendamento.desistir(chefeDoAgendamento(agendamento, chefeId), agora());
+        historico.registrar(agendamento, AcaoAgendamento.DESISTENCIA, chefeId, TipoUsuario.CHEFE,
+                dto == null ? null : dto.motivo(), dto == null ? null : dto.descricao());
+    }
+
+    @Transactional
+    public void concluirAgendamento(Long id, UUID chefeId) {
+        Agendamento agendamento = doChef(id, chefeId);
+        chefeDoAgendamento(agendamento, chefeId);
+        agendamento.concluirPeloChef(agora());
+        historico.registrar(agendamento, AcaoAgendamento.CONCLUIDO, chefeId, TipoUsuario.CHEFE, null, null);
+    }
+
+    /** Agendamento em que o chef está; para qualquer outro (inclusive quem já saiu dele) ele "não existe". */
+    private Agendamento doChef(Long id, UUID chefeId) {
+        return agendamentoRepository.findById(id)
+                .filter(a -> a.getChefes().stream().anyMatch(chefe -> chefe.getId().equals(chefeId)))
+                .orElseThrow(AgendamentoException::new);
+    }
+
+    /** O chef dentro do agendamento, exigindo conta ativa (apagado ou banido não age). */
+    private static ChefeModel chefeDoAgendamento(Agendamento agendamento, UUID chefeId) {
+        ChefeModel chefe = agendamento.getChefes().stream()
+                .filter(c -> c.getId().equals(chefeId))
+                .findFirst()
+                .orElseThrow(AgendamentoException::new);
+        chefe.exigirAtivo();
+        return chefe;
+    }
+
+    private LocalDateTime agora() {
+        return LocalDateTime.now(clock);
     }
 
     /** Só agendamento CONFIRMADO ocupa a agenda do chef; pedidos pendentes podem se sobrepor. */

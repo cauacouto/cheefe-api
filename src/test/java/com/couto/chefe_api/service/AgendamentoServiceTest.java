@@ -1,5 +1,7 @@
 package com.couto.chefe_api.service;
 
+import java.time.Clock;
+import org.mockito.Spy;
 import com.couto.chefe_api.enums.Senioridade;
 import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.dto.AgendamentoRequestDto;
@@ -75,6 +77,10 @@ class AgendamentoServiceTest {
     private ApplicationEventPublisher publisher;
     @Mock
     private DenunciaRepository denunciaRepository;
+    @Mock
+    private HistoricoAgendamentoService historico;
+    @Spy
+    private Clock clock = Clock.systemDefaultZone();
 
     @InjectMocks
     private AgendamentoService service;

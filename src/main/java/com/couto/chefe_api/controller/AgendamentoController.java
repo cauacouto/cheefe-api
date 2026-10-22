@@ -1,5 +1,7 @@
 package com.couto.chefe_api.controller;
 
+import com.couto.chefe_api.dto.RecusaRequestDto;
+import com.couto.chefe_api.dto.CancelamentoRequestDto;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Page;
@@ -49,6 +51,34 @@ public class AgendamentoController {
     public ResponseEntity<Page<ListaAgendamentoChefeDto>> recebidos(@PageableDefault(size = 20) Pageable pageable,
                                                                     @AuthenticationPrincipal UsuarioAutenticado chefe) {
         return ResponseEntity.ok(service.listarAgendamentosChefe(chefe.id(), pageable));
+    }
+
+    @PatchMapping("/{id}/cancelar")
+    public ResponseEntity<Void> cancelar(@PathVariable Long id,
+                                         @Valid @RequestBody(required = false) CancelamentoRequestDto dto,
+                                         @AuthenticationPrincipal UsuarioAutenticado cliente) {
+        service.cancelarAgendamento(id, cliente.id(), dto);
+        return ResponseEntity.ok().build();
+    }
+
+    @PatchMapping("/{id}/recusar")
+    public ResponseEntity<Void> recusar(@PathVariable Long id, @Valid @RequestBody(required = false) RecusaRequestDto dto,
+                                        @AuthenticationPrincipal UsuarioAutenticado chefe) {
+        service.recusarAgendamento(id, chefe.id(), dto);
+        return ResponseEntity.ok().build();
+    }
+
+    @PatchMapping("/{id}/desistir")
+    public ResponseEntity<Void> desistir(@PathVariable Long id, @Valid @RequestBody(required = false) RecusaRequestDto dto,
+                                         @AuthenticationPrincipal UsuarioAutenticado chefe) {
+        service.desistirDoAgendamento(id, chefe.id(), dto);
+        return ResponseEntity.ok().build();
+    }
+
+    @PatchMapping("/{id}/concluir")
+    public ResponseEntity<Void> concluir(@PathVariable Long id, @AuthenticationPrincipal UsuarioAutenticado chefe) {
+        service.concluirAgendamento(id, chefe.id());
+        return ResponseEntity.ok().build();
     }
 
     @PatchMapping("/{id}/confirmar")
