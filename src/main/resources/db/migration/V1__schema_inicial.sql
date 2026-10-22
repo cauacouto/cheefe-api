@@ -121,3 +121,13 @@ CREATE INDEX idx_endereco_usuario ON endereco (user_id);
 CREATE INDEX idx_agendamentos_usuario ON agendamentos (user_id);
 CREATE INDEX idx_agedamento_chefe_chefe ON agedamento_chefe (chefe_id);
 CREATE INDEX idx_pratos_chefe ON pratos (chefe_id);
+
+-- o histórico de migrations (criado pelo Flyway antes desta migration) é só do Flyway:
+-- os default privileges dariam DML à API; aqui ela fica só com leitura
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'chefhome_app') THEN
+        REVOKE INSERT, UPDATE, DELETE ON flyway_schema_history FROM chefhome_app;
+    END IF;
+END
+$$;
