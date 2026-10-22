@@ -11,8 +11,9 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "notificacao", indexes = @Index(name = "idx_notificacao_destinatario",
-        columnList = "destinatarioId, lida, criadaEm"))
+@Table(name = "notificacao", indexes = {
+        @Index(name = "idx_notificacao_destinatario", columnList = "destinatarioId, lida, criadaEm"),
+        @Index(name = "idx_notificacao_referencia", columnList = "referenciaId, evento")})
 @Getter
 @Setter
 @NoArgsConstructor
