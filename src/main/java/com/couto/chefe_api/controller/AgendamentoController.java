@@ -1,5 +1,6 @@
 package com.couto.chefe_api.controller;
 
+import com.couto.chefe_api.dto.HistoricoAgendamentoDto;
 import com.couto.chefe_api.dto.RecusaRequestDto;
 import com.couto.chefe_api.dto.CancelamentoRequestDto;
 import org.springframework.data.web.PageableDefault;
@@ -51,6 +52,12 @@ public class AgendamentoController {
     public ResponseEntity<Page<ListaAgendamentoChefeDto>> recebidos(@PageableDefault(size = 20) Pageable pageable,
                                                                     @AuthenticationPrincipal UsuarioAutenticado chefe) {
         return ResponseEntity.ok(service.listarAgendamentosChefe(chefe.id(), pageable));
+    }
+
+    @GetMapping("/{id}/historico")
+    public ResponseEntity<List<HistoricoAgendamentoDto>> historico(@PathVariable Long id,
+                                                                   @AuthenticationPrincipal UsuarioAutenticado usuario) {
+        return ResponseEntity.ok(service.historico(id, usuario));
     }
 
     @PatchMapping("/{id}/cancelar")

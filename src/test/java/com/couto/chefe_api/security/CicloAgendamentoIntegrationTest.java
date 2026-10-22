@@ -161,6 +161,7 @@ class CicloAgendamentoIntegrationTest {
 
         acao(cookieDe(bia), a, "recusar", null).andExpect(status().isNotFound());
         acao(cookieDe(bia), a, "concluir", null).andExpect(status().isNotFound());
+        mockMvc.perform(get("/agendamentos/" + a.getId() + "/historico").cookie(cookieDe(bia))).andExpect(status().isNotFound());
     }
 
     @Test
@@ -241,6 +242,44 @@ class CicloAgendamentoIntegrationTest {
                 .andExpect(jsonPath("$.content[0].referenciaId").value(String.valueOf(a.getId())))
                 .andExpect(jsonPath("$.content[0].mensagem").value(org.hamcrest.Matchers.endsWith(
                         "foi recusado: Não tenho agenda nesse horário")));
+    }
+
+    @Test
+    void historicoEmOrdemComAutorEMotivo() throws Exception {
+        UserModel ana = novoCliente("Ana");
+        ChefeModel bia = novoChefe("Bia");
+        ChefeModel caio = novoChefe("Caio");
+        Agendamento a = novoAgendamento(ana, BASE, bia, caio);
+        acao(cookieDe(bia), a, "recusar", "{\"motivo\":\"NUMERO_DE_PESSOAS\",\"descricao\":\"só até 10\"}")
+                .andExpect(status().isOk());
+        acao(cookieDe(ana), a, "cancelar", "{\"motivo\":\"OUTRO\"}").andExpect(status().isOk());
+
+        for (Cookie quem : new Cookie[]{cookieDe(ana), cookieDe(caio)}) {
+            mockMvc.perform(get("/agendamentos/" + a.getId() + "/historico").cookie(quem))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()").value(2))
+                    .andExpect(jsonPath("$[0].acao").value("RECUSADO"))
+                    .andExpect(jsonPath("$[0].autor.nome").value("Bia"))
+                    .andExpect(jsonPath("$[0].autor.tipo").value("CHEFE"))
+                    .andExpect(jsonPath("$[0].motivo.codigo").value("NUMERO_DE_PESSOAS"))
+                    .andExpect(jsonPath("$[0].motivo.rotulo").value("Não atendo essa quantidade de pessoas"))
+                    .andExpect(jsonPath("$[0].descricao").value("só até 10"))
+                    .andExpect(jsonPath("$[0].ocorridoEm").isNotEmpty())
+                    .andExpect(jsonPath("$[1].acao").value("CANCELADO"))
+                    .andExpect(jsonPath("$[1].autor.nome").value("Ana"))
+                    .andExpect(jsonPath("$[1].motivo.rotulo").value("Outro motivo"))
+                    .andExpect(jsonPath("$[1].descricao").doesNotExist());
+        }
+    }
+
+    @Test
+    void historicoDeOutroDa404() throws Exception {
+        Agendamento a = novoAgendamento(novoCliente("Ana"), BASE, novoChefe("Bia"));
+
+        mockMvc.perform(get("/agendamentos/" + a.getId() + "/historico").cookie(cookieDe(novoCliente("Edu"))))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/agendamentos/" + a.getId() + "/historico").cookie(cookieDe(novoChefe("Caio"))))
+                .andExpect(status().isNotFound());
     }
 
     private ResultActions acao(Cookie quem, Agendamento agendamento, String acao, String corpo) throws Exception {

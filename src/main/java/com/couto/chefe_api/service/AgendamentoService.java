@@ -1,5 +1,15 @@
 package com.couto.chefe_api.service;
 
+import java.util.stream.Collectors;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Arrays;
+import com.couto.chefe_api.security.UsuarioAutenticado;
+import com.couto.chefe_api.repository.AgendamentoHistoricoRepository;
+import com.couto.chefe_api.enums.MotivoRecusa;
+import com.couto.chefe_api.enums.MotivoCancelamento;
+import com.couto.chefe_api.dto.HistoricoAgendamentoDto;
+import com.couto.chefe_api.domain.AgendamentoHistorico;
 import com.couto.chefe_api.service.eventos.ChefSaiuDoAgendamentoEvent;
 import com.couto.chefe_api.service.eventos.AgendamentoCanceladoEvent;
 import com.couto.chefe_api.enums.MotivoAgendamento;
@@ -66,6 +76,7 @@ public class AgendamentoService {
     private final ApplicationEventPublisher eventPublisher;
     private final DenunciaRepository denunciaRepository;
     private final HistoricoAgendamentoService historico;
+    private final AgendamentoHistoricoRepository historicoRepository;
     private final Clock clock;
 
     @Transactional
@@ -212,6 +223,47 @@ public class AgendamentoService {
         chefeDoAgendamento(agendamento, chefeId);
         agendamento.concluirPeloChef(agora());
         historico.registrar(agendamento, AcaoAgendamento.CONCLUIDO, chefeId, TipoUsuario.CHEFE, null, null);
+    }
+
+    /** Linha do tempo: só o cliente dono ou um chef que ainda está no agendamento. */
+    @Transactional(readOnly = true)
+    public List<HistoricoAgendamentoDto> historico(Long id, UsuarioAutenticado usuario) {
+        Agendamento agendamento = switch (usuario.tipo()) {
+            case CLIENTE -> agendamentoRepository.findByIdAndUsuario_Id(id, usuario.id()).orElseThrow(AgendamentoException::new);
+            case CHEFE -> doChef(id, usuario.id());
+            case MODERADOR -> throw new AgendamentoException();
+        };
+        List<AgendamentoHistorico> linhas = historicoRepository.findByAgendamento_IdOrderByOcorridoEmAscIdAsc(agendamento.getId());
+        Map<UUID, String> nomes = nomesDosAutores(linhas);
+        return linhas.stream().map(linha -> new HistoricoAgendamentoDto(
+                linha.getAcao(),
+                linha.getAutorId() == null ? null
+                        : new HistoricoAgendamentoDto.Autor(linha.getAutorId(), nomes.get(linha.getAutorId()), linha.getAutorTipo()),
+                motivoDe(linha.getMotivo()),
+                linha.getDescricao(),
+                linha.getOcorridoEm())).toList();
+    }
+
+    /** O nome é resolvido na leitura (o histórico guarda só o id), buscando cada tipo de autor de uma vez. */
+    private Map<UUID, String> nomesDosAutores(List<AgendamentoHistorico> linhas) {
+        Map<UUID, String> nomes = new HashMap<>();
+        Set<UUID> clientes = linhas.stream().filter(l -> l.getAutorTipo() == TipoUsuario.CLIENTE)
+                .map(AgendamentoHistorico::getAutorId).collect(Collectors.toSet());
+        Set<UUID> chefes = linhas.stream().filter(l -> l.getAutorTipo() == TipoUsuario.CHEFE)
+                .map(AgendamentoHistorico::getAutorId).collect(Collectors.toSet());
+        usuarioRepository.findAllById(clientes).forEach(u -> nomes.put(u.getId(), u.getNome()));
+        chefeRepository.findAllById(chefes).forEach(c -> nomes.put(c.getId(), c.getNome()));
+        return nomes;
+    }
+
+    private static HistoricoAgendamentoDto.Motivo motivoDe(String codigo) {
+        if (codigo == null) {
+            return null;
+        }
+        MotivoAgendamento motivo = Arrays.stream(MotivoCancelamento.values()).filter(m -> m.name().equals(codigo))
+                .<MotivoAgendamento>map(m -> m).findFirst()
+                .orElseGet(() -> MotivoRecusa.valueOf(codigo));
+        return new HistoricoAgendamentoDto.Motivo(motivo.name(), motivo.rotulo());
     }
 
     private void sairDoAgendamento(Agendamento agendamento, ChefeModel chefe, AcaoAgendamento acao, boolean recusa,
