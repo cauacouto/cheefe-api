@@ -176,6 +176,37 @@ class MigracoesPostgresTest {
     }
 
     @Test
+    void historicoDeAgendamentoEhSoDeInsercaoParaAApi() throws Exception {
+        rodarSetup(); // re-rodar o setup não pode devolver UPDATE/DELETE à API
+        try (Connection app = conectar("chefhome_app", SENHA_APP);
+             Statement st = app.createStatement()) {
+            st.execute("INSERT INTO chefhome.agendamentos (id, status) VALUES (900001, 'PENDENTE')");
+            st.execute("INSERT INTO chefhome.agendamento_historico (agendamento_id, acao, ocorrido_em) "
+                    + "VALUES (900001, 'CRIADO', now())");
+            assertSemPermissao(app, "UPDATE chefhome.agendamento_historico SET motivo = 'OUTRO'");
+            assertSemPermissao(app, "DELETE FROM chefhome.agendamento_historico");
+            assertSemPermissao(app, "TRUNCATE chefhome.agendamento_historico");
+            st.execute("DELETE FROM chefhome.agendamentos WHERE id = 900001");
+        }
+    }
+
+    @Test
+    void apagarAgendamentoLevaOHistorico() throws Exception {
+        try (Connection app = conectar("chefhome_app", SENHA_APP);
+             Statement st = app.createStatement()) {
+            st.execute("INSERT INTO chefhome.agendamentos (id, status) VALUES (900002, 'CONFIRMADO')");
+            st.execute("INSERT INTO chefhome.agendamento_historico (agendamento_id, acao, ocorrido_em) "
+                    + "VALUES (900002, 'CRIADO', now()), (900002, 'CONFIRMADO', now())");
+
+            // a API não apaga histórico, mas apagar o agendamento (exclusão de conta) leva as linhas pela cascata
+            st.execute("DELETE FROM chefhome.agendamentos WHERE id = 900002");
+
+            assertThat(coluna(st, "SELECT count(*)::text FROM chefhome.agendamento_historico WHERE agendamento_id = 900002"))
+                    .containsExactly("0");
+        }
+    }
+
+    @Test
     void notificacaoTemIndicePorReferencia() throws SQLException {
         try (Connection app = conectar("chefhome_app", SENHA_APP);
              Statement st = app.createStatement();
@@ -202,6 +233,13 @@ class MigracoesPostgresTest {
         assertCheckDeTexto("denuncia_mensagem", "autor_tipo", com.couto.chefe_api.enums.TipoUsuario.values());
         assertCheckDeTexto("agendamentos", "status", com.couto.chefe_api.enums.StatusAgendamento.values());
         assertCheckDeTexto("endereco", "tipo_de_residencia", TipoDeResidencia.values());
+        assertCheckDeTexto("agendamento_historico", "acao", com.couto.chefe_api.enums.AcaoAgendamento.values());
+        assertCheckDeTexto("agendamento_historico", "autor_tipo",
+                java.util.List.of(com.couto.chefe_api.enums.TipoUsuario.CLIENTE.name(), com.couto.chefe_api.enums.TipoUsuario.CHEFE.name()));
+        assertCheckDeTexto("agendamento_historico", "motivo", java.util.stream.Stream.concat(
+                        java.util.Arrays.stream(com.couto.chefe_api.enums.MotivoCancelamento.values()),
+                        java.util.Arrays.stream(com.couto.chefe_api.enums.MotivoRecusa.values()))
+                .map(Enum::name).distinct().toList());
     }
 
     static String definicaoDoCheck(String tabela, String coluna) throws SQLException {
@@ -220,6 +258,10 @@ class MigracoesPostgresTest {
     }
 
     static void assertCheckDeTexto(String tabela, String coluna, Enum<?>[] valores) throws SQLException {
+        assertCheckDeTexto(tabela, coluna, java.util.Arrays.stream(valores).map(Enum::name).toList());
+    }
+
+    static void assertCheckDeTexto(String tabela, String coluna, java.util.List<String> esperados) throws SQLException {
         String definicao = definicaoDoCheck(tabela, coluna);
         java.util.List<String> noBanco = new java.util.ArrayList<>();
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("'([A-Z_]+)'").matcher(definicao);
@@ -227,7 +269,7 @@ class MigracoesPostgresTest {
             noBanco.add(m.group(1));
         }
         assertThat(noBanco).as("CHECK de %s.%s: %s", tabela, coluna, definicao)
-                .containsExactlyInAnyOrderElementsOf(java.util.Arrays.stream(valores).map(Enum::name).toList());
+                .containsExactlyInAnyOrderElementsOf(esperados);
     }
 
     /**
