@@ -7,7 +7,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Deque;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,6 +27,8 @@ public class SseRegistry {
     /** Abas por usuário; a mais antiga é fechada quando passa disso (evita acumular conexões esquecidas). */
     static final int MAXIMO_CONEXOES_POR_USUARIO = 5;
 
+    static final long RECONEXAO_DEPOIS_DE_ENCERRADA = Duration.ofHours(24).toMillis();
+
     private final Map<UUID, Deque<SseEmitter>> conexoes = new ConcurrentHashMap<>();
 
     public SseEmitter abrir(UUID usuarioId) {
@@ -40,14 +44,32 @@ public class SseRegistry {
     }
 
     void registrar(UUID usuarioId, SseEmitter emitter) {
-        Deque<SseEmitter> abas = conexoes.computeIfAbsent(usuarioId, id -> new ConcurrentLinkedDeque<>());
-        abas.addLast(emitter);
-        while (abas.size() > MAXIMO_CONEXOES_POR_USUARIO) {
-            SseEmitter maisAntiga = abas.pollFirst();
-            if (maisAntiga != null) {
-                maisAntiga.complete();
+        List<SseEmitter> excedentes = new ArrayList<>();
+        // tudo dentro do compute: um remover() concorrente não pode tirar do mapa a fila em que a aba nova entrou
+        conexoes.compute(usuarioId, (id, abas) -> {
+            Deque<SseEmitter> fila = abas == null ? new ConcurrentLinkedDeque<>() : abas;
+            fila.addLast(emitter);
+            while (fila.size() > MAXIMO_CONEXOES_POR_USUARIO) {
+                excedentes.add(fila.pollFirst());
             }
+            return fila;
+        });
+        // fora do compute: fechar dispara onCompletion -> remover(), que mexe no mesmo mapa
+        excedentes.forEach(SseRegistry::encerrar);
+    }
+
+    /**
+     * Avisa a aba antes de fechar: o EventSource reconectaria sozinho e derrubaria a próxima aba mais antiga,
+     * em ciclo. Com o evento "encerrada" o front chama close(); o retry longo cobre o front que não tratar.
+     */
+    private static void encerrar(SseEmitter emitter) {
+        try {
+            emitter.send(SseEmitter.event().name("encerrada").data("limite de conexões abertas")
+                    .reconnectTime(RECONEXAO_DEPOIS_DE_ENCERRADA));
+        } catch (Exception e) {
+            log.debug("aba encerrada já estava fechada: {}", e.getMessage());
         }
+        emitter.complete();
     }
 
     /** Entrega a todas as abas do usuário; a que falhar é descartada. Nunca lança exceção. */

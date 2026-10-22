@@ -27,8 +27,8 @@ public interface MensagemRepository extends JpaRepository<Mensagem, Long> {
     /** Marca como lidas as mensagens recebidas (do outro participante) ainda não lidas; devolve a quantidade. */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Mensagem m SET m.lidaEm = :agora WHERE m.conversa.id = :conversaId "
-            + "AND m.remetenteId <> :leitorId AND m.lidaEm IS NULL")
-    int marcarLidas(@Param("conversaId") Long conversaId, @Param("leitorId") UUID leitorId,
+            + "AND m.id <= :ateId AND m.remetenteId <> :leitorId AND m.lidaEm IS NULL")
+    int marcarLidas(@Param("conversaId") Long conversaId, @Param("leitorId") UUID leitorId, @Param("ateId") Long ateId,
                     @Param("agora") LocalDateTime agora);
 
     void deleteByConversa_Cliente_Id(UUID clienteId);

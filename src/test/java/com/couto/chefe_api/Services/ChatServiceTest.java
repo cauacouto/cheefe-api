@@ -179,20 +179,34 @@ class ChatServiceTest {
 
     @Test
     void marcarLidasAvisaQuemEnviou() {
-        when(mensagemRepository.marcarLidas(any(), any(), any())).thenReturn(2);
         when(mensagemRepository.findFirstByConversa_IdOrderByIdDesc(1L)).thenReturn(Optional.of(mensagem));
+        when(mensagemRepository.marcarLidas(1L, bia.id(), 10L, AGORA)).thenReturn(2);
 
         service.marcarLidas(1L, bia);
 
+        // o "visto" vai só até a última mensagem que existia antes do UPDATE (nada chega depois sem lidaEm)
+        verify(mensagemRepository).marcarLidas(1L, bia.id(), 10L, AGORA);
         verify(eventPublisher).publishEvent(new MensagensLidasEvent(1L, bia.id(), ana.id(), 10L, AGORA));
     }
 
     @Test
     void marcarLidasSemNadaNovoNaoAvisa() {
-        when(mensagemRepository.marcarLidas(any(), any(), any())).thenReturn(0);
+        when(mensagemRepository.findFirstByConversa_IdOrderByIdDesc(1L)).thenReturn(Optional.of(mensagem));
+        when(mensagemRepository.marcarLidas(any(), any(), any(), any())).thenReturn(0);
 
         service.marcarLidas(1L, bia);
 
         verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void previaNaoCortaEmojiAoMeio() {
+        mensagem.setTexto("a".repeat(99) + "😀😀");
+        when(conversaRepository.findByCliente_IdOrderByUltimaMensagemEmDesc(cliente.getId())).thenReturn(java.util.List.of(conversa));
+        when(mensagemRepository.findFirstByConversa_IdOrderByIdDesc(1L)).thenReturn(Optional.of(mensagem));
+
+        String previa = service.listarConversas(ana).get(0).ultimaMensagem().texto();
+
+        assertThat(previa).isEqualTo("a".repeat(99) + "😀");
     }
 }

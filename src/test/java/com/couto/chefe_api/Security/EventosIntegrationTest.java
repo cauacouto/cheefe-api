@@ -24,19 +24,23 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
@@ -102,6 +106,31 @@ class EventosIntegrationTest {
     }
 
     @Test
+    void eventoChegaSerializadoNoStreamEODispatchAsyncPassa() throws Exception {
+        AtomicReference<SseEmitter> aberto = new AtomicReference<>();
+        doAnswer(inv -> {
+            SseEmitter emitter = (SseEmitter) inv.callRealMethod();
+            aberto.set(emitter);
+            return emitter;
+        }).when(sseRegistry).abrir(any());
+        MvcResult stream = mockMvc.perform(get("/eventos").cookie(cookieAna()).accept(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(request().asyncStarted()).andReturn();
+        long conversaId = JSON.readTree(mockMvc.perform(post("/conversas").cookie(cookieAna())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"chefeId\":\"" + bia.getId() + "\"}"))
+                .andReturn().getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(post("/conversas/" + conversaId + "/mensagens").cookie(cookieBia())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"texto\":\"chego às 19h\"}"))
+                .andExpect(status().isCreated());
+        aberto.get().complete();
+
+        mockMvc.perform(asyncDispatch(stream)).andExpect(status().isOk());
+        String recebido = stream.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8); // SSE é sempre UTF-8
+        assertThat(recebido).contains("event:mensagem").contains("\"texto\":\"chego às 19h\"").contains("\"minha\":false")
+                .containsPattern("\"enviadaEm\":\"\\d{2}-\\d{2}-\\d{4} \\d{2}:\\d{2}\"");
+    }
+
+    @Test
     void eventosSemCookieDa401() throws Exception {
         mockMvc.perform(get("/eventos").accept(MediaType.TEXT_EVENT_STREAM)).andExpect(status().isUnauthorized());
     }
@@ -121,6 +150,11 @@ class EventosIntegrationTest {
         verify(sseRegistry, atLeastOnce()).enviar(any(), anyString(), any());
         assertThat(mensagemRepository.findAll()).extracting("texto").containsExactly("oi");
         assertThat(notificacaoRepository.countByDestinatarioIdAndLidaFalse(bia.getId())).isEqualTo(1);
+    }
+
+    Cookie cookieBia() {
+        return new Cookie(AuthCookies.ACCESS_TOKEN, tokenService.gerarToken(
+                new UsuarioAutenticado(bia.getId(), bia.getEmail(), TipoUsuario.CHEFE)));
     }
 
     Cookie cookieAna() {

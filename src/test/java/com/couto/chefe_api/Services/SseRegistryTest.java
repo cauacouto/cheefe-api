@@ -1,6 +1,7 @@
 package com.couto.chefe_api.Services;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
@@ -10,6 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -65,7 +67,7 @@ class SseRegistryTest {
     }
 
     @Test
-    void limiteDeAbasPorUsuarioFechaAMaisAntiga() {
+    void limiteDeAbasPorUsuarioFechaAMaisAntiga() throws IOException {
         SseEmitter maisAntiga = mock(SseEmitter.class);
         registry.registrar(ana, maisAntiga);
         for (int i = 1; i < SseRegistry.MAXIMO_CONEXOES_POR_USUARIO; i++) {
@@ -74,7 +76,10 @@ class SseRegistryTest {
 
         registry.registrar(ana, mock(SseEmitter.class));
 
-        verify(maisAntiga).complete();
+        // avisa antes de fechar: sem isso o EventSource reconecta e derruba a próxima aba, em ciclo
+        InOrder ordem = inOrder(maisAntiga);
+        ordem.verify(maisAntiga).send(any(SseEmitter.SseEventBuilder.class));
+        ordem.verify(maisAntiga).complete();
         assertThat(registry.conexoes(ana)).isEqualTo(SseRegistry.MAXIMO_CONEXOES_POR_USUARIO);
     }
 
@@ -84,5 +89,23 @@ class SseRegistryTest {
 
         assertThat(emitter.getTimeout()).isEqualTo(30 * 60 * 1000L);
         assertThat(registry.conexoes(ana)).isEqualTo(1);
+    }
+
+    @Test
+    void abaNovaNaoSePerdeQuandoAUltimaCaiAoMesmoTempo() throws Exception {
+        for (int rodada = 0; rodada < 200; rodada++) {
+            UUID usuario = UUID.randomUUID();
+            SseEmitter morta = mock(SseEmitter.class);
+            doThrow(new IOException("closed")).when(morta).send(any(SseEmitter.SseEventBuilder.class));
+            registry.registrar(usuario, morta);
+            SseEmitter nova = mock(SseEmitter.class);
+
+            Thread heartbeat = new Thread(() -> registry.enviar(usuario, "x", "y"));
+            heartbeat.start();
+            registry.registrar(usuario, nova);
+            heartbeat.join();
+
+            assertThat(registry.conexoes(usuario)).as("rodada %d", rodada).isEqualTo(1);
+        }
     }
 }

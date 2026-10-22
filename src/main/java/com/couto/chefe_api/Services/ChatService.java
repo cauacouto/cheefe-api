@@ -150,11 +150,15 @@ public class ChatService {
     public void marcarLidas(Long conversaId, UsuarioAutenticado usuario) {
         Conversa conversa = doParticipante(conversaId, usuario);
         LocalDateTime agora = LocalDateTime.now(clock);
-        int lidas = mensagemRepository.marcarLidas(conversa.getId(), usuario.id(), agora);
         notificacaoService.marcarLidasDaReferencia(usuario.id(), EventoNotificacao.MENSAGEM_RECEBIDA,
                 String.valueOf(conversa.getId()));
+        // fixa o limite antes do UPDATE: mensagem que chegar no meio não ganha "visto" sem ter sido lida
+        Long ateId = mensagemRepository.findFirstByConversa_IdOrderByIdDesc(conversa.getId()).map(Mensagem::getId).orElse(null);
+        if (ateId == null) {
+            return;
+        }
+        int lidas = mensagemRepository.marcarLidas(conversa.getId(), usuario.id(), ateId, agora);
         if (lidas > 0) {
-            Long ateId = mensagemRepository.findFirstByConversa_IdOrderByIdDesc(conversa.getId()).map(Mensagem::getId).orElse(null);
             eventPublisher.publishEvent(new MensagensLidasEvent(conversa.getId(), usuario.id(),
                     outroParticipante(conversa, usuario), ateId, agora));
         }
@@ -224,6 +228,8 @@ public class ChatService {
     }
 
     private static String previa(String texto) {
-        return texto.length() <= TAMANHO_PREVIA ? texto : texto.substring(0, TAMANHO_PREVIA);
+        // conta em code points: cortar por char pode partir um emoji ao meio
+        return texto.codePointCount(0, texto.length()) <= TAMANHO_PREVIA ? texto
+                : texto.substring(0, texto.offsetByCodePoints(0, TAMANHO_PREVIA));
     }
 }

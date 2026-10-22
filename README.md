@@ -179,6 +179,6 @@ eventos.addEventListener('notificacao', e => atualizarSino(JSON.parse(e.data).to
 ```
 
 - Os eventos só saem **depois do commit**; se a entrega falhar (aba fechada, rede), a mensagem continua gravada e aparece no próximo `GET /conversas/{id}/mensagens`.
-- O servidor manda um `: ping` a cada 25 s e fecha a conexão depois de 30 min; o `EventSource` reconecta sozinho. Cada usuário tem no máximo 5 conexões abertas (a mais antiga é fechada).
+- O servidor manda um `: ping` a cada 25 s e fecha a conexão depois de 30 min; o `EventSource` reconecta sozinho. Cada usuário tem no máximo 5 conexões abertas: a mais antiga recebe o evento `encerrada` e é fechada; nesse evento o front deve chamar `eventos.close()` (senão o navegador só tenta reconectar depois de 24 h).
 - Atrás de proxy (nginx), desligue o buffering de `/eventos` (`proxy_buffering off;`) para os eventos não chegarem atrasados.
 - **Limitação:** as conexões ficam na memória da instância. Com mais de uma instância da API, um usuário só recebe os eventos gerados na instância em que está conectado. Para escalar horizontalmente, é preciso um pub/sub entre instâncias (ex.: Redis ou `LISTEN/NOTIFY` do Postgres).
