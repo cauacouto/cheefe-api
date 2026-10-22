@@ -35,6 +35,11 @@ public class ModeracaoRegistry {
         return UUID.nameUUIDFromBytes(normalizar(email).getBytes(StandardCharsets.UTF_8));
     }
 
+    /** Sessão de moderação só vale enquanto o e-mail continua na configuração. */
+    public boolean reconhece(UsuarioAutenticado usuario) {
+        return ehModerador(usuario.email()) && idDe(usuario.email()).equals(usuario.id());
+    }
+
     public List<UUID> ids() {
         return emails.stream().map(this::idDe).toList();
     }

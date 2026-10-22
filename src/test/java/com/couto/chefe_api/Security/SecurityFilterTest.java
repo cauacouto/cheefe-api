@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SecurityFilterTest {
 
     private final TokenService tokenService = new TokenService("teste");
-    private final SecurityFilter filter = new SecurityFilter(tokenService, new AuthCookies(false));
+    private final SecurityFilter filter = new SecurityFilter(tokenService, new AuthCookies(false), new ModeracaoRegistry(""));
 
     @AfterEach
     void limparContexto() {

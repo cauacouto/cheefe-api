@@ -55,8 +55,7 @@ public class LoginService {
                     .map(chefe -> Boolean.TRUE.equals(chefe.getAtivo()))
                     .orElse(false);
             // removido de MODERACAO_EMAILS → sessão deixa de valer
-            case MODERADOR -> moderacaoRegistry.ehModerador(usuario.email())
-                    && moderacaoRegistry.idDe(usuario.email()).equals(usuario.id());
+            case MODERADOR -> moderacaoRegistry.reconhece(usuario);
         };
     }
 

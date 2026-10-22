@@ -206,6 +206,20 @@ class ModeracaoIntegrationTest {
         return denunciaRepository.save(denuncia);
     }
 
+    @Test
+    void moderadorRemovidoDaConfiguracaoPerdeOAcessoNaHora() throws Exception {
+        ChefeModel chefe = novoChefe();
+        String exModerador = "ex-moderador@x.com";
+        Cookie tokenAntigo = new Cookie(AuthCookies.ACCESS_TOKEN, tokenService.gerarToken(
+                new UsuarioAutenticado(moderacaoRegistry.idDe(exModerador), exModerador, TipoUsuario.MODERADOR)));
+
+        mockMvc.perform(get("/moderacao/denuncias").cookie(tokenAntigo)).andExpect(status().isUnauthorized());
+        mockMvc.perform(patch("/moderacao/chefes/" + chefe.getId() + "/banir").cookie(tokenAntigo))
+                .andExpect(status().isUnauthorized());
+
+        assertThat(chefeRepository.findById(chefe.getId()).orElseThrow().getAtivo()).isTrue();
+    }
+
     Cookie cookieModerador() {
         return new Cookie(AuthCookies.ACCESS_TOKEN, tokenService.gerarToken(
                 new UsuarioAutenticado(moderacaoRegistry.idDe(EMAIL_MODERACAO), EMAIL_MODERACAO, TipoUsuario.MODERADOR)));
