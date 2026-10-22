@@ -36,6 +36,8 @@ src/main/resources/application.yml
 
 ### Docker / segredos locais ###
 .env
+.env.*
+!.env.example
 
 # bancos H2 em arquivo (testes locais)
 *.mv.db
