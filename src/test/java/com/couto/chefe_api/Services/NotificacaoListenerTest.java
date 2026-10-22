@@ -73,6 +73,22 @@ class NotificacaoListenerTest {
         verifyNoMoreInteractions(notificacaoService);
     }
 
+    @Test
+    void agendamentoSemDataNaoQuebraEdicaoNemConfirmacao() {
+        agendamento.setDataHoraInicial(null);
+
+        listener.aoEditar(new AgendamentoEditadoEvent(42L));
+        listener.aoConfirmar(new AgendamentoConfirmadoEvent(42L, bia.getId()));
+        listener.aoCriar(new AgendamentoCriadoEvent(42L));
+
+        verify(notificacaoService).notificar(bia.getId(), TipoUsuario.CHEFE, EventoNotificacao.AGENDAMENTO_EDITADO,
+                "Ana alterou o agendamento de data a definir", "42");
+        verify(notificacaoService).notificar(ana.getId(), TipoUsuario.CLIENTE, EventoNotificacao.AGENDAMENTO_CONFIRMADO,
+                "Chef Bia confirmou seu agendamento de data a definir", "42");
+        verify(notificacaoService).notificar(bia.getId(), TipoUsuario.CHEFE, EventoNotificacao.AGENDAMENTO_CRIADO,
+                "Ana pediu um agendamento para data a definir", "42");
+    }
+
     private static ChefeModel chefe(String nome) {
         ChefeModel chefe = new ChefeModel();
         chefe.setId(UUID.randomUUID());

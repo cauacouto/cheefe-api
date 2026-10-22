@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 /**
@@ -25,6 +26,7 @@ public class NotificacaoListener {
 
     private static final DateTimeFormatter DIA = DateTimeFormatter.ofPattern("dd/MM");
     private static final DateTimeFormatter HORA = DateTimeFormatter.ofPattern("HH:mm");
+    private static final String SEM_DATA = "data a definir";
 
     private final AgendamentoRepository agendamentoRepository;
     private final NotificacaoService notificacaoService;
@@ -33,7 +35,7 @@ public class NotificacaoListener {
     public void aoCriar(AgendamentoCriadoEvent evento) {
         Agendamento agendamento = buscar(evento.agendamentoId());
         String mensagem = agendamento.getUsuario().getNome() + " pediu um agendamento para "
-                + agendamento.getDataHoraInicial().format(DIA) + " às " + agendamento.getDataHoraInicial().format(HORA);
+                + diaEHora(agendamento.getDataHoraInicial());
         notificarChefs(agendamento, EventoNotificacao.AGENDAMENTO_CRIADO, mensagem);
     }
 
@@ -41,7 +43,7 @@ public class NotificacaoListener {
     public void aoEditar(AgendamentoEditadoEvent evento) {
         Agendamento agendamento = buscar(evento.agendamentoId());
         String mensagem = agendamento.getUsuario().getNome() + " alterou o agendamento de "
-                + agendamento.getDataHoraInicial().format(DIA);
+                + dia(agendamento.getDataHoraInicial());
         notificarChefs(agendamento, EventoNotificacao.AGENDAMENTO_EDITADO, mensagem);
     }
 
@@ -55,13 +57,22 @@ public class NotificacaoListener {
                 .orElse("");
         notificacaoService.notificar(agendamento.getUsuario().getId(), TipoUsuario.CLIENTE,
                 EventoNotificacao.AGENDAMENTO_CONFIRMADO,
-                "Chef " + nomeChef + " confirmou seu agendamento de " + agendamento.getDataHoraInicial().format(DIA),
+                "Chef " + nomeChef + " confirmou seu agendamento de " + dia(agendamento.getDataHoraInicial()),
                 String.valueOf(agendamento.getId()));
     }
 
     private void notificarChefs(Agendamento agendamento, EventoNotificacao evento, String mensagem) {
         agendamento.getChefes().forEach(chefe -> notificacaoService.notificar(
                 chefe.getId(), TipoUsuario.CHEFE, evento, mensagem, String.valueOf(agendamento.getId())));
+    }
+
+    // agendamentos antigos podem não ter data; a notificação não pode quebrar a ação
+    private static String dia(LocalDateTime data) {
+        return data == null ? SEM_DATA : data.format(DIA);
+    }
+
+    private static String diaEHora(LocalDateTime data) {
+        return data == null ? SEM_DATA : data.format(DIA) + " às " + data.format(HORA);
     }
 
     private Agendamento buscar(Long agendamentoId) {
