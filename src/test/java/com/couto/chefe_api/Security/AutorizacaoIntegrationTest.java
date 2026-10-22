@@ -331,6 +331,20 @@ class AutorizacaoIntegrationTest {
     }
 
     @Test
+    void agendamentoNovoSaiComoPendente() throws Exception {
+        UserModel ana = novoCliente();
+        ChefeModel x = novoChefe();
+        novoAgendamento(ana, x);
+
+        mockMvc.perform(get("/agendamentos/meus").cookie(cookieDe(ana)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("PENDENTE"));
+        mockMvc.perform(get("/agendamentos/recebidos").cookie(cookieDe(x)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("PENDENTE"));
+    }
+
+    @Test
     void clienteNaoConfirma() throws Exception {
         UserModel ana = novoCliente();
         Agendamento agendamento = novoAgendamento(ana, novoChefe());
@@ -445,7 +459,7 @@ class AutorizacaoIntegrationTest {
                 .andExpect(status().isForbidden());
 
         assertThat(agendamentoRepository.findById(agendamento.getId()).orElseThrow().getStatus())
-                .isEqualTo(StatusAgendamento.PENDENDE);
+                .isEqualTo(StatusAgendamento.PENDENTE);
         assertThat(pratosRepository.findById(prato.getId()).orElseThrow().getNomePrato()).isEqualTo("Moqueca");
     }
 
