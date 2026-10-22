@@ -206,6 +206,47 @@ class MigracoesPostgresTest {
         assertThat(POSTGRES.getLogs()).doesNotContain(SENHA_MIGRACAO).doesNotContain(SENHA_APP);
     }
 
+    /**
+     * Neon e outros bancos gerenciados não dão superusuário: o dono do banco tem CREATEROLE, mas não
+     * pode mexer em parâmetros de log nem tem membership automática nas roles que cria.
+     */
+    @Test
+    void setupFuncionaSemSuperusuarioComoNoNeon() throws Exception {
+        try (PostgreSQLContainer gerenciado = new PostgreSQLContainer("postgres:17-alpine")) {
+            gerenciado.start();
+            executarComoSuperusuario(gerenciado, "CREATE ROLE dono_gerenciado LOGIN CREATEROLE NOSUPERUSER");
+            executarComoSuperusuario(gerenciado, "CREATE DATABASE banco_gerenciado OWNER dono_gerenciado");
+            gerenciado.copyFileToContainer(MountableFile.forHostPath(Path.of("db/setup/01_usuarios.sql")), SCRIPT_NO_CONTAINER);
+
+            Container.ExecResult setup = gerenciado.execInContainer("psql",
+                    "-U", "dono_gerenciado", "-d", "banco_gerenciado",
+                    "-v", "ON_ERROR_STOP=1",
+                    "-v", "senha_migracao=" + SENHA_MIGRACAO,
+                    "-v", "senha_app=" + SENHA_APP,
+                    "-v", "nome_banco=banco_gerenciado",
+                    "-f", SCRIPT_NO_CONTAINER);
+            assertThat(setup.getExitCode()).as(setup.getStderr()).isZero();
+
+            String url = "jdbc:postgresql://" + gerenciado.getHost() + ":" + gerenciado.getMappedPort(5432)
+                    + "/banco_gerenciado?currentSchema=chefhome";
+            Flyway.configure().dataSource(url, "chefhome_migracao", SENHA_MIGRACAO)
+                    .schemas("chefhome").locations("classpath:db/migration").load().migrate();
+
+            try (Connection app = DriverManager.getConnection(url, "chefhome_app", SENHA_APP);
+                 Statement st = app.createStatement()) {
+                st.execute("INSERT INTO chefhome.usuarios (id, email, nome) VALUES (gen_random_uuid(), 'x@x.com', 'X')");
+                assertSemPermissao(app, "CREATE TABLE chefhome.invasao (id int)");
+                assertSemPermissao(app, "DELETE FROM chefhome.flyway_schema_history");
+            }
+        }
+    }
+
+    static void executarComoSuperusuario(PostgreSQLContainer container, String sql) throws Exception {
+        Container.ExecResult r = container.execInContainer("psql", "-U", container.getUsername(),
+                "-d", container.getDatabaseName(), "-v", "ON_ERROR_STOP=1", "-c", sql);
+        assertThat(r.getExitCode()).as(r.getStderr()).isZero();
+    }
+
     @Test
     void setupEhIdempotente() throws Exception {
         assertThat(rodarSetup().getExitCode()).isZero();

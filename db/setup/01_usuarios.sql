@@ -12,9 +12,16 @@
 \set ON_ERROR_STOP on
 
 -- nada desta sessão vai para o log do servidor, nem em caso de erro: senhas nunca aparecem em log,
--- mesmo com log_statement=ddl/all ligado (comum em produção e em bancos gerenciados)
-SET log_statement = 'none';
-SET log_min_error_statement = 'panic';
+-- mesmo com log_statement=ddl/all ligado (comum em VPS). Em banco gerenciado (Neon etc.) quem roda o
+-- script não é superusuário e não pode mudar isso; o provedor não expõe esse log, então só avisamos.
+DO $$
+BEGIN
+    SET log_statement = 'none';
+    SET log_min_error_statement = 'panic';
+EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE 'sem permissão para desligar o log de comandos (banco gerenciado); seguindo';
+END
+$$;
 
 -- roles nascem sem senha; a senha é definida só no ALTER ROLE abaixo
 SELECT 'CREATE ROLE chefhome_migracao LOGIN'
@@ -23,9 +30,24 @@ WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'chefhome_migracao') \gex
 SELECT 'CREATE ROLE chefhome_app LOGIN'
 WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'chefhome_app') \gexec
 
--- reaplica atributos e senhas a cada execução (permite rotacionar senha rodando de novo)
-ALTER ROLE chefhome_migracao WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD :'senha_migracao';
-ALTER ROLE chefhome_app WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD :'senha_app';
+-- (re)define as senhas a cada execução: rodar de novo rotaciona
+ALTER ROLE chefhome_migracao WITH LOGIN PASSWORD :'senha_migracao';
+ALTER ROLE chefhome_app WITH LOGIN PASSWORD :'senha_app';
+
+-- reforça os atributos (já são o padrão de CREATE ROLE); sem superusuário, alguns não podem ser
+-- alterados, mas roles criadas por um não-superusuário nunca os têm
+DO $$
+BEGIN
+    ALTER ROLE chefhome_migracao NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+    ALTER ROLE chefhome_app NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE 'sem permissão para reforçar atributos das roles (banco gerenciado); seguindo';
+END
+$$;
+
+-- sem superusuário, criar o schema em nome de chefhome_migracao e definir os default privileges dela
+-- exige ser membro da role: participação temporária, removida no fim do script
+GRANT chefhome_migracao TO CURRENT_USER;
 
 -- só os dois conectam no banco; ninguém cria nada no schema public
 REVOKE ALL ON DATABASE :"nome_banco" FROM PUBLIC;
@@ -53,3 +75,5 @@ WHERE EXISTS (SELECT FROM pg_tables WHERE schemaname = 'chefhome' AND tablename 
 
 ALTER ROLE chefhome_migracao SET search_path = chefhome;
 ALTER ROLE chefhome_app SET search_path = chefhome;
+
+REVOKE chefhome_migracao FROM CURRENT_USER;
