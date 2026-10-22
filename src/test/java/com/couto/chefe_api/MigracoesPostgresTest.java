@@ -1,16 +1,16 @@
 package com.couto.chefe_api;
 
-import com.couto.chefe_api.User.UserModel;
-import com.couto.chefe_api.User.UsuarioRepository;
-import com.couto.chefe_api.domin.ChefeModel;
-import com.couto.chefe_api.domin.EnderecoModel;
-import com.couto.chefe_api.domin.Pratos;
+import com.couto.chefe_api.domain.UserModel;
+import com.couto.chefe_api.repository.UsuarioRepository;
+import com.couto.chefe_api.domain.ChefeModel;
+import com.couto.chefe_api.domain.EnderecoModel;
+import com.couto.chefe_api.domain.Pratos;
 import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.enums.Senioridade;
 import com.couto.chefe_api.enums.TipoDeResidencia;
-import com.couto.chefe_api.repositorys.ChefeRepository;
-import com.couto.chefe_api.repositorys.EndercoRepository;
-import com.couto.chefe_api.repositorys.PatrosRepository;
+import com.couto.chefe_api.repository.ChefeRepository;
+import com.couto.chefe_api.repository.EndercoRepository;
+import com.couto.chefe_api.repository.PatrosRepository;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
