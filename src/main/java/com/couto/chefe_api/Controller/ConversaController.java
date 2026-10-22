@@ -11,6 +11,9 @@ import com.couto.chefe_api.Services.ChatService;
 import com.couto.chefe_api.Services.DenunciaMensagemService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -34,8 +37,9 @@ public class ConversaController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ConversaDto>> listar(@AuthenticationPrincipal UsuarioAutenticado usuario) {
-        return ResponseEntity.ok(service.listarConversas(usuario));
+    public ResponseEntity<Page<ConversaDto>> listar(@PageableDefault(size = 20) Pageable pageable,
+                                                    @AuthenticationPrincipal UsuarioAutenticado usuario) {
+        return ResponseEntity.ok(service.listarConversas(usuario, pageable));
     }
 
     @GetMapping("/{id}/mensagens")

@@ -2,6 +2,9 @@ package com.couto.chefe_api.repositorys;
 
 import com.couto.chefe_api.domin.Conversa;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -20,9 +23,12 @@ public interface ConversaRepository extends JpaRepository<Conversa, Long> {
     @Query("SELECT c FROM Conversa c WHERE c.id = :id")
     Optional<Conversa> travarPorId(@Param("id") Long id);
 
-    List<Conversa> findByCliente_IdOrderByUltimaMensagemEmDesc(UUID clienteId);
+    /** Os dois participantes vêm no mesmo SELECT: montar a lista não dispara uma query por conversa. */
+    @EntityGraph(attributePaths = {"cliente", "chefe"})
+    Page<Conversa> findByCliente_IdOrderByUltimaMensagemEmDescIdDesc(UUID clienteId, Pageable pageable);
 
-    List<Conversa> findByChefe_IdOrderByUltimaMensagemEmDesc(UUID chefeId);
+    @EntityGraph(attributePaths = {"cliente", "chefe"})
+    Page<Conversa> findByChefe_IdOrderByUltimaMensagemEmDescIdDesc(UUID chefeId, Pageable pageable);
 
     @Query("SELECT c.id FROM Conversa c WHERE c.cliente.id = :clienteId")
     List<Long> idsDoCliente(@Param("clienteId") UUID clienteId);

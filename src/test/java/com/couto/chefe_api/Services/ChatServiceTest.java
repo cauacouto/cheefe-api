@@ -209,10 +209,12 @@ class ChatServiceTest {
     @Test
     void previaNaoCortaEmojiAoMeio() {
         mensagem.setTexto("a".repeat(99) + "😀😀");
-        when(conversaRepository.findByCliente_IdOrderByUltimaMensagemEmDesc(cliente.getId())).thenReturn(java.util.List.of(conversa));
-        when(mensagemRepository.findFirstByConversa_IdOrderByIdDesc(1L)).thenReturn(Optional.of(mensagem));
+        when(conversaRepository.findByCliente_IdOrderByUltimaMensagemEmDescIdDesc(any(), any()))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(java.util.List.of(conversa)));
+        when(mensagemRepository.ultimasDasConversas(java.util.List.of(1L))).thenReturn(java.util.List.of(mensagem));
 
-        String previa = service.listarConversas(ana).get(0).ultimaMensagem().texto();
+        String previa = service.listarConversas(ana, org.springframework.data.domain.PageRequest.of(0, 20))
+                .getContent().get(0).ultimaMensagem().texto();
 
         assertThat(previa).isEqualTo("a".repeat(99) + "😀");
     }

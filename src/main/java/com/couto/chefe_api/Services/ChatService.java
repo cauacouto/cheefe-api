@@ -24,7 +24,10 @@ import com.couto.chefe_api.repositorys.ConversaRepository;
 import com.couto.chefe_api.repositorys.MensagemRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,7 +37,9 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /** Regras do chat: só participantes veem/mexem na conversa (os demais recebem 404); só o cliente inicia. */
 @Service
@@ -42,6 +47,7 @@ import java.util.UUID;
 public class ChatService {
 
     static final int TAMANHO_MAXIMO_PAGINA = 100;
+    static final int TAMANHO_MAXIMO_PAGINA_CONVERSAS = 50;
     static final int TAMANHO_PREVIA = 100;
     static final Duration PRAZO_EDICAO = Duration.ofMinutes(15);
 
@@ -88,14 +94,18 @@ public class ChatService {
                 });
     }
 
+    /** Página de conversas, a mais recente primeiro; a ordenação vinda do cliente é ignorada. */
     @Transactional(readOnly = true)
-    public List<ConversaDto> listarConversas(UsuarioAutenticado usuario) {
-        List<Conversa> conversas = switch (usuario.tipo()) {
-            case CLIENTE -> conversaRepository.findByCliente_IdOrderByUltimaMensagemEmDesc(usuario.id());
-            case CHEFE -> conversaRepository.findByChefe_IdOrderByUltimaMensagemEmDesc(usuario.id());
-            case MODERADOR -> List.of();
+    public Page<ConversaDto> listarConversas(UsuarioAutenticado usuario, Pageable pageable) {
+        PageRequest pagina = PageRequest.of(pageable.getPageNumber(),
+                Math.max(1, Math.min(pageable.getPageSize(), TAMANHO_MAXIMO_PAGINA_CONVERSAS)));
+        Page<Conversa> conversas = switch (usuario.tipo()) {
+            case CLIENTE -> conversaRepository.findByCliente_IdOrderByUltimaMensagemEmDescIdDesc(usuario.id(), pagina);
+            case CHEFE -> conversaRepository.findByChefe_IdOrderByUltimaMensagemEmDescIdDesc(usuario.id(), pagina);
+            case MODERADOR -> Page.empty(pagina);
         };
-        return conversas.stream().map(c -> paraDto(c, usuario.id(), usuario.tipo())).toList();
+        return new PageImpl<>(paraDtos(conversas.getContent(), usuario.id(), usuario.tipo()), pagina,
+                conversas.getTotalElements());
     }
 
     @Transactional(readOnly = true)
@@ -241,19 +251,32 @@ public class ChatService {
     }
 
     private ConversaDto paraDto(Conversa conversa, UUID leitorId, TipoUsuario tipoLeitor) {
-        ConversaDto.ParticipanteDto outro = tipoLeitor == TipoUsuario.CLIENTE
-                ? new ConversaDto.ParticipanteDto(conversa.getChefe().getId(), conversa.getChefe().getNome(),
-                        conversa.getChefe().getImageUrl(), TipoUsuario.CHEFE)
-                : new ConversaDto.ParticipanteDto(conversa.getCliente().getId(), conversa.getCliente().getNome(),
-                        conversa.getCliente().getImageUrl(), TipoUsuario.CLIENTE);
-        ConversaDto.UltimaMensagemDto ultima = mensagemRepository.findFirstByConversa_IdOrderByIdDesc(conversa.getId())
-                .map(m -> new ConversaDto.UltimaMensagemDto(
-                        m.isApagada() ? null : previa(m.getTexto()), m.getEnviadaEm(), m.getRemetenteId().equals(leitorId),
-                        m.isApagada()))
-                .orElse(null);
-        long naoLidas = conversa.getId() == null ? 0
-                : mensagemRepository.countByConversa_IdAndRemetenteIdNotAndLidaEmIsNull(conversa.getId(), leitorId);
-        return new ConversaDto(conversa.getId(), outro, ultima, naoLidas, conversa.getUltimaMensagemEm());
+        return paraDtos(List.of(conversa), leitorId, tipoLeitor).get(0);
+    }
+
+    /** Última mensagem e não lidas de todas as conversas em duas queries, não duas por conversa. */
+    private List<ConversaDto> paraDtos(List<Conversa> conversas, UUID leitorId, TipoUsuario tipoLeitor) {
+        if (conversas.isEmpty()) {
+            return List.of();
+        }
+        List<Long> ids = conversas.stream().map(Conversa::getId).toList();
+        Map<Long, Mensagem> ultimas = mensagemRepository.ultimasDasConversas(ids).stream()
+                .collect(Collectors.toMap(m -> m.getConversa().getId(), m -> m));
+        Map<Long, Long> naoLidas = mensagemRepository.naoLidasPorConversa(ids, leitorId).stream()
+                .collect(Collectors.toMap(MensagemRepository.NaoLidas::getConversaId, MensagemRepository.NaoLidas::getTotal));
+        return conversas.stream().map(conversa -> {
+            ConversaDto.ParticipanteDto outro = tipoLeitor == TipoUsuario.CLIENTE
+                    ? new ConversaDto.ParticipanteDto(conversa.getChefe().getId(), conversa.getChefe().getNome(),
+                            conversa.getChefe().getImageUrl(), TipoUsuario.CHEFE)
+                    : new ConversaDto.ParticipanteDto(conversa.getCliente().getId(), conversa.getCliente().getNome(),
+                            conversa.getCliente().getImageUrl(), TipoUsuario.CLIENTE);
+            Mensagem m = ultimas.get(conversa.getId());
+            ConversaDto.UltimaMensagemDto ultima = m == null ? null : new ConversaDto.UltimaMensagemDto(
+                    m.isApagada() ? null : previa(m.getTexto()), m.getEnviadaEm(), m.getRemetenteId().equals(leitorId),
+                    m.isApagada());
+            return new ConversaDto(conversa.getId(), outro, ultima, naoLidas.getOrDefault(conversa.getId(), 0L),
+                    conversa.getUltimaMensagemEm());
+        }).toList();
     }
 
     private static String previa(String texto) {

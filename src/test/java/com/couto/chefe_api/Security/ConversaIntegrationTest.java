@@ -106,13 +106,13 @@ class ConversaIntegrationTest {
 
         mockMvc.perform(get("/conversas").cookie(cookie(bia)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].naoLidas").value(1))
-                .andExpect(jsonPath("$[0].ultimaMensagem.texto").value("Oi, você faz moqueca?"))
-                .andExpect(jsonPath("$[0].outroParticipante.nome").value("Ana"));
+                .andExpect(jsonPath("$.content[0].naoLidas").value(1))
+                .andExpect(jsonPath("$.content[0].ultimaMensagem.texto").value("Oi, você faz moqueca?"))
+                .andExpect(jsonPath("$.content[0].outroParticipante.nome").value("Ana"));
 
         mockMvc.perform(patch("/conversas/" + conversa + "/lidas").cookie(cookie(bia))).andExpect(status().isNoContent());
 
-        mockMvc.perform(get("/conversas").cookie(cookie(bia))).andExpect(jsonPath("$[0].naoLidas").value(0));
+        mockMvc.perform(get("/conversas").cookie(cookie(bia))).andExpect(jsonPath("$.content[0].naoLidas").value(0));
         mockMvc.perform(get("/conversas/" + conversa + "/mensagens").cookie(cookie(ana)))
                 .andExpect(jsonPath("$[0].lida").value(true))
                 .andExpect(jsonPath("$[0].lidaEm").isNotEmpty());
@@ -163,7 +163,7 @@ class ConversaIntegrationTest {
         mockMvc.perform(get("/conversas/" + conversa + "/mensagens").cookie(cookie(intruso))).andExpect(status().isNotFound());
         enviar(intruso, conversa, "oi").andExpect(status().isNotFound());
         mockMvc.perform(patch("/conversas/" + conversa + "/lidas").cookie(cookie(intruso))).andExpect(status().isNotFound());
-        mockMvc.perform(get("/conversas").cookie(cookie(intruso))).andExpect(jsonPath("$.length()").value(0));
+        mockMvc.perform(get("/conversas").cookie(cookie(intruso))).andExpect(jsonPath("$.content.length()").value(0));
     }
 
     @Test
@@ -208,8 +208,8 @@ class ConversaIntegrationTest {
                 .andExpect(jsonPath("$[0].apagada").value(true))
                 .andExpect(jsonPath("$[0].texto").doesNotExist());
         mockMvc.perform(get("/conversas").cookie(cookie(bia)))
-                .andExpect(jsonPath("$[0].ultimaMensagem.apagada").value(true))
-                .andExpect(jsonPath("$[0].ultimaMensagem.texto").doesNotExist());
+                .andExpect(jsonPath("$.content[0].ultimaMensagem.apagada").value(true))
+                .andExpect(jsonPath("$.content[0].ultimaMensagem.texto").doesNotExist());
         mockMvc.perform(patch("/conversas/" + conversa + "/mensagens/" + mensagem).cookie(cookie(ana))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"texto\":\"volta\"}"))
                 .andExpect(status().isConflict());
@@ -303,6 +303,20 @@ class ConversaIntegrationTest {
         denunciar(bia, base + daAna, "SPAM").andExpect(status().isForbidden());
         mockMvc.perform(patch("/conversas/" + conversa + "/lidas").cookie(cookie(bia))).andExpect(status().isForbidden());
         mockMvc.perform(get(base.substring(0, base.length() - 1)).cookie(cookie(bia))).andExpect(status().isOk());
+    }
+
+    @Test
+    void listaDeConversasEhPaginada() throws Exception {
+        abrir(ana, bia);
+        abrir(ana, novoChefe("Caio"));
+
+        mockMvc.perform(get("/conversas").param("size", "1").cookie(cookie(ana)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.page.totalElements").value(2))
+                .andExpect(jsonPath("$.page.size").value(1));
+        mockMvc.perform(get("/conversas").param("sort", "cliente.email").cookie(cookie(ana)))
+                .andExpect(status().isOk());
     }
 
     @Test
