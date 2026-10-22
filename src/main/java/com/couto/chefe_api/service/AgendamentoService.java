@@ -37,13 +37,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -76,7 +73,7 @@ public class AgendamentoService {
         agendamento.setDataHoraInicial(dto.getDataHoraInicial());
         agendamento.setDataHoraFinal(dto.getDataHoraFinal());
         agendamento.setQuantidadePessoas(dto.getQuantidadePessoas());
-        agendamento.setValorTotal(calcularValor(chefes, dto.getDataHoraInicial(), dto.getDataHoraFinal()));
+        agendamento.setValorTotal(Agendamento.calcularValor(chefes, dto.getDataHoraInicial(), dto.getDataHoraFinal()));
         exigirHorarioLivre(agendamento);
         Agendamento salvo = agendamentoRepository.save(agendamento);
         eventPublisher.publishEvent(new AgendamentoCriadoEvent(salvo.getId()));
@@ -138,7 +135,7 @@ public class AgendamentoService {
         }
 
         if (recalcular) {
-            agenda.setValorTotal(calcularValor(agenda.getChefes(), agenda.getDataHoraInicial(), agenda.getDataHoraFinal()));
+            agenda.setValorTotal(Agendamento.calcularValor(agenda.getChefes(), agenda.getDataHoraInicial(), agenda.getDataHoraFinal()));
             exigirHorarioLivre(agenda);
         }
 
@@ -225,16 +222,5 @@ public class AgendamentoService {
             throw new AgendamentoInvalidoException("chef com perfil incompleto");
         }
         return new ArrayList<>(chefes);
-    }
-
-    private static BigDecimal calcularValor(List<ChefeModel> chefes, LocalDateTime inicio, LocalDateTime fim) {
-        BigDecimal horas = BigDecimal.valueOf(ChronoUnit.MINUTES.between(inicio, fim))
-                .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
-
-        return chefes.stream()
-                .map(ChefeModel::getValorHora)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .multiply(horas);
     }
 }
