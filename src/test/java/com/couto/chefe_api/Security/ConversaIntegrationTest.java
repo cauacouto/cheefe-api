@@ -270,6 +270,28 @@ class ConversaIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    void clienteComConversasEDenunciasApagaConta() throws Exception {
+        ChefeModel caio = novoChefe("Caio");
+        long comBia = abrir(ana, bia).andReturnId();
+        long comCaio = abrir(ana, caio).andReturnId();
+        long daBia = new Resposta(enviar(bia, comBia, "oi Ana")).andReturnId();
+        long daAna = new Resposta(enviar(ana, comCaio, "spam")).andReturnId();
+        denunciar(ana, "/conversas/" + comBia + "/mensagens/" + daBia, "OFENSIVA").andExpect(status().isCreated());
+        denunciar(caio, "/conversas/" + comCaio + "/mensagens/" + daAna, "SPAM").andExpect(status().isCreated());
+        UserModel outra = novoCliente("Outra");
+        long conversaDeOutra = abrir(outra, bia).andReturnId();
+        enviar(outra, conversaDeOutra, "fico").andExpect(status().isCreated());
+
+        mockMvc.perform(delete("/usuario/me").cookie(cookie(ana))).andExpect(status().isNoContent());
+
+        assertThat(usuarioRepository.findById(ana.getId())).isEmpty();
+        assertThat(conversaRepository.findAll()).extracting("id").containsExactly(conversaDeOutra);
+        assertThat(mensagemRepository.findAll()).extracting("texto").containsExactly("fico");
+        assertThat(denunciaMensagemRepository.count()).isZero();
+        assertThat(chefeRepository.findById(bia.getId())).isPresent();
+    }
+
     // ---------------------------------------------------------------------
 
     ResultActions denunciar(UserModel cliente, String mensagemPath, String motivo) throws Exception {

@@ -5,7 +5,10 @@ import com.couto.chefe_api.Dtos.UserResponseDto;
 import com.couto.chefe_api.Excepitons.UsuarioException;
 import com.couto.chefe_api.Mapper.UsuarioMapper;
 import com.couto.chefe_api.domin.EnderecoModel;
+import com.couto.chefe_api.repositorys.ConversaRepository;
+import com.couto.chefe_api.repositorys.DenunciaMensagemRepository;
 import com.couto.chefe_api.repositorys.DenunciaRepository;
+import com.couto.chefe_api.repositorys.MensagemRepository;
 import com.couto.chefe_api.repositorys.EndercoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -23,6 +26,9 @@ public class UsuarioService {
     private final UsuarioMapper usuarioMapper;
     private final EndercoRepository enderecoRepository;
     private final DenunciaRepository denunciaRepository;
+    private final DenunciaMensagemRepository denunciaMensagemRepository;
+    private final MensagemRepository mensagemRepository;
+    private final ConversaRepository conversaRepository;
 
     /**
      * Substitui os dados e a lista de endereços do usuário.
@@ -70,6 +76,10 @@ public class UsuarioService {
                 .orElseThrow(UsuarioException::new);
         // apagar a conta apaga os dados do cliente, inclusive as denúncias que ele fez (LGPD)
         denunciaRepository.deleteByCliente_Id(usuarioId);
+        // o chat do cliente vai junto (ordem das FKs): denúncias de mensagens, mensagens e conversas
+        denunciaMensagemRepository.deleteByMensagem_Conversa_Cliente_Id(usuarioId);
+        mensagemRepository.deleteByConversa_Cliente_Id(usuarioId);
+        conversaRepository.deleteByCliente_Id(usuarioId);
         repository.delete(user);
     }
 }
