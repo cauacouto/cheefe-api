@@ -12,7 +12,7 @@ import org.mapstruct.Mapping;
 import org.mapstruct.Named;
 import java.util.List;
 
-@Mapper(componentModel = "spring")
+@Mapper(config = MapeamentoEstrito.class)
 public interface AgendamentoMapper {
 
     // ─── toDto (AgendamentoResponseDto) ───────────────────────────────
@@ -53,7 +53,6 @@ public interface AgendamentoMapper {
     @Mapping(source = "dataHoraInicial", target = "dataHora")
     ListaAgendamentoUsuarioDto toUsuarioDto(Agendamento agendamento);
 
-    @Mapping(source = "criadoEm",   target = "criadoEm")
     @IterableMapping(qualifiedByName = "toUsuarioDto")
     List<ListaAgendamentoUsuarioDto> toListUser(List<Agendamento> agendamentos);
 

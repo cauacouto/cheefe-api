@@ -1,5 +1,8 @@
 package com.couto.chefe_api.Controller;
 
+import org.springframework.data.web.PageableDefault;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Page;
 import com.couto.chefe_api.Dtos.CadastraPratosDtoRequest;
 import com.couto.chefe_api.Dtos.CadastratPratosDtoResponse;
 import com.couto.chefe_api.Dtos.ListarPratosChefes;
@@ -34,17 +37,17 @@ public class PratosController {
 
     @GetMapping("/chefe/{chefeId}")
     public ResponseEntity<List<ListarPratosChefes>> listaPorChefe(@PathVariable UUID chefeId){
-        return ResponseEntity.ok(pratosService.listaPratos(chefeId));
+        return ResponseEntity.ok(pratosService.listarDoChefe(chefeId));
     }
 
     @GetMapping
-    public ResponseEntity<List<ListarPratosChefes>> listarTodos() {
-        return ResponseEntity.ok(pratosService.listaPratos(null));
+    public ResponseEntity<Page<ListarPratosChefes>> listarTodos(@PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(pratosService.listarVisiveis(pageable));
     }
 
     @GetMapping("/meus")
     public ResponseEntity<List<ListarPratosChefes>> meusPratos(@AuthenticationPrincipal UsuarioAutenticado chefe) {
-        return ResponseEntity.ok(pratosService.listaPratos(chefe.id()));
+        return ResponseEntity.ok(pratosService.listarMeus(chefe.id()));
     }
 
     @PutMapping("/{id}")

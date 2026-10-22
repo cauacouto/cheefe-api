@@ -22,7 +22,7 @@ public class Pratos {
     private String descricao;
     @Column(name = "image_Url")
     private String imageUrl;
-    @ManyToOne(optional = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "chefe_id", nullable = false)
     private ChefeModel chefeModel;
 }
