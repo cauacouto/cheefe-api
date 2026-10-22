@@ -32,7 +32,7 @@ public class FiltroConteudo {
 
     public record ResultadoFiltro(String textoExibido, Optional<Violacao> violacao) {}
 
-    private static final Pattern PALAVRA = Pattern.compile("[\\p{L}\\p{N}]+");
+    private static final Pattern PALAVRA = Pattern.compile("[\\p{L}\\p{N}\\p{M}]+");
     private static final Pattern MARCAS = Pattern.compile("\\p{M}+");
     private static final List<CategoriaConteudo> PRIORIDADE =
             List.of(CategoriaConteudo.ODIO, CategoriaConteudo.AMEACA, CategoriaConteudo.OFENSA);
@@ -87,7 +87,9 @@ public class FiltroConteudo {
         // ofensa: cada trecho casado vira um "***" (palavras já cobertas por outro termo são puladas)
         boolean[] coberta = new boolean[palavras.size()];
         List<int[]> trechos = new ArrayList<>();
-        for (List<String> termo : termos.get(CategoriaConteudo.OFENSA)) {
+        List<List<String>> ofensas = new ArrayList<>(termos.get(CategoriaConteudo.OFENSA));
+        ofensas.sort((x, y) -> Integer.compare(y.size(), x.size())); // o termo mais longo vence
+        for (List<String> termo : ofensas) {
             int de = 0;
             int i;
             while ((i = indiceDe(palavras, termo, de)) >= 0) {

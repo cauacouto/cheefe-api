@@ -68,6 +68,35 @@ class FiltroConteudoTest {
         for (CategoriaConteudo c : CategoriaConteudo.values()) {
             assertThat(producao.termos().get(c)).as(c.name()).isNotEmpty();
         }
+        for (String ok : List.of("vou te encontrar no mercado", "vou explodir de tanto comer",
+                "a carne estava de matar", "vou te pegar na escola", "o macaco comeu a banana")) {
+            assertThat(producao.analisar(ok).violacao()).as(ok).isEmpty();
+        }
         assertThat(producao.analisar("esse tempero assassino vai de matar, vou atacar o prato").violacao()).isEmpty();
+    }
+
+    @Test
+    void termoMaisLongoVenceIndependenteDaOrdem() {
+        for (List<String> ordem : List.of(List.of("x", "x y"), List.of("x y", "x"))) {
+            FiltroConteudo f = new FiltroConteudo(Map.of(CategoriaConteudo.OFENSA, ordem));
+            assertThat(f.analisar("a x y b").textoExibido()).isEqualTo("a *** b");
+            assertThat(f.analisar("x y x").textoExibido()).isEqualTo("*** ***");
+        }
+    }
+
+    @Test
+    void textoDecompostoNFDEhReconhecido() {
+        String nfdOfensa = java.text.Normalizer.normalize("PALAVRÃO!", java.text.Normalizer.Form.NFD);
+        assertThat(filtro.analisar(nfdOfensa).textoExibido()).isEqualTo("***!");
+        FiltroConteudo f = new FiltroConteudo(Map.of(CategoriaConteudo.ODIO, List.of("ódiento")));
+        String nfdOdio = java.text.Normalizer.normalize("ÓDIENTO", java.text.Normalizer.Form.NFD);
+        assertThat(f.analisar(nfdOdio).violacao()).hasValueSatisfying(v ->
+                assertThat(v.categoria()).isEqualTo(CategoriaConteudo.ODIO));
+    }
+
+    @Test
+    void ameacaTemPrioridadeSobreOfensa() {
+        assertThat(filtro.analisar("palavrao vou te pegar").violacao()).hasValueSatisfying(v ->
+                assertThat(v.categoria()).isEqualTo(CategoriaConteudo.AMEACA));
     }
 }
