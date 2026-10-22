@@ -73,6 +73,10 @@ public class SecurityConfiguration  {
                         .requestMatchers(HttpMethod.GET, "/pratos/meus").hasRole(CHEFE)
                         .requestMatchers(HttpMethod.GET, "/agendamentos/recebidos").hasRole(CHEFE)
                         .requestMatchers(HttpMethod.PATCH, "/agendamentos/*/confirmar").hasRole(CHEFE)
+                        .requestMatchers(HttpMethod.PATCH, "/agendamentos/*/cancelar").hasRole(CLIENTE)
+                        .requestMatchers(HttpMethod.GET, "/agendamentos/*/historico").hasAnyRole(CLIENTE, CHEFE)
+                        .requestMatchers(HttpMethod.PATCH, "/agendamentos/*/recusar", "/agendamentos/*/desistir",
+                                "/agendamentos/*/concluir").hasRole(CHEFE)
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth2 -> oauth2

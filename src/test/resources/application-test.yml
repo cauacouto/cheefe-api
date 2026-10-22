@@ -42,3 +42,8 @@ app:
 auth:
   cookie:
     secure: false
+
+# a rotina do ciclo do agendamento não roda sozinha nos testes (eles chamam processar() direto)
+chefhome:
+  rotina:
+    cron: "-"

@@ -93,6 +93,18 @@ class DenunciaIntegrationTest {
     }
 
     @Test
+    void denunciaDeAgendamentoConcluido() throws Exception {
+        UserModel cliente = novoCliente();
+        ChefeModel chefe = novoChefe();
+        Agendamento agendamento = agendamentoConfirmadoNoPassado(cliente, chefe);
+        // a rotina conclui o confirmado depois do fim: a denúncia não pode deixar de valer por isso
+        agendamento.setStatus(com.couto.chefe_api.enums.StatusAgendamento.CONCLUIDO);
+        agendamentoRepository.save(agendamento);
+
+        denunciar(cliente, agendamento, chefe, "\"descricao\":\"não fez o combinado\"").andExpect(status().isCreated());
+    }
+
+    @Test
     void chefNaoDenuncia() throws Exception {
         ChefeModel chefe = novoChefe();
 

@@ -39,7 +39,8 @@ public class DenunciaService {
     public DenunciaCriadaDto criar(DenunciaRequestDto dto, UUID clienteId) {
         // só quem foi atendido denuncia; qualquer outro caso parece "não existe"
         Agendamento agendamento = agendamentoRepository.findByIdAndUsuario_Id(dto.agendamentoId(), clienteId)
-                .filter(a -> a.getStatus() == StatusAgendamento.CONFIRMADO)
+                // concluído pela rotina continua denunciável: o que vale é ter sido confirmado e já ter acontecido
+                .filter(a -> a.getStatus() == StatusAgendamento.CONFIRMADO || a.getStatus() == StatusAgendamento.CONCLUIDO)
                 .filter(a -> a.getDataHoraInicial() != null && a.getDataHoraInicial().isBefore(LocalDateTime.now(clock)))
                 .orElseThrow(() -> new RecursoNaoEncontradoException("agendamento não encontrado"));
         ChefeModel chefe = agendamento.getChefes().stream()

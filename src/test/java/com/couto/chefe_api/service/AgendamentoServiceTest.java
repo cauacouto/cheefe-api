@@ -1,5 +1,7 @@
 package com.couto.chefe_api.service;
 
+import java.time.Clock;
+import org.mockito.Spy;
 import com.couto.chefe_api.enums.Senioridade;
 import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.dto.AgendamentoRequestDto;
@@ -75,6 +77,10 @@ class AgendamentoServiceTest {
     private ApplicationEventPublisher publisher;
     @Mock
     private DenunciaRepository denunciaRepository;
+    @Mock
+    private HistoricoAgendamentoService historico;
+    @Spy
+    private Clock clock = Clock.systemDefaultZone();
 
     @InjectMocks
     private AgendamentoService service;
@@ -86,6 +92,7 @@ class AgendamentoServiceTest {
 
     @BeforeEach
     void setUp() {
+        usuario.setId(USUARIO_ID);
         endereco.setId(1L);
         when(usuarioRepository.findById(USUARIO_ID)).thenReturn(Optional.of(usuario));
         when(enderecoRepository.findByIdAndUsuario_Id(1L, USUARIO_ID)).thenReturn(Optional.of(endereco));
@@ -181,7 +188,7 @@ class AgendamentoServiceTest {
 
     @Test
     void atualizarAgendamentoDeOutroUsuarioDa404() {
-        when(agendamentoRepository.findByIdAndUsuario_Id(8L, USUARIO_ID)).thenReturn(Optional.empty());
+        when(agendamentoRepository.travarPorId(8L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.atualizarAgendamento(atualizacao(null, null, null, null, 5), 8L, USUARIO_ID))
                 .isInstanceOf(AgendamentoException.class);
@@ -206,6 +213,19 @@ class AgendamentoServiceTest {
         service.criarAgendamento(dto(DIA.withHour(18), DIA.withHour(21), 1L, ids(chefeA), 2), USUARIO_ID);
 
         verify(publisher).publishEvent(any(AgendamentoCriadoEvent.class));
+    }
+
+    @Test
+    void criadoEmVemDoRelogio() {
+        chefesExistentes(chefeA);
+        java.time.Instant fixo = java.time.Instant.parse("2026-10-21T15:00:00Z");
+        org.mockito.Mockito.doReturn(fixo).when(clock).instant();
+
+        service.criarAgendamento(dto(DIA.withHour(18), DIA.withHour(21), 1L, ids(chefeA), 2), USUARIO_ID);
+
+        org.mockito.ArgumentCaptor<Agendamento> salvo = org.mockito.ArgumentCaptor.forClass(Agendamento.class);
+        verify(agendamentoRepository).save(salvo.capture());
+        assertThat(salvo.getValue().getCriadoEm()).isEqualTo(LocalDateTime.ofInstant(fixo, clock.getZone()));
     }
 
     @Test
@@ -238,13 +258,14 @@ class AgendamentoServiceTest {
         void agendaExistente() {
             agenda = new Agendamento();
             agenda.setId(7L);
+            agenda.setUsuario(usuario);
             agenda.setEndereco(endereco);
             agenda.setChefes(new ArrayList<>(List.of(chefeA)));
             agenda.setDataHoraInicial(DIA.withHour(18));
             agenda.setDataHoraFinal(DIA.withHour(20));
             agenda.setQuantidadePessoas(2);
             agenda.setValorTotal(new BigDecimal("200.00"));
-            when(agendamentoRepository.findByIdAndUsuario_Id(7L, USUARIO_ID)).thenReturn(Optional.of(agenda));
+            when(agendamentoRepository.travarPorId(7L)).thenReturn(Optional.of(agenda));
         }
 
         @Test
@@ -354,7 +375,7 @@ class AgendamentoServiceTest {
             agenda = new Agendamento();
             agenda.setId(9L);
             agenda.setChefes(new ArrayList<>(List.of(chefeA, chefeB)));
-            when(agendamentoRepository.findById(9L)).thenReturn(Optional.of(agenda));
+            when(agendamentoRepository.travarPorId(9L)).thenReturn(Optional.of(agenda));
         }
 
         @Test

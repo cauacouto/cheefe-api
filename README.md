@@ -181,12 +181,35 @@ Listas paginadas respondem `{ "content": [...], "page": { "size", "number", "tot
 | Perfil do chef | `GET /chefe/me` (inclui `perfilCompleto` e `camposPendentes`); `PATCH /chefe/me`; `PUT /chefe/me/foto` (multipart `foto`); `PATCH /chefe/me/inativar` (pausa: some da busca e não recebe agendamentos novos) e `PATCH /chefe/me/ativar` (volta); `DELETE /chefe/me` (apaga a conta: não loga nem opera mais) | CHEFE |
 | Pratos | `GET /pratos?page=&size=` (paginado, até 50) e `GET /pratos/chefe/{chefeId}`: só pratos de chefs visíveis na busca (chef pausado, suspenso, banido ou ocultado por denúncias não aparece) | qualquer logado |
 | Meus pratos | `POST /pratos` (multipart `dados` + `foto`), `PUT /pratos/{id}`, `GET /pratos/meus` (todos os do chef, mesmo pausado) | CHEFE |
-| Agendamentos do cliente | `POST /agendamentos` (endereço precisa ser do cliente; **409** se algum chef escolhido já tiver um agendamento confirmado que se sobreponha — pedidos pendentes podem se sobrepor, e encostar, como 18h–20h e 20h–22h, não conflita), `GET /agendamentos/meus?page=&size=` (paginado, até 50, data mais distante primeiro), `PUT /agendamentos/{id}` (só `PENDENTE`) | CLIENTE |
-| Agendamentos do chef | `GET /agendamentos/recebidos?page=&size=` (paginado como `/agendamentos/meus`), `PATCH /agendamentos/{id}/confirmar` (só chef do agendamento, só `PENDENTE`; **409** se algum chef do agendamento já tiver outro confirmado no mesmo horário) | CHEFE |
+| Agendamentos do cliente | `POST /agendamentos` (endereço precisa ser do cliente; **409** se algum chef escolhido já tiver um agendamento confirmado que se sobreponha — pedidos pendentes podem se sobrepor, e encostar, como 18h–20h e 20h–22h, não conflita), `GET /agendamentos/meus?page=&size=` (paginado, até 50, data mais distante primeiro), `PUT /agendamentos/{id}` (só `PENDENTE`), `PATCH /agendamentos/{id}/cancelar` (veja "Ciclo do agendamento") | CLIENTE |
+| Agendamentos do chef | `GET /agendamentos/recebidos?page=&size=` (paginado como `/agendamentos/meus`), `PATCH /agendamentos/{id}/confirmar` (só chef do agendamento, só `PENDENTE`; **409** se algum chef do agendamento já tiver outro confirmado no mesmo horário), `PATCH /agendamentos/{id}/recusar`·`desistir`·`concluir` | CHEFE |
+| Linha do tempo | `GET /agendamentos/{id}/historico` (cliente dono ou chef que ainda está no agendamento) | CLIENTE, CHEFE |
 | Denúncias | `POST /denuncias` (só de chef com quem teve agendamento confirmado e já ocorrido) | CLIENTE |
 | Abrir conversa | `POST /conversas` `{chefeId}` (201 nova, 200 se já existe; só o cliente inicia) | CLIENTE |
 | Chat | `GET /conversas?page=&size=` (paginado como `/notificacoes`, mais recente primeiro, até 50 por página); `GET /conversas/{id}/mensagens?antesDe=&size=` (mais novas primeiro, até 100); `POST /conversas/{id}/mensagens`; `PATCH /conversas/{id}/lidas` ("visto"); `PATCH /conversas/{id}/mensagens/{mid}` (só o autor, até 15 min); `DELETE /conversas/{id}/mensagens/{mid}` (só o autor); `POST /conversas/{id}/mensagens/{mid}/denuncias` `{motivo, descricao}` (só quem recebeu; motivos `OFENSIVA`, `ASSEDIO`, `SPAM`, `GOLPE`, `CONTEUDO_IMPROPRIO`, `OUTRO`). Com o chef apagado ou banido, o histórico continua visível, mas ninguém envia mais (403) | CLIENTE, CHEFE (participantes) |
 | Moderação | `GET /moderacao/denuncias?status=`, `PATCH /moderacao/denuncias/{id}/arquivar`, `PATCH /moderacao/chefes/{id}/suspender`·`reativar`·`banir`, `GET /moderacao/denuncias-mensagens?status=` (com o texto do momento da denúncia), `PATCH /moderacao/denuncias-mensagens/{id}/arquivar`·`remover-mensagem`, `GET /moderacao/acoes` (histórico: quem fez cada ação; no banco a API só insere nessa tabela, nunca altera nem apaga) (para quem não modera, a área responde 404) | MODERADOR |
+
+### 📅 Ciclo do agendamento
+
+| De | Ação | Quem | Regra | Vai para |
+|---|---|---|---|---|
+| `PENDENTE` | `PATCH /confirmar` | chef do agendamento | antes do início, sem conflito de horário | `CONFIRMADO` |
+| `PENDENTE` | `PATCH /cancelar` | cliente | antes do início | `CANCELADO` |
+| `CONFIRMADO` | `PATCH /cancelar` | cliente | até 24h antes do início | `CANCELADO` |
+| `PENDENTE` | `PATCH /recusar` | chef do agendamento | antes do início | o chef sai e o valor é recalculado; sem chefs, `RECUSADO` |
+| `CONFIRMADO` | `PATCH /desistir` | chef do agendamento | antes do início | o chef sai e o valor é recalculado; sem chefs, `CANCELADO` |
+| `CONFIRMADO` | `PATCH /concluir` | chef do agendamento | depois do início | `CONCLUIDO` |
+| `CONFIRMADO` | (rotina) | sistema | depois do fim | `CONCLUIDO` |
+| `PENDENTE` | (rotina) | sistema | depois do início | `EXPIRADO` |
+
+- `CANCELADO`, `RECUSADO`, `CONCLUIDO` e `EXPIRADO` são finais. Fora do status ou do prazo → **409** com o motivo; agendamento de outra pessoa → **404**.
+- Cancelar, recusar e desistir aceitam um corpo opcional `{ "motivo": "<código>", "descricao": "<até 300 caracteres>" }`:
+  - cliente (`/cancelar`): `MUDANCA_DE_PLANOS`, `DATA_OU_HORARIO`, `ENCONTREI_OUTRA_OPCAO`, `VALOR`, `OUTRO`;
+  - chef (`/recusar`, `/desistir`): `AGENDA_INDISPONIVEL`, `LOCAL_FORA_DA_AREA`, `NUMERO_DE_PESSOAS`, `IMPREVISTO`, `OUTRO`.
+- Cada mudança entra na linha do tempo (`GET /agendamentos/{id}/historico`), que a API só consegue acrescentar, nunca alterar; ela some junto com o agendamento quando a conta do cliente é apagada.
+- O outro lado é notificado (cancelamento, recusa, desistência, expiração), com o motivo.
+- Uma rotina roda a cada 15 minutos para concluir e expirar; os prazos usam o relógio do servidor, então o fuso de produção precisa ser o dos horários informados pelos clientes.
+- O app é intermediador: registra e avisa, sem multa nem reembolso; para quem não comparece existe a denúncia, que vale para agendamento confirmado ou concluído que já aconteceu.
 
 ### 💬 Chat em tempo real (SSE)
 
