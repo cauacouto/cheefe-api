@@ -55,6 +55,8 @@ public class SecurityConfiguration  {
                         .requestMatchers("/moderacao/**").hasRole(MODERADOR)
                         .requestMatchers("/usuario/**").hasRole(CLIENTE)
                         .requestMatchers(HttpMethod.POST, "/denuncias").hasRole(CLIENTE)
+                        .requestMatchers(HttpMethod.POST, "/conversas").hasRole(CLIENTE)
+                        .requestMatchers("/conversas", "/conversas/**").hasAnyRole(CLIENTE, CHEFE)
                         .requestMatchers(HttpMethod.POST, "/agendamentos").hasRole(CLIENTE)
                         .requestMatchers(HttpMethod.PUT, "/agendamentos/*").hasRole(CLIENTE)
                         .requestMatchers(HttpMethod.GET, "/agendamentos/meus").hasRole(CLIENTE)
