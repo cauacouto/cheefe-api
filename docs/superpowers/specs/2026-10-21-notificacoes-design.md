@@ -6,7 +6,7 @@
 
 ## Objetivo
 
-Avisar cliente, chef e admin, **dentro do app**, sobre o que acontece com eles: o front mostra um "sininho" com a contagem de não lidas e a lista de notificações. Sem e-mail, sem serviço externo.
+Avisar cliente, chef e moderador, **dentro do app**, sobre o que acontece com eles: o front mostra um "sininho" com a contagem de não lidas e a lista de notificações. Sem e-mail, sem serviço externo.
 
 ## Decisões
 
@@ -25,9 +25,9 @@ Avisar cliente, chef e admin, **dentro do app**, sobre o que acontece com eles: 
 | 1 | `AGENDAMENTO_CRIADO` | `POST /agendamentos` (201) | cada chef do agendamento | `"{nomeCliente} pediu um agendamento para {dd/MM} às {HH:mm}"` | id do agendamento | **agora** |
 | 2 | `AGENDAMENTO_EDITADO` | `PUT /agendamentos/{id}` (200) | cada chef do agendamento (após a edição) | `"{nomeCliente} alterou o agendamento de {dd/MM}"` | id do agendamento | **agora** |
 | 3 | `AGENDAMENTO_CONFIRMADO` | `PATCH /agendamentos/{id}/confirmar` (200) | o cliente | `"Chef {nomeChef} confirmou seu agendamento de {dd/MM}"` | id do agendamento | **agora** |
-| 4 | `DENUNCIA_CRIADA` | `POST /denuncias` | cada admin | `"Nova denúncia contra o chef {nomeChef} ({motivo})"` | id da denúncia | moderação |
-| 5 | `CHEF_OCULTO` | denúncia que leva o chef a 3 denunciantes distintos | o chef e cada admin | chef: `"Seu perfil foi ocultado da busca enquanto denúncias são analisadas"`; admin: `"Chef {nomeChef} foi ocultado automaticamente (3 denúncias)"` | id do chef | moderação |
-| 6 | `CHEF_SUSPENSO` / `CHEF_REATIVADO` | ações do admin | o chef | `"Seu perfil foi suspenso"` / `"Seu perfil foi reativado"` | id do chef | moderação |
+| 4 | `DENUNCIA_CRIADA` | `POST /denuncias` | cada moderador | `"Nova denúncia contra o chef {nomeChef} ({motivo})"` | id da denúncia | moderação |
+| 5 | `CHEF_OCULTO` | denúncia que leva o chef a 3 denunciantes distintos | o chef e cada moderador | chef: `"Seu perfil foi ocultado da busca enquanto denúncias são analisadas"`; moderador: `"Chef {nomeChef} foi ocultado automaticamente (3 denúncias)"` | id do chef | moderação |
+| 6 | `CHEF_SUSPENSO` / `CHEF_REATIVADO` | ações do moderador | o chef | `"Seu perfil foi suspenso"` / `"Seu perfil foi reativado"` | id do chef | moderação |
 | 7 | `MENSAGEM_RECEBIDA` | nova mensagem no chat | o outro participante | a definir no spec do chat | id da conversa | chat |
 
 `{dd/MM}` e `{HH:mm}` usam `dataHoraInicial` do agendamento. O enum já nasce com todos os valores; as fases 2 e 3 só publicam os eventos.
@@ -47,7 +47,7 @@ Avisar cliente, chef e admin, **dentro do app**, sobre o que acontece com eles: 
 | `lida` | boolean | default `false` |
 | `criadaEm` | `LocalDateTime` | `@PrePersist` |
 
-Admins (fase 2) usam o mesmo id do login: `UUID.nameUUIDFromBytes(email normalizado)`.
+Moderadores (fase 2) usam o mesmo id do login: `UUID.nameUUIDFromBytes(email normalizado)`.
 
 ## Rotas (qualquer autenticado; sempre só as próprias)
 

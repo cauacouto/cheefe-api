@@ -1,8 +1,8 @@
 # Chat entre cliente e chef — Design
 
 **Data:** 2026-10-21
-**Status:** v2 — aprovado; acrescenta editar, apagar, denunciar mensagem e "visto". Implementado **depois da moderação** (a denúncia de mensagem usa o admin e a fila da moderação).
-**Relacionados:** notificações (`2026-10-21-notificacoes-design.md`, evento 7 `MENSAGEM_RECEBIDA`); moderação (`2026-10-21-moderacao-chefs-design.md`: papel ADMIN, fila e ações sobre chefs)
+**Status:** v2 — aprovado; acrescenta editar, apagar, denunciar mensagem e "visto". Implementado **depois da moderação** (a denúncia de mensagem usa o moderador e a fila da moderação).
+**Relacionados:** notificações (`2026-10-21-notificacoes-design.md`, evento 7 `MENSAGEM_RECEBIDA`); moderação (`2026-10-21-moderacao-chefs-design.md`: papel MODERADOR, fila e ações sobre chefs)
 
 ## Objetivo
 
@@ -17,7 +17,7 @@ Permitir que o cliente converse com um chef — inclusive **antes** de contratar
 | Conteúdo | Só texto, até 2000 caracteres. Sem anexos nem "digitando". |
 | Editar | Só o autor, até **15 minutos** após o envio; mostra "editada". |
 | Apagar | Só o autor, a qualquer momento; ambos veem "mensagem apagada"; o texto original fica guardado internamente (prova para denúncias). |
-| Denunciar | Só o **destinatário**, uma vez por mensagem; motivo obrigatório; vai para a fila do admin com **cópia do texto** no momento da denúncia. |
+| Denunciar | Só o **destinatário**, uma vez por mensagem; motivo obrigatório; vai para a fila do moderador com **cópia do texto** no momento da denúncia. |
 | Visto | O remetente vê se a mensagem foi lida (`lidaEm`); evento SSE `mensagens_lidas`. |
 | Tempo real | **SSE** (`GET /eventos`) para receber; REST para enviar. Push **depois do commit**. |
 | Escala | Conexões SSE em memória (uma instância). Mais de uma instância exigirá pub/sub (ex.: Redis) — fora de escopo. |
@@ -51,7 +51,7 @@ Permitir que o cliente converse com um chef — inclusive **antes** de contratar
 | `lidaEm` | `LocalDateTime` | nula até o destinatário marcar como lida |
 | `editadaEm` | `LocalDateTime` | nula se nunca editada |
 | `apagadaEm` | `LocalDateTime` | nula se não apagada pelo autor |
-| `removidaPorModeracao` | boolean | default `false`; admin removeu |
+| `removidaPorModeracao` | boolean | default `false`; moderador removeu |
 
 Mensagem apagada ou removida: o DTO devolve `texto = null` e `apagada = true` (o texto continua na tabela).
 
@@ -62,7 +62,7 @@ Mensagem apagada ou removida: o DTO devolve `texto = null` e `apagada = true` (o
 | `id` | Long (identity) | |
 | `mensagem` | `@ManyToOne Mensagem` | obrigatório; `UNIQUE(mensagem_id, denunciante_id)` |
 | `denuncianteId` / `denuncianteTipo` | UUID / `TipoUsuario` | o destinatário da mensagem |
-| `autorId` / `autorTipo` | UUID / `TipoUsuario` | autor da mensagem (para o admin agir) |
+| `autorId` / `autorTipo` | UUID / `TipoUsuario` | autor da mensagem (para o moderador agir) |
 | `textoDenunciado` | String ≤ 2000 | cópia do texto no momento da denúncia |
 | `motivo` | `MotivoDenunciaMensagem` (`OFENSIVA`, `ASSEDIO`, `SPAM`, `GOLPE`, `CONTEUDO_IMPROPRIO`, `OUTRO`), `STRING` | obrigatório |
 | `descricao` | String ≤ 1000 | opcional |
@@ -80,16 +80,16 @@ Mensagem apagada ou removida: o DTO devolve `texto = null` e `apagada = true` (o
 | `PATCH /conversas/{id}/lidas` | participantes | marca `lidaEm` nas mensagens **recebidas** ainda não lidas; SSE `mensagens_lidas` para o remetente | 204; não participante → 404 |
 | `PATCH /conversas/{id}/mensagens/{mensagemId}` `{ "texto": "..." }` | autor | até 15 min após o envio; grava `editadaEm`; SSE `mensagem_editada` | 200 `MensagemDto`; não é o autor/não participa → 404; fora do prazo ou apagada → 409; texto inválido → 400 |
 | `DELETE /conversas/{id}/mensagens/{mensagemId}` | autor | grava `apagadaEm`; SSE `mensagem_apagada` | 204; não é o autor/não participa → 404; já apagada → 204 |
-| `POST /conversas/{id}/mensagens/{mensagemId}/denuncias` `{ "motivo": "OFENSIVA", "descricao": "..." }` | destinatário | cria `DenunciaMensagem` `ABERTA` com cópia do texto; notifica admins | 201 `{id, status}`; autor denunciando a própria / não participante → 404; repetida → 409; mensagem apagada → 409 |
-| `GET /admin/denuncias-mensagens?status=ABERTA` | ADMIN | fila paginada (mais antigas primeiro): id, motivo, descrição, textoDenunciado, autor (id, nome, tipo), denunciante (id, nome), conversaId, criadaEm | 200 |
-| `PATCH /admin/denuncias-mensagens/{id}/arquivar` | ADMIN | `ARQUIVADA` | 204; já resolvida → 409 |
-| `PATCH /admin/denuncias-mensagens/{id}/remover-mensagem` | ADMIN | mensagem `removidaPorModeracao=true`; denúncias abertas dessa mensagem → `PROCEDENTE`; SSE `mensagem_apagada` aos participantes | 204 |
+| `POST /conversas/{id}/mensagens/{mensagemId}/denuncias` `{ "motivo": "OFENSIVA", "descricao": "..." }` | destinatário | cria `DenunciaMensagem` `ABERTA` com cópia do texto; notifica moderadores | 201 `{id, status}`; autor denunciando a própria / não participante → 404; repetida → 409; mensagem apagada → 409 |
+| `GET /moderacao/denuncias-mensagens?status=ABERTA` | MODERADOR | fila paginada (mais antigas primeiro): id, motivo, descrição, textoDenunciado, autor (id, nome, tipo), denunciante (id, nome), conversaId, criadaEm | 200 |
+| `PATCH /moderacao/denuncias-mensagens/{id}/arquivar` | MODERADOR | `ARQUIVADA` | 204; já resolvida → 409 |
+| `PATCH /moderacao/denuncias-mensagens/{id}/remover-mensagem` | MODERADOR | mensagem `removidaPorModeracao=true`; denúncias abertas dessa mensagem → `PROCEDENTE`; SSE `mensagem_apagada` aos participantes | 204 |
 | `GET /eventos` | qualquer autenticado | abre o stream SSE do usuário | 200 `text/event-stream` |
 
 `ConversaDto`: `{ id, outroParticipante: { id, nome, imageUrl, tipo }, ultimaMensagem: { texto (prévia ≤ 100), enviadaEm, minha: boolean } | null, naoLidas: long, ultimaMensagemEm }`.
 `MensagemDto`: `{ id, conversaId, texto, enviadaEm, minha: boolean, lida: boolean, lidaEm, editada: boolean, apagada: boolean }` (`minha` relativo a quem pede; `texto=null` quando `apagada`).
 
-Se o autor for chef, o admin usa as ações já existentes da moderação (`/admin/chefes/{id}/suspender|banir`). Sanções a clientes ficam fora de escopo.
+Se o autor for chef, o moderador usa as ações já existentes da moderação (`/moderacao/chefes/{id}/suspender|banir`). Sanções a clientes ficam fora de escopo.
 
 Papéis no `SecurityConfiguration`: `POST /conversas` → `hasRole(CLIENTE)`; `/conversas/**` restante e `/eventos` → `authenticated()`.
 
@@ -113,7 +113,7 @@ Papéis no `SecurityConfiguration`: `POST /conversas` → `hasRole(CLIENTE)`; `/
 
 ## Notificação de denúncia de mensagem
 
-- Novo `EventoNotificacao.MENSAGEM_DENUNCIADA` → cada admin: `"Nova denúncia de mensagem ({motivo})"`, `referenciaId` = id da denúncia.
+- Novo `EventoNotificacao.MENSAGEM_DENUNCIADA` → cada moderador: `"Nova denúncia de mensagem ({motivo})"`, `referenciaId` = id da denúncia.
 
 ## Exclusão de conta
 
@@ -150,7 +150,7 @@ Papéis no `SecurityConfiguration`: `POST /conversas` → `hasRole(CLIENTE)`; `/
   - terceiro usuário → 404 em todas as rotas da conversa;
   - chef apagado: enviar → 403, histórico → 200;
   - `DELETE /usuario/me` de cliente com conversas (e denúncias de mensagens) → 204 e tudo removido;
-  - editar/apagar/denunciar pela API; admin vê a denúncia com o texto original, remove a mensagem → ambos veem `apagada=true`; cliente/chef em `/admin/denuncias-mensagens` → 403;
+  - editar/apagar/denunciar pela API; moderador vê a denúncia com o texto original, remove a mensagem → ambos veem `apagada=true`; cliente/chef em `/moderacao/denuncias-mensagens` → 403;
   - "visto": após `PATCH /lidas` do destinatário, o remetente vê `lida=true` e `lidaEm`.
 - `SseRegistryTest`: duas abas recebem; emitter que falha é descartado; usuário sem conexão não quebra.
 - `TempoRealListenerTest`: `MensagemEnviadaEvent` envia `mensagem` ao destinatário (`minha=false`) e ao remetente (`minha=true`); `NotificacaoCriadaEvent` envia `notificacao` com a contagem.
