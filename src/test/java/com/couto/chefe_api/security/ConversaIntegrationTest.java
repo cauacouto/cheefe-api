@@ -363,8 +363,9 @@ class ConversaIntegrationTest {
         notificacaoService.notificar(moderacaoRegistry.idDe("moderacao@chefhome.test"), TipoUsuario.MODERADOR,
                 EventoNotificacao.DENUNCIA_CRIADA, "Nova denúncia contra o chef Bia", String.valueOf(denuncia.getId()));
         // mesmo número de uma conversa apagada, mas de outro tipo (agendamento de outro cliente): tem de ficar
-        String idDeConversaApagada = String.valueOf(comBia);
-        assertThat(idDeConversaApagada).isNotEqualTo(String.valueOf(agendamento.getId()));
+        // os ids dependem da ordem dos testes: das duas conversas apagadas (ids distintos), usa a que não
+        // coincide com o agendamento da Ana, senão a notificação "de outro tipo" seria dela de verdade
+        String idDeConversaApagada = String.valueOf(comBia == agendamento.getId() ? comCaio : comBia);
         notificacaoService.notificar(bia.getId(), TipoUsuario.CHEFE, EventoNotificacao.AGENDAMENTO_CRIADO,
                 "Outra pediu um agendamento", idDeConversaApagada);
         java.util.List<Long> notificacoesQueFicam = notificacaoRepository.findAll().stream()
