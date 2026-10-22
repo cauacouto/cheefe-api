@@ -11,7 +11,9 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "denuncia")
+@Table(name = "denuncia", indexes = {
+        @Index(name = "idx_denuncia_chefe_status", columnList = "chefe_id, status"),
+        @Index(name = "idx_denuncia_cliente_chefe_status", columnList = "cliente_id, chefe_id, status")})
 @Getter
 @Setter
 @NoArgsConstructor
