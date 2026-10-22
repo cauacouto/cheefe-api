@@ -220,6 +220,20 @@ class ModeracaoIntegrationTest {
         assertThat(chefeRepository.findById(chefe.getId()).orElseThrow().getAtivo()).isTrue();
     }
 
+    @Test
+    void areaDeModeracaoResponde404IgualAUmaRotaInexistente() throws Exception {
+        Cookie cliente = cookieCliente();
+
+        var real = mockMvc.perform(get("/rota-que-nao-existe").cookie(cliente)).andReturn().getResponse();
+        var escondida = mockMvc.perform(get("/moderacao/denuncias").cookie(cliente)).andReturn().getResponse();
+
+        assertThat(escondida.getStatus()).isEqualTo(real.getStatus()).isEqualTo(404);
+        assertThat(escondida.getContentType()).isEqualTo(real.getContentType());
+        assertThat(escondida.getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+                .isEqualTo(real.getContentAsString(java.nio.charset.StandardCharsets.UTF_8)
+                        .replace("rota-que-nao-existe", "moderacao/denuncias"));
+    }
+
     Cookie cookieModerador() {
         return new Cookie(AuthCookies.ACCESS_TOKEN, tokenService.gerarToken(
                 new UsuarioAutenticado(moderacaoRegistry.idDe(EMAIL_MODERACAO), EMAIL_MODERACAO, TipoUsuario.MODERADOR)));
