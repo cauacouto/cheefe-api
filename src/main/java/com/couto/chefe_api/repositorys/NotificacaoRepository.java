@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -36,7 +37,11 @@ public interface NotificacaoRepository extends JpaRepository<Notificacao, Long> 
     @Query("DELETE FROM Notificacao n WHERE n.destinatarioId = :destinatarioId")
     void apagarDoDestinatario(@Param("destinatarioId") UUID destinatarioId);
 
-    @Modifying
+    @Query("SELECT DISTINCT n.destinatarioId FROM Notificacao n WHERE n.evento IN :eventos AND n.referenciaId IN :referencias")
+    List<UUID> destinatariosDasReferencias(@Param("eventos") Collection<EventoNotificacao> eventos,
+                                           @Param("referencias") Collection<String> referencias);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("DELETE FROM Notificacao n WHERE n.evento IN :eventos AND n.referenciaId IN :referencias")
     void apagarDasReferencias(@Param("eventos") Collection<EventoNotificacao> eventos,
                               @Param("referencias") Collection<String> referencias);

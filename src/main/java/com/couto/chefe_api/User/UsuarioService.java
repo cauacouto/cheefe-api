@@ -6,10 +6,10 @@ import com.couto.chefe_api.Excepitons.UsuarioException;
 import com.couto.chefe_api.Mapper.UsuarioMapper;
 import com.couto.chefe_api.domin.EnderecoModel;
 import com.couto.chefe_api.domin.Conversa;
+import com.couto.chefe_api.Services.NotificacaoService;
 import com.couto.chefe_api.enums.EventoNotificacao;
 import com.couto.chefe_api.repositorys.AgendamentoRepository;
 import com.couto.chefe_api.repositorys.ConversaRepository;
-import com.couto.chefe_api.repositorys.NotificacaoRepository;
 import com.couto.chefe_api.repositorys.DenunciaMensagemRepository;
 import com.couto.chefe_api.repositorys.DenunciaRepository;
 import com.couto.chefe_api.repositorys.MensagemRepository;
@@ -35,7 +35,7 @@ public class UsuarioService {
     private final DenunciaMensagemRepository denunciaMensagemRepository;
     private final MensagemRepository mensagemRepository;
     private final ConversaRepository conversaRepository;
-    private final NotificacaoRepository notificacaoRepository;
+    private final NotificacaoService notificacaoService;
     private final AgendamentoRepository agendamentoRepository;
 
     /**
@@ -100,7 +100,7 @@ public class UsuarioService {
      * Filtra pelo evento porque referenciaId de tipos diferentes pode coincidir (agendamento 5 x conversa 5).
      */
     private void apagarNotificacoes(UUID clienteId, List<Long> conversas) {
-        notificacaoRepository.apagarDoDestinatario(clienteId);
+        notificacaoService.apagarDoDestinatario(clienteId);
         apagarDasReferencias(EnumSet.of(EventoNotificacao.AGENDAMENTO_CRIADO, EventoNotificacao.AGENDAMENTO_EDITADO,
                 EventoNotificacao.AGENDAMENTO_CONFIRMADO), agendamentoRepository.idsDoCliente(clienteId));
         apagarDasReferencias(EnumSet.of(EventoNotificacao.MENSAGEM_RECEBIDA), conversas);
@@ -110,8 +110,6 @@ public class UsuarioService {
     }
 
     private void apagarDasReferencias(Set<EventoNotificacao> eventos, List<Long> ids) {
-        if (!ids.isEmpty()) {
-            notificacaoRepository.apagarDasReferencias(eventos, ids.stream().map(String::valueOf).toList());
-        }
+        notificacaoService.apagarDasReferencias(eventos, ids.stream().map(String::valueOf).toList());
     }
 }

@@ -18,8 +18,12 @@ import com.couto.chefe_api.repositorys.AgendamentoRepository;
 import com.couto.chefe_api.repositorys.DenunciaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -42,7 +46,11 @@ class DenunciaServiceTest {
     private final DenunciaRepository denunciaRepository = mock(DenunciaRepository.class);
     private final NotificacaoService notificacaoService = mock(NotificacaoService.class);
     private final ModeracaoRegistry moderacao = new ModeracaoRegistry("m1@x.com,m2@x.com");
-    private final DenunciaService service = new DenunciaService(agendamentoRepository, denunciaRepository, notificacaoService, moderacao);
+    // 2020: pelo relógio do sistema tudo aqui já passou; só o relógio injetado decide o que é futuro
+    private static final Clock RELOGIO = Clock.fixed(Instant.parse("2020-01-15T15:00:00Z"), ZoneId.of("America/Sao_Paulo"));
+    private static final LocalDateTime AGORA = LocalDateTime.now(RELOGIO);
+    private final DenunciaService service = new DenunciaService(agendamentoRepository, denunciaRepository, notificacaoService,
+            moderacao, RELOGIO);
 
     private final UUID clienteId = UUID.randomUUID();
     private final ChefeModel chefe = new ChefeModel();
@@ -58,7 +66,7 @@ class DenunciaServiceTest {
         agendamento.setUsuario(cliente);
         agendamento.setChefes(new ArrayList<>(List.of(chefe)));
         agendamento.setStatus(StatusAgendamento.CONFIRMADO);
-        agendamento.setDataHoraInicial(LocalDateTime.now().minusDays(1));
+        agendamento.setDataHoraInicial(AGORA.minusDays(1));
         when(agendamentoRepository.findByIdAndUsuario_Id(7L, clienteId)).thenReturn(Optional.of(agendamento));
         when(denunciaRepository.save(any(Denuncia.class))).thenAnswer(inv -> {
             Denuncia denuncia = inv.getArgument(0);
@@ -89,7 +97,7 @@ class DenunciaServiceTest {
 
     @Test
     void agendamentoFuturoDa404() {
-        agendamento.setDataHoraInicial(LocalDateTime.now().plusDays(1));
+        agendamento.setDataHoraInicial(AGORA.plusDays(1));
 
         assertThatThrownBy(() -> service.criar(dto(), clienteId)).isInstanceOf(RecursoNaoEncontradoException.class);
     }
@@ -143,5 +151,14 @@ class DenunciaServiceTest {
 
     private DenunciaRequestDto dto() {
         return new DenunciaRequestDto(7L, chefe.getId(), MotivoDenuncia.HIGIENE, "cozinha suja");
+    }
+
+    @Test
+    void criadaEmVemDoRelogio() {
+        service.criar(dto(), clienteId);
+
+        ArgumentCaptor<Denuncia> captor = ArgumentCaptor.forClass(Denuncia.class);
+        verify(denunciaRepository).save(captor.capture());
+        assertThat(captor.getValue().getCriadaEm()).isEqualTo(AGORA);
     }
 }

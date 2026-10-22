@@ -81,6 +81,8 @@ class ModeracaoServiceTest {
                 TipoAcaoModeracao.ARQUIVAR_DENUNCIA, TipoAcaoModeracao.SUSPENDER_CHEF,
                 TipoAcaoModeracao.REATIVAR_CHEF, TipoAcaoModeracao.BANIR_CHEF);
         assertThat(captor.getAllValues()).allSatisfy(acao -> assertThat(acao.getModeradorEmail()).isEqualTo(MODERADOR));
+        assertThat(captor.getAllValues()).allSatisfy(acao -> assertThat(acao.getRealizadaEm()).isEqualTo(LocalDateTime.now(RELOGIO)));
+        assertThat(aberta.getResolvidaEm()).isEqualTo(LocalDateTime.now(RELOGIO));
         assertThat(captor.getAllValues().get(0).getDenunciaId()).isEqualTo(5L);
         assertThat(captor.getAllValues().get(1).getChefeId()).isEqualTo(chefe.getId());
     }

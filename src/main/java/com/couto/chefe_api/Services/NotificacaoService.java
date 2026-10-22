@@ -14,6 +14,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -22,6 +26,7 @@ public class NotificacaoService {
 
     private final NotificacaoRepository repository;
     private final ApplicationEventPublisher eventPublisher;
+    private final Clock clock;
 
     @Transactional(readOnly = true)
     public Page<NotificacaoDto> listar(UUID destinatarioId, boolean somenteNaoLidas, Pageable pageable) {
@@ -74,8 +79,26 @@ public class NotificacaoService {
         notificacao.setEvento(evento);
         notificacao.setMensagem(mensagem);
         notificacao.setReferenciaId(referenciaId);
+        notificacao.setCriadaEm(LocalDateTime.now(clock));
         repository.save(notificacao);
         avisarContagem(destinatarioId);
+    }
+
+    /** Sem aviso: só é usado quando a conta do próprio destinatário está sendo apagada. */
+    @Transactional
+    public void apagarDoDestinatario(UUID destinatarioId) {
+        repository.apagarDoDestinatario(destinatarioId);
+    }
+
+    /** Apaga as notificações que apontam para esses registros e atualiza o sino de quem as tinha. */
+    @Transactional
+    public void apagarDasReferencias(Collection<EventoNotificacao> eventos, Collection<String> referencias) {
+        if (referencias.isEmpty()) {
+            return;
+        }
+        List<UUID> afetados = repository.destinatariosDasReferencias(eventos, referencias);
+        repository.apagarDasReferencias(eventos, referencias);
+        afetados.forEach(this::avisarContagem);
     }
 
     /** O sino de todas as abas acompanha: a contagem sai pelo SSE depois do commit. */

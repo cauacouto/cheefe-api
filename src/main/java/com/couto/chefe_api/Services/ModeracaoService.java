@@ -128,6 +128,7 @@ public class ModeracaoService {
         acao.setAcao(tipo);
         acao.setChefeId(chefeId);
         acao.setDenunciaId(denunciaId);
+        acao.setRealizadaEm(LocalDateTime.now(clock));
         acaoModeracaoRepository.save(acao);
         log.info("moderação: {} por {} (chef={}, denúncia={})", tipo, moderadorEmail, chefeId, denunciaId);
     }

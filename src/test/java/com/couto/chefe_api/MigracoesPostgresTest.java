@@ -27,6 +27,7 @@ import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.UUID;
@@ -63,6 +64,11 @@ class MigracoesPostgresTest {
 
     @DynamicPropertySource
     static void bancoReal(DynamicPropertyRegistry registry) throws Exception {
+        configurarBancoReal(registry);
+    }
+
+    /** Container, setup das roles e migrations; a API conecta como chefhome_app com validate. Reusado por outros testes. */
+    static void configurarBancoReal(DynamicPropertyRegistry registry) throws Exception {
         POSTGRES.start();
         rodarSetup();
         Flyway.configure()
@@ -166,6 +172,17 @@ class MigracoesPostgresTest {
             assertSemPermissao(app, "UPDATE chefhome.acao_moderacao SET moderador_email = 'outro@x.com'");
             assertSemPermissao(app, "DELETE FROM chefhome.acao_moderacao");
             assertSemPermissao(app, "TRUNCATE chefhome.acao_moderacao");
+        }
+    }
+
+    @Test
+    void notificacaoTemIndicePorReferencia() throws SQLException {
+        try (Connection app = conectar("chefhome_app", SENHA_APP);
+             Statement st = app.createStatement();
+             ResultSet rs = st.executeQuery("SELECT indexdef FROM pg_indexes WHERE schemaname = 'chefhome' "
+                     + "AND indexname = 'idx_notificacao_referencia'")) {
+            assertThat(rs.next()).as("índice idx_notificacao_referencia").isTrue();
+            assertThat(rs.getString(1)).contains("(referencia_id, evento)");
         }
     }
 

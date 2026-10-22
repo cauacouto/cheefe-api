@@ -18,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -32,13 +33,14 @@ public class DenunciaService {
     private final DenunciaRepository denunciaRepository;
     private final NotificacaoService notificacaoService;
     private final ModeracaoRegistry moderacaoRegistry;
+    private final Clock clock;
 
     @Transactional
     public DenunciaCriadaDto criar(DenunciaRequestDto dto, UUID clienteId) {
         // só quem foi atendido denuncia; qualquer outro caso parece "não existe"
         Agendamento agendamento = agendamentoRepository.findByIdAndUsuario_Id(dto.agendamentoId(), clienteId)
                 .filter(a -> a.getStatus() == StatusAgendamento.CONFIRMADO)
-                .filter(a -> a.getDataHoraInicial() != null && a.getDataHoraInicial().isBefore(LocalDateTime.now()))
+                .filter(a -> a.getDataHoraInicial() != null && a.getDataHoraInicial().isBefore(LocalDateTime.now(clock)))
                 .orElseThrow(() -> new RecursoNaoEncontradoException("agendamento não encontrado"));
         ChefeModel chefe = agendamento.getChefes().stream()
                 .filter(c -> c.getId().equals(dto.chefeId()))
@@ -54,6 +56,7 @@ public class DenunciaService {
         denuncia.setCliente(agendamento.getUsuario());
         denuncia.setAgendamento(agendamento);
         denuncia.setMotivo(dto.motivo());
+        denuncia.setCriadaEm(LocalDateTime.now(clock));
         denuncia.setDescricao(dto.descricao().strip());
         Denuncia salva = denunciaRepository.save(denuncia);
 

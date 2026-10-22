@@ -41,10 +41,13 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -166,6 +169,21 @@ class EventosIntegrationTest {
 
         mockMvc.perform(patch("/notificacoes/lidas").cookie(cookieBia())).andExpect(status().isNoContent());
         verify(sseRegistry).enviar(bia.getId(), "notificacao", new ContagemDto(0));
+    }
+
+    @Test
+    void contaApagadaAtualizaOSinoDeQuemTinhaNotificacaoDela() throws Exception {
+        long conversaId = JSON.readTree(mockMvc.perform(post("/conversas").cookie(cookieAna())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"chefeId\":\"" + bia.getId() + "\"}"))
+                .andReturn().getResponse().getContentAsString()).get("id").asLong();
+        mockMvc.perform(post("/conversas/" + conversaId + "/mensagens").cookie(cookieAna())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"texto\":\"oi\"}")).andExpect(status().isCreated());
+        verify(sseRegistry).enviar(bia.getId(), "notificacao", new ContagemDto(1));
+
+        mockMvc.perform(delete("/usuario/me").cookie(cookieAna())).andExpect(status().isNoContent());
+
+        verify(sseRegistry).enviar(bia.getId(), "notificacao", new ContagemDto(0));
+        verify(sseRegistry, never()).enviar(eq(ana.getId()), eq("notificacao"), any());
     }
 
     @Test
