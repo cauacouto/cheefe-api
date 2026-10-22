@@ -92,6 +92,7 @@ class AgendamentoServiceTest {
 
     @BeforeEach
     void setUp() {
+        usuario.setId(USUARIO_ID);
         endereco.setId(1L);
         when(usuarioRepository.findById(USUARIO_ID)).thenReturn(Optional.of(usuario));
         when(enderecoRepository.findByIdAndUsuario_Id(1L, USUARIO_ID)).thenReturn(Optional.of(endereco));
@@ -187,7 +188,7 @@ class AgendamentoServiceTest {
 
     @Test
     void atualizarAgendamentoDeOutroUsuarioDa404() {
-        when(agendamentoRepository.findByIdAndUsuario_Id(8L, USUARIO_ID)).thenReturn(Optional.empty());
+        when(agendamentoRepository.travarPorId(8L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.atualizarAgendamento(atualizacao(null, null, null, null, 5), 8L, USUARIO_ID))
                 .isInstanceOf(AgendamentoException.class);
@@ -257,13 +258,14 @@ class AgendamentoServiceTest {
         void agendaExistente() {
             agenda = new Agendamento();
             agenda.setId(7L);
+            agenda.setUsuario(usuario);
             agenda.setEndereco(endereco);
             agenda.setChefes(new ArrayList<>(List.of(chefeA)));
             agenda.setDataHoraInicial(DIA.withHour(18));
             agenda.setDataHoraFinal(DIA.withHour(20));
             agenda.setQuantidadePessoas(2);
             agenda.setValorTotal(new BigDecimal("200.00"));
-            when(agendamentoRepository.findByIdAndUsuario_Id(7L, USUARIO_ID)).thenReturn(Optional.of(agenda));
+            when(agendamentoRepository.travarPorId(7L)).thenReturn(Optional.of(agenda));
         }
 
         @Test
@@ -373,7 +375,7 @@ class AgendamentoServiceTest {
             agenda = new Agendamento();
             agenda.setId(9L);
             agenda.setChefes(new ArrayList<>(List.of(chefeA, chefeB)));
-            when(agendamentoRepository.findById(9L)).thenReturn(Optional.of(agenda));
+            when(agendamentoRepository.travarPorId(9L)).thenReturn(Optional.of(agenda));
         }
 
         @Test

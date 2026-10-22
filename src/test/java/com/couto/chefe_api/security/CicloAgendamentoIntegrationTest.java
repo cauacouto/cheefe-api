@@ -282,6 +282,75 @@ class CicloAgendamentoIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    void doisCancelamentosAoMesmoTempoUmPassaSemHistoricoNemAvisoDuplicado() throws Exception {
+        UserModel ana = novoCliente("Ana");
+        Agendamento a = novoAgendamento(ana, BASE, novoChefe("Bia"));
+        Cookie cliente = cookieDe(ana);
+
+        List<Integer> status = emParalelo(List.of(
+                () -> acao(cliente, a, "cancelar", null).andReturn().getResponse().getStatus(),
+                () -> acao(cliente, a, "cancelar", null).andReturn().getResponse().getStatus()));
+
+        assertThat(status).containsExactlyInAnyOrder(200, 409);
+        assertThat(historicoRepository.findByAgendamento_IdOrderByOcorridoEmAscIdAsc(a.getId()))
+                .filteredOn(l -> l.getAcao() == AcaoAgendamento.CANCELADO).hasSize(1);
+        assertThat(notificacaoRepository.findAll()).filteredOn(n -> n.getEvento().name().equals("AGENDAMENTO_CANCELADO")).hasSize(1);
+    }
+
+    @Test
+    void cancelarEConfirmarAoMesmoTempoTerminaConsistente() throws Exception {
+        UserModel ana = novoCliente("Ana");
+        ChefeModel bia = novoChefe("Bia");
+        Agendamento a = novoAgendamento(ana, BASE, bia);
+        Cookie cliente = cookieDe(ana);
+        Cookie chef = cookieDe(bia);
+
+        List<Integer> status = emParalelo(List.of(
+                () -> acao(cliente, a, "cancelar", null).andReturn().getResponse().getStatus(),
+                () -> mockMvc.perform(patch("/agendamentos/" + a.getId() + "/confirmar").cookie(chef))
+                        .andReturn().getResponse().getStatus()));
+
+        // as duas podem passar em sequência (confirmado com mais de 24h pode ser cancelado), mas o status
+        // final tem de ser o da última transição registrada, nunca um "cancelado" sobrescrito
+        List<AgendamentoHistorico> linhas = historicoRepository.findByAgendamento_IdOrderByOcorridoEmAscIdAsc(a.getId());
+        AcaoAgendamento ultima = linhas.get(linhas.size() - 1).getAcao();
+        assertThat(statusDe(a).name()).isEqualTo(ultima.name());
+        assertThat(status).doesNotContain(500);
+    }
+
+    @Test
+    void doisChefsRecusandoAoMesmoTempoViraRecusado() throws Exception {
+        ChefeModel bia = novoChefe("Bia");
+        ChefeModel caio = novoChefe("Caio");
+        Agendamento a = novoAgendamento(novoCliente("Ana"), BASE, bia, caio);
+        Cookie deBia = cookieDe(bia);
+        Cookie deCaio = cookieDe(caio);
+
+        emParalelo(List.of(
+                () -> acao(deBia, a, "recusar", null).andReturn().getResponse().getStatus(),
+                () -> acao(deCaio, a, "recusar", null).andReturn().getResponse().getStatus()));
+
+        assertThat(statusDe(a)).isEqualTo(StatusAgendamento.RECUSADO);
+        assertThat(nomesDosChefes(a)).isEmpty();
+    }
+
+    @Test
+    void contaApagadaLevaOAvisoDeCancelamentoDoChefEOHistorico() throws Exception {
+        UserModel ana = novoCliente("Ana");
+        ChefeModel bia = novoChefe("Bia");
+        Agendamento a = novoAgendamento(ana, BASE, bia);
+        acao(cookieDe(ana), a, "cancelar", "{\"descricao\":\"texto pessoal da Ana\"}").andExpect(status().isOk());
+        assertThat(notificacaoRepository.countByDestinatarioIdAndLidaFalse(bia.getId())).isEqualTo(1);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/usuario/me")
+                .cookie(cookieDe(ana))).andExpect(status().isNoContent());
+
+        // LGPD: o aviso do chef cita o nome e o texto da Ana
+        assertThat(notificacaoRepository.countByDestinatarioIdAndLidaFalse(bia.getId())).isZero();
+        assertThat(historicoRepository.findByAgendamento_IdOrderByOcorridoEmAscIdAsc(a.getId())).isEmpty();
+    }
+
     private ResultActions acao(Cookie quem, Agendamento agendamento, String acao, String corpo) throws Exception {
         var pedido = patch("/agendamentos/" + agendamento.getId() + "/" + acao).cookie(quem);
         if (corpo != null) {

@@ -114,6 +114,21 @@ class AgendamentoConcorrenciaPostgresTest {
                 .filteredOn(a -> a.getStatus() == StatusAgendamento.CONFIRMADO).hasSize(1);
     }
 
+    @Test
+    void chefLeOHistoricoNoPostgres() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+        bia = novoChefe();
+        Agendamento agendamento = novoAgendamento(BASE);
+        agendamentos.add(agendamento);
+        Cookie chef = new Cookie(AuthCookies.ACCESS_TOKEN, tokenService.gerarToken(
+                new UsuarioAutenticado(bia.getId(), bia.getEmail(), TipoUsuario.CHEFE)));
+
+        // a leitura roda em transação somente leitura: no Postgres um FOR UPDATE ali é erro
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/agendamentos/" + agendamento.getId() + "/historico").cookie(chef))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+    }
+
     private Agendamento novoAgendamento(LocalDateTime inicio) {
         UserModel cliente = new UserModel();
         cliente.setNome("Cliente");

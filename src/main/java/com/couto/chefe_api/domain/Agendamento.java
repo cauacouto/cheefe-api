@@ -151,7 +151,7 @@ public class Agendamento  implements Serializable {
         return true;
     }
 
-    /** Soma do valor/hora dos chefs vezes a duração (em horas, 2 casas). */
+    /** Soma do valor/hora dos chefs vezes a duração, já em reais com 2 casas (o mesmo valor que vai para o banco). */
     public static BigDecimal calcularValor(List<ChefeModel> chefes, LocalDateTime inicio, LocalDateTime fim) {
         BigDecimal horas = BigDecimal.valueOf(ChronoUnit.MINUTES.between(inicio, fim))
                 .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
@@ -159,7 +159,8 @@ public class Agendamento  implements Serializable {
                 .map(ChefeModel::getValorHora)
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .multiply(horas);
+                .multiply(horas)
+                .setScale(2, RoundingMode.HALF_UP);
     }
 
     private boolean retirar(ChefeModel chefe, StatusAgendamento seNaoSobrarNinguem) {

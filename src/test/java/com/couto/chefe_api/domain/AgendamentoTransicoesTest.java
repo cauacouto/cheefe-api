@@ -164,6 +164,14 @@ class AgendamentoTransicoesTest {
         assertThat(semDatas(StatusAgendamento.PENDENTE).expirarPeloSistema(INICIO)).isFalse();
     }
 
+    @Test
+    void valorJaSaiComDuasCasasArredondadoParaCima() {
+        // 100,25 x 2,5h = 250,625: o mesmo valor na notificação e no banco (numeric(10,2))
+        BigDecimal valor = Agendamento.calcularValor(List.of(chefe("Bia", "100.25")), INICIO, INICIO.plusMinutes(150));
+
+        assertThat(valor).isEqualTo(new BigDecimal("250.63"));
+    }
+
     // ---------------------------------------------------------------------
 
     Agendamento agendamento(StatusAgendamento status, ChefeModel... chefes) {

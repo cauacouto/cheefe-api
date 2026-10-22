@@ -127,7 +127,8 @@ public class AgendamentoService {
     @Transactional
     public AgendamentoResponseDto atualizarAgendamento(AtualizarAgendamentoRequestDto dto, Long agendamentoId, UUID usuarioId) {
         // agendamento de outro cliente é tratado como inexistente
-        Agendamento agenda = agendamentoRepository.findByIdAndUsuario_Id(agendamentoId, usuarioId)
+        Agendamento agenda = agendamentoRepository.travarPorId(agendamentoId)
+                .filter(a -> a.getUsuario() != null && a.getUsuario().getId().equals(usuarioId))
                 .orElseThrow(AgendamentoException::new);
 
         if (agenda.getStatus() != StatusAgendamento.PENDENTE) {
@@ -173,7 +174,7 @@ public class AgendamentoService {
     @Transactional
     public void confirmarAgendamento(Long idAgendamento, UUID chefeId) {
         // só um chef do agendamento o enxerga; para os demais ele não existe
-        Agendamento agendamento = agendamentoRepository.findById(idAgendamento)
+        Agendamento agendamento = agendamentoRepository.travarPorId(idAgendamento)
                 .filter(a -> a.getChefes().stream().anyMatch(chefe -> chefe.getId().equals(chefeId)))
                 .orElseThrow(AgendamentoException::new);
         agendamento.getChefes().stream()
@@ -193,8 +194,9 @@ public class AgendamentoService {
 
     @Transactional
     public void cancelarAgendamento(Long id, UUID clienteId, CancelamentoRequestDto dto) {
-        // agendamento de outro cliente é tratado como inexistente
-        Agendamento agendamento = agendamentoRepository.findByIdAndUsuario_Id(id, clienteId)
+        // com trava, como toda ação que muda o agendamento; de outro cliente é tratado como inexistente
+        Agendamento agendamento = agendamentoRepository.travarPorId(id)
+                .filter(a -> a.getUsuario() != null && a.getUsuario().getId().equals(clienteId))
                 .orElseThrow(AgendamentoException::new);
         agendamento.cancelarPeloCliente(agora());
         MotivoAgendamento motivo = dto == null ? null : dto.motivo();
@@ -222,9 +224,7 @@ public class AgendamentoService {
     @Transactional
     public void concluirAgendamento(Long id, UUID chefeId) {
         // com trava: a rotina pode estar concluindo o mesmo agendamento agora
-        Agendamento agendamento = agendamentoRepository.travarPorId(id)
-                .filter(a -> a.getChefes().stream().anyMatch(chefe -> chefe.getId().equals(chefeId)))
-                .orElseThrow(AgendamentoException::new);
+        Agendamento agendamento = doChef(id, chefeId);
         chefeDoAgendamento(agendamento, chefeId);
         agendamento.concluirPeloChef(agora());
         historico.registrar(agendamento, AcaoAgendamento.CONCLUIDO, chefeId, TipoUsuario.CHEFE, null, null);
@@ -253,7 +253,10 @@ public class AgendamentoService {
     public List<HistoricoAgendamentoDto> historico(Long id, UsuarioAutenticado usuario) {
         Agendamento agendamento = switch (usuario.tipo()) {
             case CLIENTE -> agendamentoRepository.findByIdAndUsuario_Id(id, usuario.id()).orElseThrow(AgendamentoException::new);
-            case CHEFE -> doChef(id, usuario.id());
+            // leitura: sem trava (FOR UPDATE nem é permitido numa transação somente leitura no Postgres)
+            case CHEFE -> agendamentoRepository.findById(id)
+                    .filter(a -> a.getChefes().stream().anyMatch(chefe -> chefe.getId().equals(usuario.id())))
+                    .orElseThrow(AgendamentoException::new);
             case MODERADOR -> throw new AgendamentoException();
         };
         List<AgendamentoHistorico> linhas = historicoRepository.findByAgendamento_IdOrderByOcorridoEmAscIdAsc(agendamento.getId());
@@ -298,9 +301,12 @@ public class AgendamentoService {
                 motivo, descricao));
     }
 
-    /** Agendamento em que o chef está; para qualquer outro (inclusive quem já saiu dele) ele "não existe". */
+    /**
+     * Agendamento em que o chef está, com trava (duas ações ao mesmo tempo esperam uma pela outra em vez de
+     * sobrescrever); para qualquer outro (inclusive quem já saiu dele) ele "não existe".
+     */
     private Agendamento doChef(Long id, UUID chefeId) {
-        return agendamentoRepository.findById(id)
+        return agendamentoRepository.travarPorId(id)
                 .filter(a -> a.getChefes().stream().anyMatch(chefe -> chefe.getId().equals(chefeId)))
                 .orElseThrow(AgendamentoException::new);
     }

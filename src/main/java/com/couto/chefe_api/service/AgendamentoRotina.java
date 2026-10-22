@@ -22,7 +22,8 @@ public class AgendamentoRotina {
     private final AgendamentoService agendamentoService;
     private final Clock clock;
 
-    @Scheduled(fixedDelayString = "PT15M", initialDelayString = "PT1M")
+    /** A cada 15 min por padrão; "-" desliga (perfil de teste: os testes chamam processar() direto). */
+    @Scheduled(cron = "${chefhome.rotina.cron:0 */15 * * * *}")
     public void processar() {
         LocalDateTime agora = LocalDateTime.now(clock);
         for (Long id : agendamentoRepository.idsParaConcluir(agora)) {

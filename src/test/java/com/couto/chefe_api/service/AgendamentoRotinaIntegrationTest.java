@@ -95,6 +95,15 @@ class AgendamentoRotinaIntegrationTest {
         chefeRepository.deleteAll();
     }
 
+    @Autowired List<org.springframework.scheduling.config.ScheduledTaskHolder> agendadores;
+
+    @Test
+    void nosTestesARotinaNaoRodaSozinha() {
+        // ela mexeria em agendamentos de outros testes no meio da execução (CI intermitente)
+        assertThat(agendadores.stream().flatMap(h -> h.getScheduledTasks().stream()).map(Object::toString))
+                .doesNotContain(AgendamentoRotina.class.getName() + ".processar");
+    }
+
     @Test
     void concluiOsConfirmadosQueJaTerminaramEExpiraOsPendentesQueJaComecaram() {
         LocalDateTime agora = LocalDateTime.now();
