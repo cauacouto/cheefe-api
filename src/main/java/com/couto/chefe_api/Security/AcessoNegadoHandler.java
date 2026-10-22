@@ -27,12 +27,14 @@ public class AcessoNegadoHandler implements AccessDeniedHandler {
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response,
                        AccessDeniedException accessDeniedException) throws IOException {
-        HttpStatus status = HttpStatus.FORBIDDEN;
+        // a área de moderação não se revela: para quem não é moderador ela "não existe"
+        boolean areaDeModeracao = request.getRequestURI().startsWith("/moderacao");
+        HttpStatus status = areaDeModeracao ? HttpStatus.NOT_FOUND : HttpStatus.FORBIDDEN;
         Map<String, Object> corpo = new LinkedHashMap<>();
         corpo.put("type", "about:blank");
         corpo.put("title", status.getReasonPhrase());
         corpo.put("status", status.value());
-        corpo.put("detail", DETALHE);
+        corpo.put("detail", areaDeModeracao ? "recurso não encontrado" : DETALHE);
         corpo.put("instance", request.getRequestURI());
 
         response.setStatus(status.value());

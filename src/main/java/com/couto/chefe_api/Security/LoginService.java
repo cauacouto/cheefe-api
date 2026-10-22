@@ -30,12 +30,19 @@ public class LoginService {
     private final TokenService tokenService;
     private final ChefeMapper chefeMapper;
     private final ChefeRepository chefeRepository;
+    private final ModeracaoRegistry moderacaoRegistry;
 
 
     public LoginResult loginGoogle(GoogleUser googleUser) {
+        // moderação vem da configuração, nunca do banco; é checada antes de qualquer conta
+        if (moderacaoRegistry.ehModerador(googleUser.email())) {
+            UsuarioAutenticado moderador = new UsuarioAutenticado(
+                    moderacaoRegistry.idDe(googleUser.email()), googleUser.email(), TipoUsuario.MODERADOR);
+            return new LoginResult(tokenService.gerarToken(moderador), null, TipoUsuario.MODERADOR);
+        }
         return buscarConta(googleUser.email())
-                .map(conta -> new LoginResult(tokenService.gerarToken(conta), null))
-                .orElseGet(() -> new LoginResult(null, tokenService.gerarTokenRegistro(googleUser)));
+                .map(conta -> new LoginResult(tokenService.gerarToken(conta), null, conta.tipo()))
+                .orElseGet(() -> new LoginResult(null, tokenService.gerarTokenRegistro(googleUser), null));
     }
 
     /**
@@ -47,6 +54,9 @@ public class LoginService {
             case CHEFE -> chefeRepository.findById(usuario.id())
                     .map(chefe -> Boolean.TRUE.equals(chefe.getAtivo()))
                     .orElse(false);
+            // removido de MODERACAO_EMAILS → sessão deixa de valer
+            case MODERADOR -> moderacaoRegistry.ehModerador(usuario.email())
+                    && moderacaoRegistry.idDe(usuario.email()).equals(usuario.id());
         };
     }
 
@@ -67,6 +77,7 @@ public class LoginService {
         return switch (dto.getTipoUsuario()) {
             case CLIENTE -> registerUsuario(dto, googleUser.email(), googleUser.foto());
             case CHEFE -> registerChefe(dto, googleUser.email(), googleUser.foto());
+            case MODERADOR -> throw new RegraDeNegocioException("tipo de usuário inválido");
         };
     }
 

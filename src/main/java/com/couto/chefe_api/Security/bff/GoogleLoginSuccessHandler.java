@@ -5,6 +5,7 @@ import com.couto.chefe_api.Excepitons.ContaInativaException;
 import com.couto.chefe_api.Security.AuthCookies;
 import com.couto.chefe_api.Security.GoogleUser;
 import com.couto.chefe_api.Security.LoginService;
+import com.couto.chefe_api.enums.TipoUsuario;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -62,7 +63,7 @@ public class GoogleLoginSuccessHandler implements AuthenticationSuccessHandler {
 
         if (result.accessToken() != null) {
             authCookies.adicionar(response, authCookies.accessToken(result.accessToken()));
-            response.sendRedirect(frontUrl + "/");
+            response.sendRedirect(frontUrl + (result.tipo() == TipoUsuario.MODERADOR ? "/moderacao" : "/"));
         } else {
             authCookies.adicionar(response, authCookies.registroToken(result.registroToken()));
             response.sendRedirect(frontUrl + "/cadastro");

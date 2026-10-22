@@ -33,6 +33,9 @@ storage:
 jwt:
   key: teste
 
+moderacao:
+  emails: moderacao@chefhome.test
+
 app:
   front-url: http://localhost:5173
 

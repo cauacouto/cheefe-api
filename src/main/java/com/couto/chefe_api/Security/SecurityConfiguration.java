@@ -31,6 +31,7 @@ public class SecurityConfiguration  {
     private static final String AUTHORIZATION_BASE_URI = "/oauth2/authorization";
     private static final String CLIENTE = TipoUsuario.CLIENTE.name();
     private static final String CHEFE = TipoUsuario.CHEFE.name();
+    private static final String MODERADOR = TipoUsuario.MODERADOR.name();
 
     private final SecurityFilter securityFilter;
     private final CookieOAuth2AuthorizationRequestRepository authorizationRequestRepository;
@@ -51,6 +52,7 @@ public class SecurityConfiguration  {
                         .requestMatchers("/auth/**", "/oauth2/**", "/login/oauth2/**", "/error", "/enderecos/cep/**").permitAll()
                         .requestMatchers("/favicon.ico").permitAll()
                         // papel por rota; o dono do recurso é checado nos serviços
+                        .requestMatchers("/moderacao/**").hasRole(MODERADOR)
                         .requestMatchers("/usuario/**").hasRole(CLIENTE)
                         .requestMatchers(HttpMethod.POST, "/agendamentos").hasRole(CLIENTE)
                         .requestMatchers(HttpMethod.PUT, "/agendamentos/*").hasRole(CLIENTE)

@@ -5,6 +5,7 @@ import com.couto.chefe_api.Excepitons.ContaInativaException;
 import com.couto.chefe_api.Security.AuthCookies;
 import com.couto.chefe_api.Security.GoogleUser;
 import com.couto.chefe_api.Security.LoginService;
+import com.couto.chefe_api.enums.TipoUsuario;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -38,7 +39,7 @@ class GoogleLoginSuccessHandlerTest {
 
     @Test
     void contaExistenteGravaAccessTokenERedirecionaParaRaiz() throws Exception {
-        when(loginService.loginGoogle(any())).thenReturn(new LoginResult("jwt", null));
+        when(loginService.loginGoogle(any())).thenReturn(new LoginResult("jwt", null, TipoUsuario.CLIENTE));
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         handler.onAuthenticationSuccess(new MockHttpServletRequest(), response, autenticacao(true));
@@ -49,7 +50,7 @@ class GoogleLoginSuccessHandlerTest {
 
     @Test
     void contaNovaGravaRegistroERedirecionaParaCadastro() throws Exception {
-        when(loginService.loginGoogle(any())).thenReturn(new LoginResult(null, "reg"));
+        when(loginService.loginGoogle(any())).thenReturn(new LoginResult(null, "reg", null));
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         handler.onAuthenticationSuccess(new MockHttpServletRequest(), response, autenticacao(true));
@@ -60,7 +61,7 @@ class GoogleLoginSuccessHandlerTest {
 
     @Test
     void emailEhNormalizado() throws Exception {
-        when(loginService.loginGoogle(any())).thenReturn(new LoginResult("jwt", null));
+        when(loginService.loginGoogle(any())).thenReturn(new LoginResult("jwt", null, TipoUsuario.CLIENTE));
 
         handler.onAuthenticationSuccess(new MockHttpServletRequest(), new MockHttpServletResponse(), autenticacao(true));
 
@@ -103,13 +104,24 @@ class GoogleLoginSuccessHandlerTest {
 
     @Test
     void frontUrlComBarraFinalNaoGeraBarraDupla() throws Exception {
-        when(loginService.loginGoogle(any())).thenReturn(new LoginResult(null, "reg"));
+        when(loginService.loginGoogle(any())).thenReturn(new LoginResult(null, "reg", null));
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         new GoogleLoginSuccessHandler(loginService, new AuthCookies(false), FRONT + "/")
                 .onAuthenticationSuccess(new MockHttpServletRequest(), response, autenticacao(true));
 
         assertEquals(FRONT + "/cadastro", response.getRedirectedUrl());
+    }
+
+    @Test
+    void moderadorVaiParaModeracao() throws Exception {
+        when(loginService.loginGoogle(any())).thenReturn(new LoginResult("jwt", null, TipoUsuario.MODERADOR));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        handler.onAuthenticationSuccess(new MockHttpServletRequest(), response, autenticacao(true));
+
+        assertEquals(FRONT + "/moderacao", response.getRedirectedUrl());
+        assertTrue(response.getHeaders("Set-Cookie").stream().anyMatch(c -> c.startsWith("accessToken=jwt")));
     }
 
     @Test

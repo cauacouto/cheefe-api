@@ -27,6 +27,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -55,7 +56,8 @@ class LoginServiceTest {
                 Mappers.getMapper(UsuarioMapper.class),
                 tokenService,
                 Mappers.getMapper(ChefeMapper.class),
-                chefeRepository
+                chefeRepository,
+                new ModeracaoRegistry("moderacao@chefhome.test")
         );
         when(usuarioRepository.findByEmailIgnoreCase(any())).thenReturn(Optional.empty());
         when(chefeRepository.findByEmailIgnoreCase(any())).thenReturn(Optional.empty());
@@ -109,6 +111,35 @@ class LoginServiceTest {
         when(chefeRepository.findByEmailIgnoreCase(EMAIL)).thenReturn(Optional.of(chefe));
 
         assertThrows(ContaInativaException.class, () -> loginService.loginGoogle(googleUser));
+    }
+
+    @Test
+    void emailDeModeradorRecebeTokenModerador() {
+        UserModel conta = new UserModel();
+        conta.setId(UUID.randomUUID());
+        conta.setEmail("moderacao@chefhome.test");
+        when(usuarioRepository.findByEmailIgnoreCase("moderacao@chefhome.test")).thenReturn(Optional.of(conta));
+
+        LoginResult result = loginService.loginGoogle(new GoogleUser("moderacao@chefhome.test", "Mod", null));
+
+        assertEquals(TipoUsuario.MODERADOR, result.tipo());
+        UsuarioAutenticado autenticado = tokenService.validarToken(result.accessToken()).orElseThrow();
+        assertEquals(TipoUsuario.MODERADOR, autenticado.tipo());
+        assertEquals(new ModeracaoRegistry("moderacao@chefhome.test").idDe("moderacao@chefhome.test"), autenticado.id());
+    }
+
+    @Test
+    void registerComTipoModeradorDa400() {
+        assertThrows(RegraDeNegocioException.class,
+                () -> loginService.register(dto(TipoUsuario.MODERADOR, null), tokenRegistro()));
+    }
+
+    @Test
+    void contaAtivaDeModerador() {
+        UUID id = new ModeracaoRegistry("moderacao@chefhome.test").idDe("moderacao@chefhome.test");
+
+        assertTrue(loginService.contaAtiva(new UsuarioAutenticado(id, "moderacao@chefhome.test", TipoUsuario.MODERADOR)));
+        assertFalse(loginService.contaAtiva(new UsuarioAutenticado(id, "ex-moderador@x.com", TipoUsuario.MODERADOR)));
     }
 
     @Test
