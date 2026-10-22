@@ -1,0 +1,17 @@
+# Só o necessário para o build entra no contexto do Docker
+.git
+.github
+.idea
+.vscode
+.claude
+.superpowers
+docs
+target
+db/docker
+*.md
+*.iml
+*.mv.db
+*.trace.db
+# segredos locais: nunca entram na imagem
+.env
+.env.*
