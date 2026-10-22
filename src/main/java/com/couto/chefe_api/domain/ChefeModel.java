@@ -13,6 +13,7 @@ import lombok.Setter;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Entity
@@ -56,6 +57,11 @@ private Boolean ativo = true;
     @Column(nullable = false)
     @ColumnDefault("false")
     private boolean suspenso;
+
+    /** Bloqueio automático (ódio ou ameaça): a conta não opera até a moderação reverter. */
+    private LocalDateTime bloqueadoEm;
+
+    private String bloqueioMotivo;
     private String idiomas;
 
     private String imageUrl;

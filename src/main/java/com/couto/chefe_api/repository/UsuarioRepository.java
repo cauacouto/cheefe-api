@@ -15,6 +15,8 @@ public interface UsuarioRepository extends JpaRepository<UserModel, UUID> {
 
     Optional<UserModel> findByEmailIgnoreCase(String email);
 
+    boolean existsByIdAndBloqueadoEmIsNotNull(UUID id);
+
 
 
 

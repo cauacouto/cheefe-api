@@ -17,6 +17,8 @@ public interface UsuarioMapper {
     @Mapping(target = "imageUrl", ignore = true)
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "agendamento", ignore = true)
+    @Mapping(target = "bloqueadoEm", ignore = true)
+    @Mapping(target = "bloqueioMotivo", ignore = true)
     // onboarding mínimo: o telefone entra depois, no PUT /usuario/me
     @Mapping(target = "telefone", ignore = true)
     UserModel toEntity(RegisterRequestDto dto);

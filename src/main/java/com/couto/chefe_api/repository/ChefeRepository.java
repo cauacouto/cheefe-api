@@ -21,6 +21,8 @@ public interface ChefeRepository extends JpaRepository<ChefeModel, UUID>, JpaSpe
 
     Optional<ChefeModel> findByEmailIgnoreCase(String email);
 
+    boolean existsByIdAndBloqueadoEmIsNotNull(UUID id);
+
     // visível = ativo, disponível, perfil completo, não suspenso e < 3 denunciantes com denúncia aberta
     String VISIVEL = "c.ativo = true AND c.disponivel = true " +
             "AND TRIM(COALESCE(c.nacionalidade, '')) <> '' AND c.especialidade IS NOT NULL " +

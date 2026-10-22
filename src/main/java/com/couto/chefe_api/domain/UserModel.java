@@ -11,6 +11,7 @@ import lombok.Setter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
@@ -39,6 +40,11 @@ public  class UserModel {
 
     @OneToMany(mappedBy = "usuario", cascade = CascadeType.ALL)
     private List<Agendamento> agendamento;
+
+    /** Bloqueio automático (ódio ou ameaça): a conta não opera até a moderação reverter. */
+    private LocalDateTime bloqueadoEm;
+
+    private String bloqueioMotivo;
 }
 
 

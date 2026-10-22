@@ -23,6 +23,8 @@ public interface ChefeMapper {
     @Mapping(target = "disponivel", ignore = true)
     @Mapping(target = "ativo", ignore = true)
     @Mapping(target = "suspenso", ignore = true)
+    @Mapping(target = "bloqueadoEm", ignore = true)
+    @Mapping(target = "bloqueioMotivo", ignore = true)
     ChefeModel toModel(RegisterRequestDto dto);
 
 @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
@@ -35,6 +37,8 @@ public interface ChefeMapper {
     @Mapping(target = "disponivel", ignore = true)
     @Mapping(target = "ativo", ignore = true)
     @Mapping(target = "suspenso", ignore = true)
+    @Mapping(target = "bloqueadoEm", ignore = true)
+    @Mapping(target = "bloqueioMotivo", ignore = true)
     void updateModelFromDto(ChefeRequestDto dto, @MappingTarget ChefeModel model);
 
 

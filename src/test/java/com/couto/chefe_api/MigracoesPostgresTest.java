@@ -233,6 +233,11 @@ class MigracoesPostgresTest {
         assertCheckDeTexto("denuncia_mensagem", "autor_tipo", com.couto.chefe_api.enums.TipoUsuario.values());
         assertCheckDeTexto("agendamentos", "status", com.couto.chefe_api.enums.StatusAgendamento.values());
         assertCheckDeTexto("endereco", "tipo_de_residencia", TipoDeResidencia.values());
+        assertCheckDeTexto("bloqueio_conta", "categoria", java.util.List.of(
+                com.couto.chefe_api.enums.CategoriaConteudo.ODIO.name(), com.couto.chefe_api.enums.CategoriaConteudo.AMEACA.name()));
+        assertCheckDeTexto("bloqueio_conta", "status", com.couto.chefe_api.enums.StatusBloqueio.values());
+        assertCheckDeTexto("bloqueio_conta", "conta_tipo",
+                java.util.List.of(com.couto.chefe_api.enums.TipoUsuario.CLIENTE.name(), com.couto.chefe_api.enums.TipoUsuario.CHEFE.name()));
         assertCheckDeTexto("agendamento_historico", "acao", com.couto.chefe_api.enums.AcaoAgendamento.values());
         assertCheckDeTexto("agendamento_historico", "autor_tipo",
                 java.util.List.of(com.couto.chefe_api.enums.TipoUsuario.CLIENTE.name(), com.couto.chefe_api.enums.TipoUsuario.CHEFE.name()));
