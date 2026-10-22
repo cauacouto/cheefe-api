@@ -1,5 +1,7 @@
 package com.couto.chefe_api.repository;
 
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
 import com.couto.chefe_api.domain.Agendamento;
 import org.springframework.data.domain.Page;
@@ -22,6 +24,19 @@ public interface AgendamentoRepository extends JpaRepository<Agendamento,Long> {
 
     @Query("SELECT a.id FROM Agendamento a WHERE a.usuario.id = :clienteId")
     List<Long> idsDoCliente(@Param("clienteId") UUID clienteId);
+
+    @Query("SELECT a.id FROM Agendamento a WHERE a.status = com.couto.chefe_api.enums.StatusAgendamento.CONFIRMADO "
+            + "AND a.dataHoraFinal <= :agora")
+    List<Long> idsParaConcluir(@Param("agora") LocalDateTime agora);
+
+    @Query("SELECT a.id FROM Agendamento a WHERE a.status = com.couto.chefe_api.enums.StatusAgendamento.PENDENTE "
+            + "AND a.dataHoraInicial <= :agora")
+    List<Long> idsParaExpirar(@Param("agora") LocalDateTime agora);
+
+    /** SELECT ... FOR UPDATE: a rotina e o chef não concluem o mesmo agendamento ao mesmo tempo. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Agendamento a WHERE a.id = :id")
+    Optional<Agendamento> travarPorId(@Param("id") Long id);
 
     /** Intervalos semiabertos: um que termina às 20h não conflita com outro que começa às 20h. */
     @Query("SELECT COUNT(a) > 0 FROM Agendamento a JOIN a.chefes c WHERE c.id = :chefeId "

@@ -1,5 +1,6 @@
 package com.couto.chefe_api.service;
 
+import com.couto.chefe_api.service.eventos.AgendamentoExpiradoEvent;
 import java.util.stream.Collectors;
 import java.util.Map;
 import java.util.HashMap;
@@ -219,10 +220,31 @@ public class AgendamentoService {
 
     @Transactional
     public void concluirAgendamento(Long id, UUID chefeId) {
-        Agendamento agendamento = doChef(id, chefeId);
+        // com trava: a rotina pode estar concluindo o mesmo agendamento agora
+        Agendamento agendamento = agendamentoRepository.travarPorId(id)
+                .filter(a -> a.getChefes().stream().anyMatch(chefe -> chefe.getId().equals(chefeId)))
+                .orElseThrow(AgendamentoException::new);
         chefeDoAgendamento(agendamento, chefeId);
         agendamento.concluirPeloChef(agora());
         historico.registrar(agendamento, AcaoAgendamento.CONCLUIDO, chefeId, TipoUsuario.CHEFE, null, null);
+    }
+
+    /** Rotina: relê com trava e só registra se a conclusão ainda se aplicava (rodar duas vezes não duplica). */
+    @Transactional
+    public void concluirPeloSistema(Long id) {
+        agendamentoRepository.travarPorId(id)
+                .filter(agendamento -> agendamento.concluirPeloSistema(agora()))
+                .ifPresent(agendamento -> historico.registrar(agendamento, AcaoAgendamento.CONCLUIDO, null, null, null, null));
+    }
+
+    @Transactional
+    public void expirarPeloSistema(Long id) {
+        agendamentoRepository.travarPorId(id)
+                .filter(agendamento -> agendamento.expirarPeloSistema(agora()))
+                .ifPresent(agendamento -> {
+                    historico.registrar(agendamento, AcaoAgendamento.EXPIRADO, null, null, null, null);
+                    eventPublisher.publishEvent(new AgendamentoExpiradoEvent(agendamento.getId()));
+                });
     }
 
     /** Linha do tempo: só o cliente dono ou um chef que ainda está no agendamento. */
