@@ -1,0 +1,80 @@
+# Lista inicial de termos moderados (revisar com o dono do produto).
+# Termos sem acento e em minusculas; a comparacao ignora acentos, caixa e pontuacao.
+# ofensa: o trecho e mascarado com *** e a mensagem segue normalmente.
+# odio e ameaca: a mensagem/avaliacao e recusada e a conta e bloqueada.
+# Em "ameaca" usar so expressoes inequivocas, para nao pegar linguagem de cozinha.
+ofensa:
+  - idiota
+  - imbecil
+  - babaca
+  - otario
+  - burro
+  - estupido
+  - retardado
+  - lixo
+  - merda
+  - porcaria
+  - caralho
+  - porra
+  - puta
+  - puta que pariu
+  - filho da puta
+  - fdp
+  - vagabundo
+  - vagabunda
+  - cretino
+  - desgracado
+  - arrombado
+  - cuzao
+  - vai se foder
+  - vai tomar no cu
+  - vai a merda
+odio:
+  - macaco
+  - macaca
+  - preto imundo
+  - negro imundo
+  - judeu imundo
+  - nordestino imundo
+  - gentalha
+  - sapatao
+  - bicha nojenta
+  - viado nojento
+  - traveco
+  - nazista
+  - heil hitler
+  - morte aos gays
+  - morte aos negros
+  - morte aos judeus
+  - volta pra senzala
+  - volta para senzala
+  - raca inferior
+ameaca:
+  - vou te matar
+  - vou matar voce
+  - vou te pegar
+  - vou te achar
+  - vou te encontrar
+  - vou acabar com voce
+  - vou acabar com a sua vida
+  - vou quebrar a sua cara
+  - vou te bater
+  - vou te esfaquear
+  - vou te espancar
+  - vou te cacar
+  - vou atras de voce
+  - te mato
+  - te pego
+  - voce vai morrer
+  - voce vai se arrepender
+  - vou incendiar sua casa
+  - vou queimar sua casa
+  - sei onde voce mora
+  - sei onde voce trabalha
+  - vou ai te matar
+  - quero te ver morto
+  - quero te ver morta
+  - merece morrer
+  - vou explodir
+  - vou dar um tiro
+  - vou te dar um tiro
