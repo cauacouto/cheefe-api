@@ -1,5 +1,8 @@
 package com.couto.chefe_api.Controller;
 
+import org.springframework.data.web.PageableDefault;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Page;
 import com.couto.chefe_api.Dtos.AgendamentoResponseDto;
 import com.couto.chefe_api.Dtos.AgendamentoResquestDto;
 import com.couto.chefe_api.Dtos.AtualizarAgendamentoRequestDto;
@@ -30,8 +33,9 @@ public class AgendamentoController {
     }
 
     @GetMapping("/meus")
-    public ResponseEntity<List<ListaAgendamentoUsuarioDto>> meus(@AuthenticationPrincipal UsuarioAutenticado cliente) {
-        return ResponseEntity.ok(service.listarAgendamentosUsuario(cliente.id()));
+    public ResponseEntity<Page<ListaAgendamentoUsuarioDto>> meus(@PageableDefault(size = 20) Pageable pageable,
+                                                                 @AuthenticationPrincipal UsuarioAutenticado cliente) {
+        return ResponseEntity.ok(service.listarAgendamentosUsuario(cliente.id(), pageable));
     }
 
     @PutMapping("/{id}")
@@ -42,8 +46,9 @@ public class AgendamentoController {
     }
 
     @GetMapping("/recebidos")
-    public ResponseEntity<List<ListaAgendamentoChefeDto>> recebidos(@AuthenticationPrincipal UsuarioAutenticado chefe) {
-        return ResponseEntity.ok(service.listarAgendamentosChefe(chefe.id()));
+    public ResponseEntity<Page<ListaAgendamentoChefeDto>> recebidos(@PageableDefault(size = 20) Pageable pageable,
+                                                                    @AuthenticationPrincipal UsuarioAutenticado chefe) {
+        return ResponseEntity.ok(service.listarAgendamentosChefe(chefe.id(), pageable));
     }
 
     @PatchMapping("/{id}/confirmar")

@@ -325,9 +325,9 @@ class AutorizacaoIntegrationTest {
 
         mockMvc.perform(get("/agendamentos/meus").cookie(cookieDe(ana)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].id").value(daAna.getId()))
-                .andExpect(jsonPath("$[0].dataHora").isNotEmpty());
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(daAna.getId()))
+                .andExpect(jsonPath("$.content[0].dataHora").isNotEmpty());
     }
 
     @Test
@@ -338,10 +338,10 @@ class AutorizacaoIntegrationTest {
 
         mockMvc.perform(get("/agendamentos/meus").cookie(cookieDe(ana)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].status").value("PENDENTE"));
+                .andExpect(jsonPath("$.content[0].status").value("PENDENTE"));
         mockMvc.perform(get("/agendamentos/recebidos").cookie(cookieDe(x)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].status").value("PENDENTE"));
+                .andExpect(jsonPath("$.content[0].status").value("PENDENTE"));
     }
 
     @Test
@@ -397,9 +397,9 @@ class AutorizacaoIntegrationTest {
 
         mockMvc.perform(get("/agendamentos/recebidos").cookie(cookieDe(x)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].id").value(deX.getId()))
-                .andExpect(jsonPath("$[0].dataHora").isNotEmpty());
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(deX.getId()))
+                .andExpect(jsonPath("$.content[0].dataHora").isNotEmpty());
     }
 
     EnderecoModel novoEndereco(UserModel dono) {

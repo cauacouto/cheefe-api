@@ -14,5 +14,6 @@ public class UserResponseDto {
     private String email;
     private List<EnderecoResponseDto> endereco;
     private String telefone;
+    private String imageUrl;
 }
 

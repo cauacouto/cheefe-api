@@ -1,5 +1,8 @@
 package com.couto.chefe_api.Services;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Page;
 import com.couto.chefe_api.Dtos.AgendamentoResponseDto;
 import com.couto.chefe_api.Dtos.AgendamentoResquestDto;
 import com.couto.chefe_api.Dtos.AtualizarAgendamentoRequestDto;
@@ -47,6 +50,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class agendamentoService {
 
+    static final int TAMANHO_MAXIMO_PAGINA = 50;
+
     private final UsuarioRepository usuarioRepository;
     private final ChefeRepository chefeRepository;
     private final AgendamentoMapper agendamentoMapper;
@@ -77,13 +82,19 @@ public class agendamentoService {
     }
 
     @Transactional(readOnly = true)
-    public List<ListaAgendamentoChefeDto> listarAgendamentosChefe(UUID chefeId) {
-        return agendamentoMapper.toListChefe(agendamentoRepository.findAllByChefe(chefeId));
+    public Page<ListaAgendamentoChefeDto> listarAgendamentosChefe(UUID chefeId, Pageable pageable) {
+        return agendamentoRepository.findRecebidos(chefeId, pagina(pageable)).map(agendamentoMapper::toChefeDto);
     }
 
     @Transactional(readOnly = true)
-    public List<ListaAgendamentoUsuarioDto> listarAgendamentosUsuario(UUID usuarioId) {
-        return agendamentoMapper.toListUser(agendamentoRepository.findAllByUsuario_Id(usuarioId));
+    public Page<ListaAgendamentoUsuarioDto> listarAgendamentosUsuario(UUID usuarioId, Pageable pageable) {
+        return agendamentoRepository.findByUsuario_IdOrderByDataHoraInicialDescIdDesc(usuarioId, pagina(pageable))
+                .map(agendamentoMapper::toUsuarioDto);
+    }
+
+    /** A ordem é sempre a do repositório (data mais distante primeiro); a vinda do cliente é ignorada. */
+    private static PageRequest pagina(Pageable pageable) {
+        return PageRequest.of(pageable.getPageNumber(), Math.max(1, Math.min(pageable.getPageSize(), TAMANHO_MAXIMO_PAGINA)));
     }
 
     /**

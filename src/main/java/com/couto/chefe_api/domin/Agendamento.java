@@ -3,6 +3,7 @@ package com.couto.chefe_api.domin;
 import com.couto.chefe_api.User.UserModel;
 import com.couto.chefe_api.enums.StatusAgendamento;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import org.hibernate.annotations.BatchSize;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -34,7 +35,9 @@ public class Agendamento  implements Serializable {
     @JoinColumn(name = "user_id")
     private UserModel usuario;
 
+    // listas paginadas: os chefs de todos os agendamentos da página vêm numa query só
     @ManyToMany
+    @BatchSize(size = 50)
     @JoinTable(
             name = "agedamento_chefe",
             joinColumns = @JoinColumn(name = "agendamento_id"),
@@ -42,7 +45,7 @@ public class Agendamento  implements Serializable {
     )
     private List<ChefeModel> chefes;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "endereco_id")
     private EnderecoModel endereco;
 

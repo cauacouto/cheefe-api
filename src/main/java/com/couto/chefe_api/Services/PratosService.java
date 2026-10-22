@@ -1,5 +1,8 @@
 package com.couto.chefe_api.Services;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Page;
 import com.couto.chefe_api.Dtos.CadastraPratosDtoRequest;
 import com.couto.chefe_api.Dtos.CadastratPratosDtoResponse;
 import com.couto.chefe_api.Dtos.ListarPratosChefes;
@@ -23,6 +26,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PratosService {
 
+    static final int TAMANHO_MAXIMO_PAGINA = 50;
+
     private final PatrosRepository patrosRepository;
     private final PratosMapper pratosMapper;
     private final ChefeRepository chefeRepository;
@@ -42,15 +47,23 @@ public class PratosService {
         return pratosMapper.toDto(salvo);
     }
 
+    /** Vitrine: só pratos de chefs visíveis (pausado, suspenso, banido ou ocultado por denúncias não aparece). */
     @Transactional(readOnly = true)
-    public List<ListarPratosChefes> listaPratos(UUID chefeId) {
-        List<Pratos> pratos = chefeId != null
-                ? patrosRepository.findByChefeModelId(chefeId)
-                : patrosRepository.findAll();
-        return pratos
-                .stream()
-                .map(pratosMapper::toDtoLista)
-                .toList();
+    public Page<ListarPratosChefes> listarVisiveis(Pageable pageable) {
+        PageRequest pagina = PageRequest.of(pageable.getPageNumber(),
+                Math.max(1, Math.min(pageable.getPageSize(), TAMANHO_MAXIMO_PAGINA)));
+        return patrosRepository.findVisiveis(pagina).map(pratosMapper::toDtoLista);
+    }
+
+    /** Cardápio de um chef: vazio se ele não está visível, igual a um chef que não existe. */
+    @Transactional(readOnly = true)
+    public List<ListarPratosChefes> listarDoChefe(UUID chefeId) {
+        return patrosRepository.findVisiveisDoChefe(chefeId).stream().map(pratosMapper::toDtoLista).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ListarPratosChefes> listarMeus(UUID chefeId) {
+        return patrosRepository.findByChefeModelId(chefeId).stream().map(pratosMapper::toDtoLista).toList();
     }
 
     @Transactional
