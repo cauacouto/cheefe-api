@@ -48,6 +48,20 @@ public class ConversaController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.enviar(id, usuario, dto.texto()));
     }
 
+    @PatchMapping("/{id}/mensagens/{mensagemId}")
+    public ResponseEntity<MensagemDto> editar(@PathVariable Long id, @PathVariable Long mensagemId,
+                                              @Valid @RequestBody EnviarMensagemDto dto,
+                                              @AuthenticationPrincipal UsuarioAutenticado usuario) {
+        return ResponseEntity.ok(service.editar(id, mensagemId, usuario, dto.texto()));
+    }
+
+    @DeleteMapping("/{id}/mensagens/{mensagemId}")
+    public ResponseEntity<Void> apagar(@PathVariable Long id, @PathVariable Long mensagemId,
+                                       @AuthenticationPrincipal UsuarioAutenticado usuario) {
+        service.apagar(id, mensagemId, usuario);
+        return ResponseEntity.noContent().build();
+    }
+
     @PatchMapping("/{id}/lidas")
     public ResponseEntity<Void> marcarLidas(@PathVariable Long id, @AuthenticationPrincipal UsuarioAutenticado usuario) {
         service.marcarLidas(id, usuario);

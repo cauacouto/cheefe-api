@@ -3,10 +3,13 @@ package com.couto.chefe_api.Services;
 import com.couto.chefe_api.Dtos.ConversaDto;
 import com.couto.chefe_api.Dtos.MensagemDto;
 import com.couto.chefe_api.Excepitons.ChefeNaoEncontradoException;
+import com.couto.chefe_api.Excepitons.ConflitoException;
 import com.couto.chefe_api.Excepitons.RecursoNaoEncontradoException;
 import com.couto.chefe_api.Excepitons.RegraDeNegocioException;
 import com.couto.chefe_api.Excepitons.UsuarioException;
 import com.couto.chefe_api.Security.UsuarioAutenticado;
+import com.couto.chefe_api.Services.eventos.MensagemApagadaEvent;
+import com.couto.chefe_api.Services.eventos.MensagemEditadaEvent;
 import com.couto.chefe_api.Services.eventos.MensagemEnviadaEvent;
 import com.couto.chefe_api.Services.eventos.MensagensLidasEvent;
 import com.couto.chefe_api.User.UserModel;
@@ -26,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -37,6 +41,7 @@ public class ChatService {
 
     static final int TAMANHO_MAXIMO_PAGINA = 100;
     static final int TAMANHO_PREVIA = 100;
+    static final Duration PRAZO_EDICAO = Duration.ofMinutes(15);
 
     private final ConversaRepository conversaRepository;
     private final MensagemRepository mensagemRepository;
@@ -90,10 +95,7 @@ public class ChatService {
         Conversa conversa = doParticipante(conversaId, usuario);
         // chef apagado/banido: ninguém escreve mais nessa conversa (o histórico continua visível)
         conversa.getChefe().exigirAtivo();
-        String normalizado = texto == null ? "" : texto.strip();
-        if (normalizado.isEmpty()) {
-            throw new RegraDeNegocioException("A mensagem não pode ficar em branco");
-        }
+        String normalizado = normalizar(texto);
 
         LocalDateTime agora = LocalDateTime.now(clock);
         Mensagem mensagem = new Mensagem();
@@ -108,6 +110,34 @@ public class ChatService {
         notificarDestinatario(conversa, usuario);
         eventPublisher.publishEvent(new MensagemEnviadaEvent(salva.getId()));
         return MensagemDto.de(salva, usuario.id());
+    }
+
+    /** Só o autor, até 15 minutos depois do envio. */
+    @Transactional
+    public MensagemDto editar(Long conversaId, Long mensagemId, UsuarioAutenticado usuario, String texto) {
+        Mensagem mensagem = doAutor(conversaId, mensagemId, usuario);
+        if (mensagem.isApagada()) {
+            throw new ConflitoException("Mensagem apagada não pode ser editada");
+        }
+        LocalDateTime agora = LocalDateTime.now(clock);
+        if (agora.isAfter(mensagem.getEnviadaEm().plus(PRAZO_EDICAO))) {
+            throw new ConflitoException("O prazo para editar a mensagem (15 minutos) já passou");
+        }
+        mensagem.setTexto(normalizar(texto));
+        mensagem.setEditadaEm(agora);
+        eventPublisher.publishEvent(new MensagemEditadaEvent(mensagem.getId()));
+        return MensagemDto.de(mensagem, usuario.id());
+    }
+
+    /** Só o autor, a qualquer momento; o texto fica guardado (prova para denúncias). Apagar de novo não faz nada. */
+    @Transactional
+    public void apagar(Long conversaId, Long mensagemId, UsuarioAutenticado usuario) {
+        Mensagem mensagem = doAutor(conversaId, mensagemId, usuario);
+        if (mensagem.isApagada()) {
+            return;
+        }
+        mensagem.setApagadaEm(LocalDateTime.now(clock));
+        eventPublisher.publishEvent(new MensagemApagadaEvent(conversaId, mensagem.getId()));
     }
 
     @Transactional
@@ -141,6 +171,22 @@ public class ChatService {
         return conversaRepository.findById(conversaId)
                 .filter(c -> participa(c, usuario))
                 .orElseThrow(() -> new RecursoNaoEncontradoException("conversa não encontrada"));
+    }
+
+    /** Mensagem da conversa escrita pelo usuário; mensagem dos outros, para ele, "não existe". */
+    private Mensagem doAutor(Long conversaId, Long mensagemId, UsuarioAutenticado usuario) {
+        Conversa conversa = doParticipante(conversaId, usuario);
+        return mensagemRepository.findByIdAndConversa_Id(mensagemId, conversa.getId())
+                .filter(m -> m.getRemetenteId().equals(usuario.id()))
+                .orElseThrow(() -> new RecursoNaoEncontradoException("mensagem não encontrada"));
+    }
+
+    private static String normalizar(String texto) {
+        String normalizado = texto == null ? "" : texto.strip();
+        if (normalizado.isEmpty()) {
+            throw new RegraDeNegocioException("A mensagem não pode ficar em branco");
+        }
+        return normalizado;
     }
 
     static boolean participa(Conversa conversa, UsuarioAutenticado usuario) {

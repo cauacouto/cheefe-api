@@ -31,6 +31,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -169,6 +170,38 @@ class ConversaIntegrationTest {
 
         enviar(ana, conversa, "oi").andExpect(status().isForbidden());
         mockMvc.perform(get("/conversas/" + conversa + "/mensagens").cookie(cookie(ana))).andExpect(status().isOk());
+    }
+
+    @Test
+    void editarEApagarPelaApi() throws Exception {
+        long conversa = abrir(ana, bia).andReturnId();
+        long mensagem = new Resposta(enviar(ana, conversa, "oi")).andReturnId();
+
+        mockMvc.perform(patch("/conversas/" + conversa + "/mensagens/" + mensagem).cookie(cookie(ana))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"texto\":\"olá\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.texto").value("olá"))
+                .andExpect(jsonPath("$.editada").value(true));
+        mockMvc.perform(patch("/conversas/" + conversa + "/mensagens/" + mensagem).cookie(cookie(bia))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"texto\":\"invasão\"}"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(delete("/conversas/" + conversa + "/mensagens/" + mensagem).cookie(cookie(bia)))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(delete("/conversas/" + conversa + "/mensagens/" + mensagem).cookie(cookie(ana)))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(delete("/conversas/" + conversa + "/mensagens/" + mensagem).cookie(cookie(ana)))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/conversas/" + conversa + "/mensagens").cookie(cookie(bia)))
+                .andExpect(jsonPath("$[0].apagada").value(true))
+                .andExpect(jsonPath("$[0].texto").doesNotExist());
+        mockMvc.perform(get("/conversas").cookie(cookie(bia)))
+                .andExpect(jsonPath("$[0].ultimaMensagem.apagada").value(true))
+                .andExpect(jsonPath("$[0].ultimaMensagem.texto").doesNotExist());
+        mockMvc.perform(patch("/conversas/" + conversa + "/mensagens/" + mensagem).cookie(cookie(ana))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"texto\":\"volta\"}"))
+                .andExpect(status().isConflict());
+        assertThat(mensagemRepository.findById(mensagem).orElseThrow().getTexto()).isEqualTo("olá");
     }
 
     // ---------------------------------------------------------------------
