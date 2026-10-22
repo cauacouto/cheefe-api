@@ -124,6 +124,25 @@ unset SENHA_MIGRACAO SENHA_APP
 
 **Mudou uma entidade?** Crie `src/main/resources/db/migration/V{n}__descricao.sql` com o SQL equivalente. Migrations já aplicadas **nunca** são editadas. O teste `MigracoesPostgresTest` (Postgres real via Testcontainers; roda no CI e localmente com Docker ligado) falha se o schema não bater com as entidades ou se a API ganhar algum privilégio de DDL.
 
+### 🧪 Testes e CI
+
+```bash
+./mvnw clean test -Dspring.profiles.active=test
+```
+
+- A configuração de teste fica em `src/test/resources/application-test.yml` (H2 em memória, credenciais fictícias) e não entra no jar.
+- Com o **Docker ligado**, os testes também rodam num Postgres real (Testcontainers): migrations, privilégios do `chefhome_app` e concorrência do chat. Sem Docker eles são **pulados**, e pulado não conta como verificado.
+- A CI (`.github/workflows/rotinaCi.yml`) roda em todo push na `main`/`develop` e em todo Pull Request: build com os testes e uma varredura do histórico inteiro com o **gitleaks**, que falha se algum segredo for commitado.
+
+### 🐳 Imagem da API
+
+```bash
+docker build -t chefhome-api .
+docker run --rm -p 8080:8080 --env-file .env.api chefhome-api
+```
+
+A imagem roda só com a JRE e com um usuário sem privilégios; os testes não rodam no build (rodam na CI). Toda a configuração entra por variáveis de ambiente (tabela acima), num arquivo como o `.env.api` do exemplo, que **não** é versionado nem copiado para a imagem.
+
 ### 🔐 Login com Google (BFF)
 
 O login é conduzido pela própria API (Authorization Code + PKCE). O navegador nunca recebe tokens do Google, só cookies HttpOnly.
