@@ -5,7 +5,10 @@ import com.couto.chefe_api.Dtos.UserResponseDto;
 import com.couto.chefe_api.Excepitons.UsuarioException;
 import com.couto.chefe_api.Mapper.UsuarioMapper;
 import com.couto.chefe_api.domin.EnderecoModel;
+import com.couto.chefe_api.enums.EventoNotificacao;
+import com.couto.chefe_api.repositorys.AgendamentoRepository;
 import com.couto.chefe_api.repositorys.ConversaRepository;
+import com.couto.chefe_api.repositorys.NotificacaoRepository;
 import com.couto.chefe_api.repositorys.DenunciaMensagemRepository;
 import com.couto.chefe_api.repositorys.DenunciaRepository;
 import com.couto.chefe_api.repositorys.MensagemRepository;
@@ -15,7 +18,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -29,6 +34,8 @@ public class UsuarioService {
     private final DenunciaMensagemRepository denunciaMensagemRepository;
     private final MensagemRepository mensagemRepository;
     private final ConversaRepository conversaRepository;
+    private final NotificacaoRepository notificacaoRepository;
+    private final AgendamentoRepository agendamentoRepository;
 
     /**
      * Substitui os dados e a lista de endereços do usuário.
@@ -75,11 +82,33 @@ public class UsuarioService {
         UserModel user = repository.findById(usuarioId)
                 .orElseThrow(UsuarioException::new);
         // apagar a conta apaga os dados do cliente, inclusive as denúncias que ele fez (LGPD)
+        apagarNotificacoes(usuarioId);
         denunciaRepository.deleteByCliente_Id(usuarioId);
         // o chat do cliente vai junto (ordem das FKs): denúncias de mensagens, mensagens e conversas
         denunciaMensagemRepository.deleteByMensagem_Conversa_Cliente_Id(usuarioId);
         mensagemRepository.deleteByConversa_Cliente_Id(usuarioId);
         conversaRepository.deleteByCliente_Id(usuarioId);
         repository.delete(user);
+    }
+
+    /**
+     * As do cliente e as dos outros que apontam para dados dele (e muitas vezes citam o nome dele):
+     * pedidos de agendamento recebidos pelo chef, mensagens recebidas e denúncias que chegaram à moderação.
+     * Filtra pelo evento porque referenciaId de tipos diferentes pode coincidir (agendamento 5 x conversa 5).
+     */
+    private void apagarNotificacoes(UUID clienteId) {
+        notificacaoRepository.apagarDoDestinatario(clienteId);
+        apagarDasReferencias(EnumSet.of(EventoNotificacao.AGENDAMENTO_CRIADO, EventoNotificacao.AGENDAMENTO_EDITADO,
+                EventoNotificacao.AGENDAMENTO_CONFIRMADO), agendamentoRepository.idsDoCliente(clienteId));
+        apagarDasReferencias(EnumSet.of(EventoNotificacao.MENSAGEM_RECEBIDA), conversaRepository.idsDoCliente(clienteId));
+        apagarDasReferencias(EnumSet.of(EventoNotificacao.MENSAGEM_DENUNCIADA),
+                denunciaMensagemRepository.idsDasConversasDoCliente(clienteId));
+        apagarDasReferencias(EnumSet.of(EventoNotificacao.DENUNCIA_CRIADA), denunciaRepository.idsDoCliente(clienteId));
+    }
+
+    private void apagarDasReferencias(Set<EventoNotificacao> eventos, List<Long> ids) {
+        if (!ids.isEmpty()) {
+            notificacaoRepository.apagarDasReferencias(eventos, ids.stream().map(String::valueOf).toList());
+        }
     }
 }
