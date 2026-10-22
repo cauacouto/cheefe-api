@@ -8,5 +8,6 @@ public enum EventoNotificacao {
     CHEF_OCULTO,
     CHEF_SUSPENSO,
     CHEF_REATIVADO,
-    MENSAGEM_RECEBIDA
+    MENSAGEM_RECEBIDA,
+    MENSAGEM_DENUNCIADA
 }
