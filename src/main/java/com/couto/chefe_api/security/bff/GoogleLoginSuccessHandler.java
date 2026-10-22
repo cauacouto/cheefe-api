@@ -1,6 +1,7 @@
 package com.couto.chefe_api.security.bff;
 
 import com.couto.chefe_api.dto.LoginResult;
+import com.couto.chefe_api.exception.ContaBloqueadaException;
 import com.couto.chefe_api.exception.ContaInativaException;
 import com.couto.chefe_api.security.AuthCookies;
 import com.couto.chefe_api.security.GoogleUser;
@@ -53,6 +54,9 @@ public class GoogleLoginSuccessHandler implements AuthenticationSuccessHandler {
             result = loginService.loginGoogle(googleUser);
         } catch (ContaInativaException e) {
             response.sendRedirect(frontUrl + "/login?erro=conta-inativa");
+            return;
+        } catch (ContaBloqueadaException e) {
+            response.sendRedirect(frontUrl + "/login?erro=conta-bloqueada");
             return;
         } catch (RuntimeException e) {
             // ex.: banco fora do ar; o navegador está no meio do redirect, então volta ao front em vez de um JSON 500

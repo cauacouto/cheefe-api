@@ -20,6 +20,7 @@ public class SecurityFilter extends OncePerRequestFilter {
     private final TokenService tokenService;
     private final AuthCookies authCookies;
     private final ModeracaoRegistry moderacaoRegistry;
+    private final ContaBloqueioVerificador bloqueio;
 
     @Override
     protected void doFilterInternal(
@@ -31,6 +32,8 @@ public class SecurityFilter extends OncePerRequestFilter {
                 .flatMap(tokenService::validarToken)
                 // tirar alguém de MODERACAO_EMAILS derruba a sessão na hora, não só quando o token expira
                 .filter(usuario -> usuario.tipo() != TipoUsuario.MODERADOR || moderacaoRegistry.reconhece(usuario))
+                // bloquear a conta derruba a sessão aberta na requisição seguinte
+                .filter(usuario -> !bloqueio.bloqueada(usuario))
                 .ifPresent(usuario -> {
                     var authentication = new UsernamePasswordAuthenticationToken(usuario, null, usuario.getAuthorities());
                     SecurityContextHolder.getContext().setAuthentication(authentication);

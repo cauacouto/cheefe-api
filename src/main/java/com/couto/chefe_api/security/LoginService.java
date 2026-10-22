@@ -1,6 +1,7 @@
 package com.couto.chefe_api.security;
 
 import com.couto.chefe_api.dto.*;
+import com.couto.chefe_api.exception.ContaBloqueadaException;
 import com.couto.chefe_api.exception.EmailJaCadastradoException;
 import com.couto.chefe_api.exception.RegistroTokenInvalidoException;
 import com.couto.chefe_api.exception.RegraDeNegocioException;
@@ -31,6 +32,7 @@ public class LoginService {
     private final ChefeMapper chefeMapper;
     private final ChefeRepository chefeRepository;
     private final ModeracaoRegistry moderacaoRegistry;
+    private final ContaBloqueioVerificador bloqueio;
 
 
     public LoginResult loginGoogle(GoogleUser googleUser) {
@@ -41,6 +43,12 @@ public class LoginService {
             return new LoginResult(tokenService.gerarToken(moderador), null, TipoUsuario.MODERADOR);
         }
         return buscarConta(googleUser.email())
+                .map(conta -> {
+                    if (bloqueio.bloqueada(conta)) {
+                        throw new ContaBloqueadaException();
+                    }
+                    return conta;
+                })
                 .map(conta -> new LoginResult(tokenService.gerarToken(conta), null, conta.tipo()))
                 .orElseGet(() -> new LoginResult(null, tokenService.gerarTokenRegistro(googleUser), null));
     }

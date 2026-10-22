@@ -1,6 +1,7 @@
 package com.couto.chefe_api.security.bff;
 
 import com.couto.chefe_api.dto.LoginResult;
+import com.couto.chefe_api.exception.ContaBloqueadaException;
 import com.couto.chefe_api.exception.ContaInativaException;
 import com.couto.chefe_api.security.AuthCookies;
 import com.couto.chefe_api.security.GoogleUser;
@@ -77,6 +78,17 @@ class GoogleLoginSuccessHandlerTest {
         assertEquals(FRONT + "/login?erro=google", response.getRedirectedUrl());
         assertTrue(response.getHeaders("Set-Cookie").isEmpty());
         verify(loginService, never()).loginGoogle(any());
+    }
+
+    @Test
+    void contaBloqueadaRedirecionaParaErroSemCookies() throws Exception {
+        when(loginService.loginGoogle(any())).thenThrow(new ContaBloqueadaException());
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        handler.onAuthenticationSuccess(new MockHttpServletRequest(), response, autenticacao(true));
+
+        assertEquals(FRONT + "/login?erro=conta-bloqueada", response.getRedirectedUrl());
+        assertTrue(response.getHeaders("Set-Cookie").isEmpty());
     }
 
     @Test
