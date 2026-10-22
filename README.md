@@ -75,21 +75,30 @@ Mesmo que a API seja comprometida, ela não consegue criar, alterar ou apagar ta
 **Criar (ou recriar) o banco local:**
 
 ```bash
-# 1. banco novo (como superusuário postgres)
+# 0. senhas lidas sem eco e fora do histórico do shell
+read -rs -p "senha chefhome_migracao: " SENHA_MIGRACAO; echo
+read -rs -p "senha chefhome_app: " SENHA_APP; echo
+
+# 1. banco novo (como superusuário postgres) — ATENÇÃO: apaga TODOS os dados do banco chefe_api
 dropdb -U postgres --if-exists chefe_api && createdb -U postgres chefe_api
 
-# 2. usuários e schema (senhas só na linha de comando, nunca em arquivo versionado)
+# 2. usuários e schema (o script não registra senhas no log do servidor)
 psql -U postgres -d chefe_api -v ON_ERROR_STOP=1 \
-     -v senha_migracao='SENHA_MIGRACAO' -v senha_app='SENHA_APP' -v nome_banco=chefe_api \
+     -v senha_migracao="$SENHA_MIGRACAO" -v senha_app="$SENHA_APP" -v nome_banco=chefe_api \
      -f db/setup/01_usuarios.sql
 
 # 3. migrations (passo separado; a API nunca recebe esta senha)
+#    SEMPRE com FLYWAY_USER=chefhome_migracao: rodando como postgres, as tabelas novas nascem
+#    sem permissão para a API e ela passa a receber "permission denied".
 FLYWAY_URL=jdbc:postgresql://localhost:5432/chefe_api \
-FLYWAY_USER=chefhome_migracao FLYWAY_PASSWORD='SENHA_MIGRACAO' ./mvnw flyway:migrate
+FLYWAY_USER=chefhome_migracao FLYWAY_PASSWORD="$SENHA_MIGRACAO" ./mvnw flyway:migrate
 
 # 4. API com o usuário de aplicação
 #    DATABASE_URL=jdbc:postgresql://localhost:5432/chefe_api?currentSchema=chefhome
-#    DATABASE_USERNAME=chefhome_app   DATABASE_PASSWORD='SENHA_APP'
+#    DATABASE_USERNAME=chefhome_app   DATABASE_PASSWORD=<senha do app>
+#    e confira spring.jpa.hibernate.ddl-auto: validate também no SEU application-prod.yml:
+#    um "update" lá sobrescreve o validate e a API voltaria a tentar alterar o schema.
+unset SENHA_MIGRACAO SENHA_APP
 ```
 
 **Deploy:** rode `./mvnw flyway:migrate` (com as variáveis `FLYWAY_*`) **antes** de subir a nova versão da API. Se a migration falhar, a versão anterior continua no ar.

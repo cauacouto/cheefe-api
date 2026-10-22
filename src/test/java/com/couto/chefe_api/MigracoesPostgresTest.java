@@ -48,7 +48,9 @@ class MigracoesPostgresTest {
     static final String SENHA_APP = "app-teste";
     static final String SCRIPT_NO_CONTAINER = "/tmp/01_usuarios.sql";
 
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17-alpine");
+    // log_statement=all simula um servidor de produção com auditoria de comandos ligada
+    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17-alpine")
+            .withCommand("postgres", "-c", "fsync=off", "-c", "log_statement=all");
 
     @Autowired
     UsuarioRepository usuarioRepository;
@@ -147,6 +149,61 @@ class MigracoesPostgresTest {
             st.execute("INSERT INTO chefhome.futura (id) VALUES (1)");
             assertThat(st.executeQuery("SELECT count(*) FROM chefhome.futura").next()).isTrue();
         }
+    }
+
+    /**
+     * O validate do Hibernate não confere CHECKs: um valor novo num enum passaria nos testes e só
+     * falharia em produção no primeiro INSERT. Aqui cada CHECK da migration é comparado com o enum Java.
+     */
+    @Test
+    void checksDeEnumBatemComOsEnumsJava() throws SQLException {
+        assertCheckDeTexto("chefe", "especialidade", com.couto.chefe_api.enums.Especialidades.values());
+        assertCheckDeTexto("chefe", "senioridade", Senioridade.values());
+        assertCheckDeTexto("notificacao", "destinatario_tipo", com.couto.chefe_api.enums.TipoUsuario.values());
+        assertCheckDeTexto("notificacao", "evento", com.couto.chefe_api.enums.EventoNotificacao.values());
+        assertCheckDeTexto("denuncia", "motivo", com.couto.chefe_api.enums.MotivoDenuncia.values());
+        assertCheckDeTexto("denuncia", "status", com.couto.chefe_api.enums.StatusDenuncia.values());
+        assertCheckOrdinal("agendamentos", "status", com.couto.chefe_api.enums.StatusAgendamento.values().length);
+        assertCheckOrdinal("endereco", "tipo_de_residencia", TipoDeResidencia.values().length);
+    }
+
+    static String definicaoDoCheck(String tabela, String coluna) throws SQLException {
+        String sql = "SELECT pg_get_constraintdef(c.oid) FROM pg_constraint c "
+                + "JOIN pg_class t ON t.oid = c.conrelid JOIN pg_namespace n ON n.oid = t.relnamespace "
+                + "WHERE n.nspname = 'chefhome' AND t.relname = ? AND c.contype = 'c' "
+                + "AND pg_get_constraintdef(c.oid) LIKE ?";
+        try (Connection app = conectar("chefhome_app", SENHA_APP);
+             var st = app.prepareStatement(sql)) {
+            st.setString(1, tabela);
+            st.setString(2, "%" + coluna + "%");
+            var rs = st.executeQuery();
+            assertThat(rs.next()).as("CHECK de %s.%s", tabela, coluna).isTrue();
+            return rs.getString(1);
+        }
+    }
+
+    static void assertCheckDeTexto(String tabela, String coluna, Enum<?>[] valores) throws SQLException {
+        String definicao = definicaoDoCheck(tabela, coluna);
+        java.util.List<String> noBanco = new java.util.ArrayList<>();
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("'([A-Z_]+)'").matcher(definicao);
+        while (m.find()) {
+            noBanco.add(m.group(1));
+        }
+        assertThat(noBanco).as("CHECK de %s.%s: %s", tabela, coluna, definicao)
+                .containsExactlyInAnyOrderElementsOf(java.util.Arrays.stream(valores).map(Enum::name).toList());
+    }
+
+    static void assertCheckOrdinal(String tabela, String coluna, int quantidade) throws SQLException {
+        String definicao = definicaoDoCheck(tabela, coluna);
+        assertThat(definicao).as("CHECK de %s.%s", tabela, coluna)
+                .contains(">= 0").contains("<= " + (quantidade - 1));
+    }
+
+    @Test
+    void senhasNaoVaoParaOLogDoServidor() throws Exception {
+        rodarSetup();
+
+        assertThat(POSTGRES.getLogs()).doesNotContain(SENHA_MIGRACAO).doesNotContain(SENHA_APP);
     }
 
     @Test

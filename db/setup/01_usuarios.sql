@@ -11,10 +11,16 @@
 
 \set ON_ERROR_STOP on
 
-SELECT format('CREATE ROLE chefhome_migracao LOGIN PASSWORD %L', :'senha_migracao')
+-- nada desta sessão vai para o log do servidor, nem em caso de erro: senhas nunca aparecem em log,
+-- mesmo com log_statement=ddl/all ligado (comum em produção e em bancos gerenciados)
+SET log_statement = 'none';
+SET log_min_error_statement = 'panic';
+
+-- roles nascem sem senha; a senha é definida só no ALTER ROLE abaixo
+SELECT 'CREATE ROLE chefhome_migracao LOGIN'
 WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'chefhome_migracao') \gexec
 
-SELECT format('CREATE ROLE chefhome_app LOGIN PASSWORD %L', :'senha_app')
+SELECT 'CREATE ROLE chefhome_app LOGIN'
 WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'chefhome_app') \gexec
 
 -- reaplica atributos e senhas a cada execução (permite rotacionar senha rodando de novo)
