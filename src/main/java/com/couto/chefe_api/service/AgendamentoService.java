@@ -1,5 +1,8 @@
 package com.couto.chefe_api.service;
 
+import com.couto.chefe_api.service.eventos.ChefSaiuDoAgendamentoEvent;
+import com.couto.chefe_api.service.eventos.AgendamentoCanceladoEvent;
+import com.couto.chefe_api.enums.MotivoAgendamento;
 import java.time.Clock;
 import com.couto.chefe_api.enums.TipoUsuario;
 import com.couto.chefe_api.enums.AcaoAgendamento;
@@ -181,24 +184,26 @@ public class AgendamentoService {
         Agendamento agendamento = agendamentoRepository.findByIdAndUsuario_Id(id, clienteId)
                 .orElseThrow(AgendamentoException::new);
         agendamento.cancelarPeloCliente(agora());
-        historico.registrar(agendamento, AcaoAgendamento.CANCELADO, clienteId, TipoUsuario.CLIENTE,
-                dto == null ? null : dto.motivo(), dto == null ? null : dto.descricao());
+        MotivoAgendamento motivo = dto == null ? null : dto.motivo();
+        String descricao = dto == null ? null : dto.descricao();
+        historico.registrar(agendamento, AcaoAgendamento.CANCELADO, clienteId, TipoUsuario.CLIENTE, motivo, descricao);
+        eventPublisher.publishEvent(new AgendamentoCanceladoEvent(agendamento.getId(), motivo, descricao));
     }
 
     @Transactional
     public void recusarAgendamento(Long id, UUID chefeId, RecusaRequestDto dto) {
         Agendamento agendamento = doChef(id, chefeId);
-        agendamento.recusar(chefeDoAgendamento(agendamento, chefeId), agora());
-        historico.registrar(agendamento, AcaoAgendamento.RECUSADO, chefeId, TipoUsuario.CHEFE,
-                dto == null ? null : dto.motivo(), dto == null ? null : dto.descricao());
+        ChefeModel chefe = chefeDoAgendamento(agendamento, chefeId);
+        boolean restam = agendamento.recusar(chefe, agora());
+        sairDoAgendamento(agendamento, chefe, AcaoAgendamento.RECUSADO, true, restam, dto);
     }
 
     @Transactional
     public void desistirDoAgendamento(Long id, UUID chefeId, RecusaRequestDto dto) {
         Agendamento agendamento = doChef(id, chefeId);
-        agendamento.desistir(chefeDoAgendamento(agendamento, chefeId), agora());
-        historico.registrar(agendamento, AcaoAgendamento.DESISTENCIA, chefeId, TipoUsuario.CHEFE,
-                dto == null ? null : dto.motivo(), dto == null ? null : dto.descricao());
+        ChefeModel chefe = chefeDoAgendamento(agendamento, chefeId);
+        boolean restam = agendamento.desistir(chefe, agora());
+        sairDoAgendamento(agendamento, chefe, AcaoAgendamento.DESISTENCIA, false, restam, dto);
     }
 
     @Transactional
@@ -207,6 +212,15 @@ public class AgendamentoService {
         chefeDoAgendamento(agendamento, chefeId);
         agendamento.concluirPeloChef(agora());
         historico.registrar(agendamento, AcaoAgendamento.CONCLUIDO, chefeId, TipoUsuario.CHEFE, null, null);
+    }
+
+    private void sairDoAgendamento(Agendamento agendamento, ChefeModel chefe, AcaoAgendamento acao, boolean recusa,
+                                   boolean restam, RecusaRequestDto dto) {
+        MotivoAgendamento motivo = dto == null ? null : dto.motivo();
+        String descricao = dto == null ? null : dto.descricao();
+        historico.registrar(agendamento, acao, chefe.getId(), TipoUsuario.CHEFE, motivo, descricao);
+        eventPublisher.publishEvent(new ChefSaiuDoAgendamentoEvent(agendamento.getId(), chefe.getNome(), recusa, restam,
+                motivo, descricao));
     }
 
     /** Agendamento em que o chef está; para qualquer outro (inclusive quem já saiu dele) ele "não existe". */

@@ -46,6 +46,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -68,6 +69,7 @@ class CicloAgendamentoIntegrationTest {
     @Autowired AgendamentoRepository agendamentoRepository;
     @Autowired PratosRepository pratosRepository;
     @Autowired AgendamentoHistoricoRepository historicoRepository;
+    @Autowired com.couto.chefe_api.repository.NotificacaoRepository notificacaoRepository;
 
     MockMvc mockMvc;
 
@@ -78,6 +80,7 @@ class CicloAgendamentoIntegrationTest {
 
     @AfterEach
     void limparBanco() {
+        notificacaoRepository.deleteAll();
         agendamentoRepository.deleteAll();
         pratosRepository.deleteAll();
         enderecoRepository.deleteAll();
@@ -223,6 +226,21 @@ class CicloAgendamentoIntegrationTest {
                 .containsExactly(org.assertj.core.groups.Tuple.tuple(AcaoAgendamento.CRIADO, TipoUsuario.CLIENTE),
                         org.assertj.core.groups.Tuple.tuple(AcaoAgendamento.EDITADO, TipoUsuario.CLIENTE),
                         org.assertj.core.groups.Tuple.tuple(AcaoAgendamento.CONFIRMADO, TipoUsuario.CHEFE));
+    }
+
+    @Test
+    void recusaChegaComoNotificacaoParaOCliente() throws Exception {
+        UserModel ana = novoCliente("Ana");
+        ChefeModel bia = novoChefe("Bia");
+        Agendamento a = novoAgendamento(ana, BASE, bia);
+
+        acao(cookieDe(bia), a, "recusar", "{\"motivo\":\"AGENDA_INDISPONIVEL\"}").andExpect(status().isOk());
+
+        mockMvc.perform(get("/notificacoes").cookie(cookieDe(ana)))
+                .andExpect(jsonPath("$.content[0].evento").value("AGENDAMENTO_RECUSADO"))
+                .andExpect(jsonPath("$.content[0].referenciaId").value(String.valueOf(a.getId())))
+                .andExpect(jsonPath("$.content[0].mensagem").value(org.hamcrest.Matchers.endsWith(
+                        "foi recusado: Não tenho agenda nesse horário")));
     }
 
     private ResultActions acao(Cookie quem, Agendamento agendamento, String acao, String corpo) throws Exception {
