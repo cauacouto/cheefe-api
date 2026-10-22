@@ -34,6 +34,7 @@ public class AcaoModeracao {
 
     private UUID chefeId;
 
+    /** Id em denuncia ou, nas ações *_MENSAGEM, em denuncia_mensagem. */
     private Long denunciaId;
 
     @Column(nullable = false)

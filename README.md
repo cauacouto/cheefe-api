@@ -153,7 +153,8 @@ Toda identidade vem do cookie de sessão: nenhuma rota recebe id ou e-mail de qu
 |---|---|---|
 | Sessão | `GET /auth/me` | qualquer logado |
 | Notificações | `GET /notificacoes?somenteNaoLidas=`, `GET /notificacoes/nao-lidas/contagem`, `PATCH /notificacoes/{id}/lida`, `PATCH /notificacoes/lidas` (sempre só as próprias) | qualquer logado |
-| Usuário | `GET` · `PUT` · `DELETE /usuario/me` (o e-mail não é editável; o DELETE encerra a sessão); `PUT /usuario/me/foto` (multipart `foto`) | CLIENTE |
+| Tempo real | `GET /eventos` (SSE, `text/event-stream`; eventos `mensagem`, `mensagem_editada`, `mensagem_apagada`, `mensagens_lidas` e `notificacao`) | qualquer logado |
+| Usuário | `GET` · `PUT` · `DELETE /usuario/me` (o e-mail não é editável; o DELETE encerra a sessão e apaga também as conversas, mensagens e denúncias de mensagens do cliente); `PUT /usuario/me/foto` (multipart `foto`) | CLIENTE |
 | Endereços | `GET` · `POST /usuario/enderecos` | CLIENTE |
 | Chefs | `GET /chefe`, `GET /chefe/destaque` (só chefs ativos, disponíveis e com perfil completo) | qualquer logado |
 | Perfil do chef | `GET /chefe/me` (inclui `perfilCompleto` e `camposPendentes`); `PATCH /chefe/me`; `PUT /chefe/me/foto` (multipart `foto`); `PATCH /chefe/me/inativar` (pausa: some da busca e não recebe agendamentos novos) e `PATCH /chefe/me/ativar` (volta); `DELETE /chefe/me` (apaga a conta: não loga nem opera mais) | CHEFE |
@@ -162,4 +163,22 @@ Toda identidade vem do cookie de sessão: nenhuma rota recebe id ou e-mail de qu
 | Agendamentos do cliente | `POST /agendamentos` (endereço precisa ser do cliente), `GET /agendamentos/meus`, `PUT /agendamentos/{id}` (só `PENDENTE`) | CLIENTE |
 | Agendamentos do chef | `GET /agendamentos/recebidos`, `PATCH /agendamentos/{id}/confirmar` (só chef do agendamento, só `PENDENTE`) | CHEFE |
 | Denúncias | `POST /denuncias` (só de chef com quem teve agendamento confirmado e já ocorrido) | CLIENTE |
-| Moderação | `GET /moderacao/denuncias?status=`, `PATCH /moderacao/denuncias/{id}/arquivar`, `PATCH /moderacao/chefes/{id}/suspender`·`reativar`·`banir`, `GET /moderacao/acoes` (histórico: quem fez cada ação; no banco a API só insere nessa tabela, nunca altera nem apaga) (para quem não modera, a área responde 404) | MODERADOR |
+| Abrir conversa | `POST /conversas` `{chefeId}` (201 nova, 200 se já existe; só o cliente inicia) | CLIENTE |
+| Chat | `GET /conversas`; `GET /conversas/{id}/mensagens?antesDe=&size=` (mais novas primeiro, até 100); `POST /conversas/{id}/mensagens`; `PATCH /conversas/{id}/lidas` ("visto"); `PATCH /conversas/{id}/mensagens/{mid}` (só o autor, até 15 min); `DELETE /conversas/{id}/mensagens/{mid}` (só o autor); `POST /conversas/{id}/mensagens/{mid}/denuncias` `{motivo, descricao}` (só quem recebeu; motivos `OFENSIVA`, `ASSEDIO`, `SPAM`, `GOLPE`, `CONTEUDO_IMPROPRIO`, `OUTRO`). Com o chef apagado ou banido, o histórico continua visível, mas ninguém envia mais (403) | CLIENTE, CHEFE (participantes) |
+| Moderação | `GET /moderacao/denuncias?status=`, `PATCH /moderacao/denuncias/{id}/arquivar`, `PATCH /moderacao/chefes/{id}/suspender`·`reativar`·`banir`, `GET /moderacao/denuncias-mensagens?status=` (com o texto do momento da denúncia), `PATCH /moderacao/denuncias-mensagens/{id}/arquivar`·`remover-mensagem`, `GET /moderacao/acoes` (histórico: quem fez cada ação; no banco a API só insere nessa tabela, nunca altera nem apaga) (para quem não modera, a área responde 404) | MODERADOR |
+
+### 💬 Chat em tempo real (SSE)
+
+O front abre **uma** conexão por aba e recebe tudo por ela:
+
+```js
+const eventos = new EventSource(`${API}/eventos`, { withCredentials: true });
+eventos.addEventListener('mensagem', e => mostrar(JSON.parse(e.data)));      // MensagemDto (minha=true nas outras abas de quem enviou)
+eventos.addEventListener('mensagens_lidas', e => marcarVisto(JSON.parse(e.data))); // {conversaId, ateId, lidaEm}
+eventos.addEventListener('notificacao', e => atualizarSino(JSON.parse(e.data).total));
+```
+
+- Os eventos só saem **depois do commit**; se a entrega falhar (aba fechada, rede), a mensagem continua gravada e aparece no próximo `GET /conversas/{id}/mensagens`.
+- O servidor manda um `: ping` a cada 25 s e fecha a conexão depois de 30 min; o `EventSource` reconecta sozinho. Cada usuário tem no máximo 5 conexões abertas: a mais antiga recebe o evento `encerrada` e é fechada; nesse evento o front deve chamar `eventos.close()` (senão o navegador só tenta reconectar depois de 24 h).
+- Atrás de proxy (nginx), desligue o buffering de `/eventos` (`proxy_buffering off;`) para os eventos não chegarem atrasados.
+- **Limitação:** as conexões ficam na memória da instância. Com mais de uma instância da API, um usuário só recebe os eventos gerados na instância em que está conectado. Para escalar horizontalmente, é preciso um pub/sub entre instâncias (ex.: Redis ou `LISTEN/NOTIFY` do Postgres).

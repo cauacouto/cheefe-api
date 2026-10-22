@@ -6,7 +6,9 @@ import com.couto.chefe_api.domin.Notificacao;
 import com.couto.chefe_api.enums.EventoNotificacao;
 import com.couto.chefe_api.enums.TipoUsuario;
 import com.couto.chefe_api.repositorys.NotificacaoRepository;
+import com.couto.chefe_api.Services.eventos.NotificacaoCriadaEvent;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -19,6 +21,7 @@ import java.util.UUID;
 public class NotificacaoService {
 
     private final NotificacaoRepository repository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public Page<NotificacaoDto> listar(UUID destinatarioId, boolean somenteNaoLidas, Pageable pageable) {
@@ -46,6 +49,16 @@ public class NotificacaoService {
         repository.marcarTodasLidas(destinatarioId);
     }
 
+    @Transactional(readOnly = true)
+    public boolean existeNaoLida(UUID destinatarioId, EventoNotificacao evento, String referenciaId) {
+        return repository.existsByDestinatarioIdAndEventoAndReferenciaIdAndLidaFalse(destinatarioId, evento, referenciaId);
+    }
+
+    @Transactional
+    public void marcarLidasDaReferencia(UUID destinatarioId, EventoNotificacao evento, String referenciaId) {
+        repository.marcarLidasDaReferencia(destinatarioId, evento, referenciaId);
+    }
+
     @Transactional
     public void notificar(UUID destinatarioId, TipoUsuario tipo, EventoNotificacao evento, String mensagem, String referenciaId) {
         Notificacao notificacao = new Notificacao();
@@ -55,5 +68,6 @@ public class NotificacaoService {
         notificacao.setMensagem(mensagem);
         notificacao.setReferenciaId(referenciaId);
         repository.save(notificacao);
+        eventPublisher.publishEvent(new NotificacaoCriadaEvent(destinatarioId, repository.countByDestinatarioIdAndLidaFalse(destinatarioId)));
     }
 }

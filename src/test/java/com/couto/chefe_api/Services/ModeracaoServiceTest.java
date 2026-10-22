@@ -12,7 +12,14 @@ import com.couto.chefe_api.enums.EventoNotificacao;
 import com.couto.chefe_api.enums.StatusDenuncia;
 import com.couto.chefe_api.enums.TipoUsuario;
 import com.couto.chefe_api.repositorys.ChefeRepository;
+import com.couto.chefe_api.repositorys.DenunciaMensagemRepository;
 import com.couto.chefe_api.repositorys.DenunciaRepository;
+import com.couto.chefe_api.Services.eventos.MensagemApagadaEvent;
+import com.couto.chefe_api.User.UserModel;
+import com.couto.chefe_api.domin.Conversa;
+import com.couto.chefe_api.domin.DenunciaMensagem;
+import com.couto.chefe_api.domin.Mensagem;
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -37,7 +44,10 @@ class ModeracaoServiceTest {
     private final ChefeRepository chefeRepository = mock(ChefeRepository.class);
     private final NotificacaoService notificacaoService = mock(NotificacaoService.class);
     private final AcaoModeracaoRepository acaoRepository = mock(AcaoModeracaoRepository.class);
-    private final ModeracaoService service = new ModeracaoService(denunciaRepository, chefeRepository, notificacaoService, acaoRepository);
+    private final DenunciaMensagemRepository denunciaMensagemRepository = mock(DenunciaMensagemRepository.class);
+    private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
+    private final ModeracaoService service = new ModeracaoService(denunciaRepository, chefeRepository, notificacaoService,
+            acaoRepository, denunciaMensagemRepository, eventPublisher);
 
     private final ChefeModel chefe = new ChefeModel();
     private final Denuncia aberta = new Denuncia();
@@ -131,5 +141,76 @@ class ModeracaoServiceTest {
         assertThatThrownBy(() -> service.suspender(inexistente, MODERADOR)).isInstanceOf(ChefeNaoEncontradoException.class);
         assertThatThrownBy(() -> service.reativar(inexistente, MODERADOR)).isInstanceOf(ChefeNaoEncontradoException.class);
         assertThatThrownBy(() -> service.banir(inexistente, MODERADOR)).isInstanceOf(ChefeNaoEncontradoException.class);
+    }
+
+    @Test
+    void arquivarDenunciaDeMensagemRegistraAuditoria() {
+        DenunciaMensagem denuncia = denunciaDeMensagem(30L, mensagemNaConversa(10L, 1L));
+        when(denunciaMensagemRepository.findById(30L)).thenReturn(Optional.of(denuncia));
+
+        service.arquivarDenunciaMensagem(30L, MODERADOR);
+
+        assertThat(denuncia.getStatus()).isEqualTo(StatusDenuncia.ARQUIVADA);
+        assertThat(denuncia.getResolvidaPor()).isEqualTo(MODERADOR);
+        assertThat(denuncia.getMensagem().isApagada()).isFalse();
+        ArgumentCaptor<AcaoModeracao> captor = ArgumentCaptor.forClass(AcaoModeracao.class);
+        verify(acaoRepository).save(captor.capture());
+        assertThat(captor.getValue().getAcao()).isEqualTo(TipoAcaoModeracao.ARQUIVAR_DENUNCIA_MENSAGEM);
+        assertThat(captor.getValue().getDenunciaId()).isEqualTo(30L);
+    }
+
+    @Test
+    void removerMensagemFechaAsDenunciasAbertasDelaEAvisaOsParticipantes() {
+        Mensagem mensagem = mensagemNaConversa(10L, 1L);
+        DenunciaMensagem denuncia = denunciaDeMensagem(30L, mensagem);
+        DenunciaMensagem outra = denunciaDeMensagem(31L, mensagem);
+        when(denunciaMensagemRepository.findById(30L)).thenReturn(Optional.of(denuncia));
+        when(denunciaMensagemRepository.findByMensagem_IdAndStatus(10L, StatusDenuncia.ABERTA)).thenReturn(List.of(denuncia, outra));
+
+        service.removerMensagem(30L, MODERADOR);
+
+        assertThat(mensagem.isRemovidaPorModeracao()).isTrue();
+        assertThat(mensagem.getTexto()).isEqualTo("original");
+        assertThat(List.of(denuncia, outra)).allSatisfy(d -> assertThat(d.getStatus()).isEqualTo(StatusDenuncia.PROCEDENTE));
+        verify(eventPublisher).publishEvent(new MensagemApagadaEvent(1L, 10L, CLIENTE_ID, chefe.getId()));
+        ArgumentCaptor<AcaoModeracao> captor = ArgumentCaptor.forClass(AcaoModeracao.class);
+        verify(acaoRepository).save(captor.capture());
+        assertThat(captor.getValue().getAcao()).isEqualTo(TipoAcaoModeracao.REMOVER_MENSAGEM);
+        assertThat(captor.getValue().getDenunciaId()).isEqualTo(30L);
+    }
+
+    @Test
+    void denunciaDeMensagemJaResolvidaDa409ESemAuditoria() {
+        DenunciaMensagem denuncia = denunciaDeMensagem(30L, mensagemNaConversa(10L, 1L));
+        denuncia.setStatus(StatusDenuncia.ARQUIVADA);
+        when(denunciaMensagemRepository.findById(30L)).thenReturn(Optional.of(denuncia));
+
+        assertThatThrownBy(() -> service.arquivarDenunciaMensagem(30L, MODERADOR)).isInstanceOf(ConflitoException.class);
+        assertThatThrownBy(() -> service.removerMensagem(30L, MODERADOR)).isInstanceOf(ConflitoException.class);
+        verify(acaoRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    private static final UUID CLIENTE_ID = UUID.randomUUID();
+
+    private Mensagem mensagemNaConversa(Long mensagemId, Long conversaId) {
+        Conversa conversa = new Conversa();
+        conversa.setId(conversaId);
+        UserModel cliente = new UserModel();
+        cliente.setId(CLIENTE_ID);
+        conversa.setCliente(cliente);
+        conversa.setChefe(chefe);
+        Mensagem mensagem = new Mensagem();
+        mensagem.setId(mensagemId);
+        mensagem.setConversa(conversa);
+        mensagem.setTexto("original");
+        return mensagem;
+    }
+
+    private static DenunciaMensagem denunciaDeMensagem(Long id, Mensagem mensagem) {
+        DenunciaMensagem denuncia = new DenunciaMensagem();
+        denuncia.setId(id);
+        denuncia.setMensagem(mensagem);
+        return denuncia;
     }
 }

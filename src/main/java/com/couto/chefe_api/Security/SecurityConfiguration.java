@@ -5,6 +5,7 @@ import com.couto.chefe_api.Security.bff.GoogleLoginFailureHandler;
 import com.couto.chefe_api.Security.bff.GoogleLoginSuccessHandler;
 import com.couto.chefe_api.Security.bff.NaoArmazenarAuthorizedClientRepository;
 import com.couto.chefe_api.enums.TipoUsuario;
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -48,6 +49,9 @@ public class SecurityConfiguration  {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
+                        // o SSE continua no dispatch ASYNC, que não passa de novo pelo filtro do JWT;
+                        // a autorização já valeu na abertura do stream (GET /eventos)
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                         .requestMatchers("/auth/me").authenticated()
                         .requestMatchers("/auth/**", "/oauth2/**", "/login/oauth2/**", "/error", "/enderecos/cep/**").permitAll()
                         .requestMatchers("/favicon.ico").permitAll()
@@ -55,6 +59,8 @@ public class SecurityConfiguration  {
                         .requestMatchers("/moderacao/**").hasRole(MODERADOR)
                         .requestMatchers("/usuario/**").hasRole(CLIENTE)
                         .requestMatchers(HttpMethod.POST, "/denuncias").hasRole(CLIENTE)
+                        .requestMatchers(HttpMethod.POST, "/conversas").hasRole(CLIENTE)
+                        .requestMatchers("/conversas", "/conversas/**").hasAnyRole(CLIENTE, CHEFE)
                         .requestMatchers(HttpMethod.POST, "/agendamentos").hasRole(CLIENTE)
                         .requestMatchers(HttpMethod.PUT, "/agendamentos/*").hasRole(CLIENTE)
                         .requestMatchers(HttpMethod.GET, "/agendamentos/meus").hasRole(CLIENTE)

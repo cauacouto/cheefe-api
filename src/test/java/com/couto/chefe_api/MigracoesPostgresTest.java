@@ -178,6 +178,11 @@ class MigracoesPostgresTest {
         assertCheckDeTexto("denuncia", "motivo", com.couto.chefe_api.enums.MotivoDenuncia.values());
         assertCheckDeTexto("denuncia", "status", com.couto.chefe_api.enums.StatusDenuncia.values());
         assertCheckDeTexto("acao_moderacao", "acao", com.couto.chefe_api.enums.TipoAcaoModeracao.values());
+        assertCheckDeTexto("mensagem", "remetente_tipo", com.couto.chefe_api.enums.TipoUsuario.values());
+        assertCheckDeTexto("denuncia_mensagem", "motivo", com.couto.chefe_api.enums.MotivoDenunciaMensagem.values());
+        assertCheckDeTexto("denuncia_mensagem", "status", com.couto.chefe_api.enums.StatusDenuncia.values());
+        assertCheckDeTexto("denuncia_mensagem", "denunciante_tipo", com.couto.chefe_api.enums.TipoUsuario.values());
+        assertCheckDeTexto("denuncia_mensagem", "autor_tipo", com.couto.chefe_api.enums.TipoUsuario.values());
         assertCheckOrdinal("agendamentos", "status", com.couto.chefe_api.enums.StatusAgendamento.values().length);
         assertCheckOrdinal("endereco", "tipo_de_residencia", TipoDeResidencia.values().length);
     }
