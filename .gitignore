@@ -33,3 +33,6 @@ build/
 .vscode/
 
 src/main/resources/application.yml
+
+### Docker / segredos locais ###
+.env

@@ -1,0 +1,52 @@
+# Banco do ChefHome em Docker — o mesmo desenho vale para uma VPS.
+#   cp .env.example .env              (preencha as senhas)
+#   docker compose up -d postgres     (cria banco, schema e usuários na primeira subida)
+#   docker compose run --rm migracao  (aplica as migrations como chefhome_migracao)
+# A API conecta como chefhome_app em localhost:${CHEFHOME_PORTA:-5433}.
+name: chefhome
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: chefe_api
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      # lidas só pelo script de init (primeira subida), que repassa ao setup sem gravar em arquivo
+      CHEFHOME_SENHA_MIGRACAO: ${CHEFHOME_SENHA_MIGRACAO:?defina CHEFHOME_SENHA_MIGRACAO no .env}
+      CHEFHOME_SENHA_APP: ${CHEFHOME_SENHA_APP:?defina CHEFHOME_SENHA_APP no .env}
+    ports:
+      # só na interface local: o banco nunca fica exposto para a rede (em VPS, idem)
+      - "127.0.0.1:${CHEFHOME_PORTA:-5433}:5432"
+    volumes:
+      - chefhome-dados:/var/lib/postgresql/data
+      - ./db/setup:/db/setup:ro
+      - ./db/docker/10-usuarios.sh:/docker-entrypoint-initdb.d/10-usuarios.sh:ro
+    healthcheck:
+      # via TCP: durante o init o servidor temporário só escuta no socket, então só fica "healthy"
+      # depois que o setup terminou
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d chefe_api"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # passo separado de migração: roda e termina. A API nunca recebe esta senha.
+  migracao:
+    image: flyway/flyway:11.14.1-alpine
+    profiles: ["migracao"]
+    command: migrate
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/chefe_api
+      FLYWAY_USER: chefhome_migracao
+      FLYWAY_PASSWORD: ${CHEFHOME_SENHA_MIGRACAO:?defina CHEFHOME_SENHA_MIGRACAO no .env}
+      FLYWAY_SCHEMAS: chefhome
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+    volumes:
+      - ./src/main/resources/db/migration:/flyway/sql:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  chefhome-dados:

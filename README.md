@@ -72,36 +72,55 @@ O schema é versionado com **Flyway** (`src/main/resources/db/migration`) e fica
 
 Mesmo que a API seja comprometida, ela não consegue criar, alterar ou apagar tabelas, nem mexer no histórico de migrations.
 
-**Criar (ou recriar) o banco local:**
+#### Local com Docker (recomendado)
 
 ```bash
-# 0. senhas lidas sem eco e fora do histórico do shell
+cp .env.example .env              # preencha as 3 senhas (openssl rand -base64 24); .env não é versionado
+docker compose up -d postgres     # 1ª subida cria banco, schema chefhome e os dois usuários
+docker compose run --rm migracao  # aplica as migrations como chefhome_migracao (repita a cada V novo)
+```
+
+A API (IntelliJ) conecta em `jdbc:postgresql://localhost:5433/chefe_api?currentSchema=chefhome` com `DATABASE_USERNAME=chefhome_app` e `DATABASE_PASSWORD` = `CHEFHOME_SENHA_APP` do `.env`. A porta é **5433** para não conflitar com um Postgres instalado na máquina (`CHEFHOME_PORTA`). Para recomeçar do zero: `docker compose down -v` (**apaga todos os dados**).
+
+Confira `spring.jpa.hibernate.ddl-auto: validate` também no seu `application-prod.yml`: um `update` lá sobrescreve o `validate` e a API voltaria a tentar alterar o schema.
+
+#### Neon (ou outro Postgres gerenciado)
+
+Não há superusuário: rode o setup como o dono do banco (`neondb_owner`), que tem `CREATEROLE`. O script detecta o banco gerenciado e segue (só avisa que não pode desligar o log de comandos, que o provedor não expõe).
+
+```bash
 read -rs -p "senha chefhome_migracao: " SENHA_MIGRACAO; echo
 read -rs -p "senha chefhome_app: " SENHA_APP; echo
-
-# 1. banco novo (como superusuário postgres) — ATENÇÃO: apaga TODOS os dados do banco chefe_api
-dropdb -U postgres --if-exists chefe_api && createdb -U postgres chefe_api
-
-# 2. usuários e schema (o script não registra senhas no log do servidor)
-psql -U postgres -d chefe_api -v ON_ERROR_STOP=1 \
-     -v senha_migracao="$SENHA_MIGRACAO" -v senha_app="$SENHA_APP" -v nome_banco=chefe_api \
+psql "postgresql://neondb_owner@<host-do-neon>/neondb?sslmode=require" -v ON_ERROR_STOP=1 \
+     -v senha_migracao="$SENHA_MIGRACAO" -v senha_app="$SENHA_APP" -v nome_banco=neondb \
      -f db/setup/01_usuarios.sql
-
-# 3. migrations (passo separado; a API nunca recebe esta senha)
-#    SEMPRE com FLYWAY_USER=chefhome_migracao: rodando como postgres, as tabelas novas nascem
-#    sem permissão para a API e ela passa a receber "permission denied".
-FLYWAY_URL=jdbc:postgresql://localhost:5432/chefe_api \
+FLYWAY_URL="jdbc:postgresql://<host-do-neon>/neondb?sslmode=require" \
 FLYWAY_USER=chefhome_migracao FLYWAY_PASSWORD="$SENHA_MIGRACAO" ./mvnw flyway:migrate
-
-# 4. API com o usuário de aplicação
-#    DATABASE_URL=jdbc:postgresql://localhost:5432/chefe_api?currentSchema=chefhome
-#    DATABASE_USERNAME=chefhome_app   DATABASE_PASSWORD=<senha do app>
-#    e confira spring.jpa.hibernate.ddl-auto: validate também no SEU application-prod.yml:
-#    um "update" lá sobrescreve o validate e a API voltaria a tentar alterar o schema.
 unset SENHA_MIGRACAO SENHA_APP
 ```
 
-**Deploy:** rode `./mvnw flyway:migrate` (com as variáveis `FLYWAY_*`) **antes** de subir a nova versão da API. Se a migration falhar, a versão anterior continua no ar.
+API: `DATABASE_URL=jdbc:postgresql://<host-do-neon-pooler>/neondb?sslmode=require&currentSchema=chefhome`, usuário `chefhome_app`. Migrations usam o host **direto** (sem `-pooler`); a API pode usar o pooler.
+
+#### VPS
+
+O mesmo `docker-compose.yml`: senhas fortes no `.env` (permissão `600`), porta só em `127.0.0.1` (já é o padrão — **nunca** exponha a 5432 para a internet; a API na mesma máquina conecta localmente), e `docker compose run --rm migracao` como passo do deploy antes de subir a nova versão da API.
+
+#### Sem Docker (Postgres instalado)
+
+```bash
+read -rs -p "senha chefhome_migracao: " SENHA_MIGRACAO; echo
+read -rs -p "senha chefhome_app: " SENHA_APP; echo
+dropdb -U postgres --if-exists chefe_api && createdb -U postgres chefe_api   # ATENÇÃO: apaga os dados
+psql -U postgres -d chefe_api -v ON_ERROR_STOP=1 \
+     -v senha_migracao="$SENHA_MIGRACAO" -v senha_app="$SENHA_APP" -v nome_banco=chefe_api \
+     -f db/setup/01_usuarios.sql
+# SEMPRE com FLYWAY_USER=chefhome_migracao: rodando como postgres, as tabelas nascem sem permissão para a API
+FLYWAY_URL=jdbc:postgresql://localhost:5432/chefe_api \
+FLYWAY_USER=chefhome_migracao FLYWAY_PASSWORD="$SENHA_MIGRACAO" ./mvnw flyway:migrate
+unset SENHA_MIGRACAO SENHA_APP
+```
+
+**Deploy:** rode a migração (`docker compose run --rm migracao` ou `./mvnw flyway:migrate` com as variáveis `FLYWAY_*`) **antes** de subir a nova versão da API. Se a migration falhar, a versão anterior continua no ar.
 
 **Mudou uma entidade?** Crie `src/main/resources/db/migration/V{n}__descricao.sql` com o SQL equivalente. Migrations já aplicadas **nunca** são editadas. O teste `MigracoesPostgresTest` (Postgres real via Testcontainers; roda no CI e localmente com Docker ligado) falha se o schema não bater com as entidades ou se a API ganhar algum privilégio de DDL.
 
