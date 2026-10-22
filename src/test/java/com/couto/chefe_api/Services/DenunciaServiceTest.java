@@ -82,7 +82,7 @@ class DenunciaServiceTest {
 
     @Test
     void agendamentoPendenteDa404() {
-        agendamento.setStatus(StatusAgendamento.PENDENDE);
+        agendamento.setStatus(StatusAgendamento.PENDENTE);
 
         assertThatThrownBy(() -> service.criar(dto(), clienteId)).isInstanceOf(RecursoNaoEncontradoException.class);
     }

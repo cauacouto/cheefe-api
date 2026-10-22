@@ -56,7 +56,7 @@ public class Agendamento  implements Serializable {
     private BigDecimal valorTotal;
 
 
-    private StatusAgendamento status = StatusAgendamento.PENDENDE;
+    private StatusAgendamento status = StatusAgendamento.PENDENTE;
 
 
 

@@ -96,7 +96,7 @@ public class agendamentoService {
         Agendamento agenda = agendamentoRepository.findByIdAndUsuario_Id(agendamentoId, usuarioId)
                 .orElseThrow(AgendamentoException::new);
 
-        if (agenda.getStatus() != StatusAgendamento.PENDENDE) {
+        if (agenda.getStatus() != StatusAgendamento.PENDENTE) {
             throw new AgendamentoNaoEditavelException(agenda.getStatus());
         }
 
@@ -142,7 +142,7 @@ public class agendamentoService {
         agendamento.getChefes().stream()
                 .filter(chefe -> chefe.getId().equals(chefeId))
                 .forEach(ChefeModel::exigirAtivo);
-        if (agendamento.getStatus() != StatusAgendamento.PENDENDE) {
+        if (agendamento.getStatus() != StatusAgendamento.PENDENTE) {
             throw new AgendamentoNaoConfirmavelException(agendamento.getStatus());
         }
         agendamento.setStatus(StatusAgendamento.CONFIRMADO);
