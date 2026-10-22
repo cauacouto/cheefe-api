@@ -1,5 +1,6 @@
 package com.couto.chefe_api.Services;
 
+import com.couto.chefe_api.Excepitons.HorarioIndisponivelException;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Page;
@@ -76,6 +77,7 @@ public class agendamentoService {
         agendamento.setDataHoraFinal(dto.getDataHoraFinal());
         agendamento.setQuantidadePessoas(dto.getQuantidadePessoas());
         agendamento.setValorTotal(calcularValor(chefes, dto.getDataHoraInicial(), dto.getDataHoraFinal()));
+        exigirHorarioLivre(agendamento);
         Agendamento salvo = agendamentoRepository.save(agendamento);
         eventPublisher.publishEvent(new AgendamentoCriadoEvent(salvo.getId()));
         return agendamentoMapper.toDto(salvo);
@@ -137,6 +139,7 @@ public class agendamentoService {
 
         if (recalcular) {
             agenda.setValorTotal(calcularValor(agenda.getChefes(), agenda.getDataHoraInicial(), agenda.getDataHoraFinal()));
+            exigirHorarioLivre(agenda);
         }
 
         Agendamento salvo = agendamentoRepository.save(agenda);
@@ -156,9 +159,24 @@ public class agendamentoService {
         if (agendamento.getStatus() != StatusAgendamento.PENDENTE) {
             throw new AgendamentoNaoConfirmavelException(agendamento.getStatus());
         }
+        // confirmar vale para todos os chefs do agendamento: trava todos e confere a agenda de cada um
+        chefeRepository.travar(agendamento.getChefes().stream().map(ChefeModel::getId).toList());
+        exigirHorarioLivre(agendamento);
         agendamento.setStatus(StatusAgendamento.CONFIRMADO);
         agendamentoRepository.save(agendamento);
         eventPublisher.publishEvent(new AgendamentoConfirmadoEvent(agendamento.getId(), chefeId));
+    }
+
+    /** Só agendamento CONFIRMADO ocupa a agenda do chef; pedidos pendentes podem se sobrepor. */
+    private void exigirHorarioLivre(Agendamento agendamento) {
+        Long proprio = agendamento.getId() == null ? -1L : agendamento.getId();
+        agendamento.getChefes().stream()
+                .filter(chefe -> agendamentoRepository.existeConfirmadoSobreposto(chefe.getId(),
+                        agendamento.getDataHoraInicial(), agendamento.getDataHoraFinal(), proprio))
+                .findFirst()
+                .ifPresent(chefe -> {
+                    throw new HorarioIndisponivelException(chefe.getNome());
+                });
     }
 
     private EnderecoModel buscarEndereco(Long enderecoId, UUID usuarioId) {
