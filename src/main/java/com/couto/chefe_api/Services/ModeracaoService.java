@@ -1,22 +1,28 @@
 package com.couto.chefe_api.Services;
 
 import com.couto.chefe_api.Dtos.AcaoModeracaoDto;
+import com.couto.chefe_api.Dtos.DenunciaMensagemModeracaoDto;
 import com.couto.chefe_api.Dtos.DenunciaModeracaoDto;
 import com.couto.chefe_api.Excepitons.ChefeNaoEncontradoException;
 import com.couto.chefe_api.Excepitons.ConflitoException;
 import com.couto.chefe_api.Excepitons.RecursoNaoEncontradoException;
 import com.couto.chefe_api.domin.AcaoModeracao;
 import com.couto.chefe_api.domin.ChefeModel;
+import com.couto.chefe_api.Services.eventos.MensagemApagadaEvent;
 import com.couto.chefe_api.domin.Denuncia;
+import com.couto.chefe_api.domin.DenunciaMensagem;
+import com.couto.chefe_api.domin.Mensagem;
 import com.couto.chefe_api.enums.EventoNotificacao;
 import com.couto.chefe_api.enums.StatusDenuncia;
 import com.couto.chefe_api.enums.TipoAcaoModeracao;
 import com.couto.chefe_api.enums.TipoUsuario;
 import com.couto.chefe_api.repositorys.AcaoModeracaoRepository;
 import com.couto.chefe_api.repositorys.ChefeRepository;
+import com.couto.chefe_api.repositorys.DenunciaMensagemRepository;
 import com.couto.chefe_api.repositorys.DenunciaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -34,6 +40,8 @@ public class ModeracaoService {
     private final ChefeRepository chefeRepository;
     private final NotificacaoService notificacaoService;
     private final AcaoModeracaoRepository acaoModeracaoRepository;
+    private final DenunciaMensagemRepository denunciaMensagemRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public Page<DenunciaModeracaoDto> listar(StatusDenuncia status, Pageable pageable) {
@@ -78,6 +86,32 @@ public class ModeracaoService {
     }
 
     @Transactional(readOnly = true)
+    public Page<DenunciaMensagemModeracaoDto> listarDenunciasMensagens(StatusDenuncia status, Pageable pageable) {
+        return denunciaMensagemRepository.findByStatusOrderByCriadaEmAscIdAsc(status, pageable)
+                .map(DenunciaMensagemModeracaoDto::de);
+    }
+
+    @Transactional
+    public void arquivarDenunciaMensagem(Long denunciaId, String moderadorEmail) {
+        DenunciaMensagem denuncia = buscarDenunciaMensagemAberta(denunciaId);
+        resolver(denuncia, StatusDenuncia.ARQUIVADA, moderadorEmail);
+        registrar(moderadorEmail, TipoAcaoModeracao.ARQUIVAR_DENUNCIA_MENSAGEM, null, denunciaId);
+    }
+
+    /** Some para os dois participantes (o texto continua guardado); todas as denúncias abertas dela procedem. */
+    @Transactional
+    public void removerMensagem(Long denunciaId, String moderadorEmail) {
+        DenunciaMensagem denuncia = buscarDenunciaMensagemAberta(denunciaId);
+        Mensagem mensagem = denuncia.getMensagem();
+        mensagem.setRemovidaPorModeracao(true);
+        resolver(denuncia, StatusDenuncia.PROCEDENTE, moderadorEmail);
+        denunciaMensagemRepository.findByMensagem_IdAndStatus(mensagem.getId(), StatusDenuncia.ABERTA)
+                .forEach(outra -> resolver(outra, StatusDenuncia.PROCEDENTE, moderadorEmail));
+        registrar(moderadorEmail, TipoAcaoModeracao.REMOVER_MENSAGEM, null, denunciaId);
+        eventPublisher.publishEvent(new MensagemApagadaEvent(mensagem.getConversa().getId(), mensagem.getId()));
+    }
+
+    @Transactional(readOnly = true)
     public Page<AcaoModeracaoDto> historico(Pageable pageable) {
         return acaoModeracaoRepository.findAllByOrderByRealizadaEmDescIdDesc(pageable).map(AcaoModeracaoDto::de);
     }
@@ -102,6 +136,21 @@ public class ModeracaoService {
         denuncia.setStatus(status);
         denuncia.setResolvidaEm(LocalDateTime.now());
         denuncia.setResolvidaPor(moderadorEmail);
+    }
+
+    private static void resolver(DenunciaMensagem denuncia, StatusDenuncia status, String moderadorEmail) {
+        denuncia.setStatus(status);
+        denuncia.setResolvidaEm(LocalDateTime.now());
+        denuncia.setResolvidaPor(moderadorEmail);
+    }
+
+    private DenunciaMensagem buscarDenunciaMensagemAberta(Long denunciaId) {
+        DenunciaMensagem denuncia = denunciaMensagemRepository.findById(denunciaId)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("denúncia não encontrada"));
+        if (denuncia.getStatus() != StatusDenuncia.ABERTA) {
+            throw new ConflitoException("denúncia já resolvida");
+        }
+        return denuncia;
     }
 
     private void notificarChefe(ChefeModel chefe, EventoNotificacao evento, String mensagem) {

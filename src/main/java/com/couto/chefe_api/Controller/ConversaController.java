@@ -2,10 +2,13 @@ package com.couto.chefe_api.Controller;
 
 import com.couto.chefe_api.Dtos.AbrirConversaDto;
 import com.couto.chefe_api.Dtos.ConversaDto;
+import com.couto.chefe_api.Dtos.DenunciaCriadaDto;
+import com.couto.chefe_api.Dtos.DenunciaMensagemRequestDto;
 import com.couto.chefe_api.Dtos.EnviarMensagemDto;
 import com.couto.chefe_api.Dtos.MensagemDto;
 import com.couto.chefe_api.Security.UsuarioAutenticado;
 import com.couto.chefe_api.Services.ChatService;
+import com.couto.chefe_api.Services.DenunciaMensagemService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -21,6 +24,7 @@ import java.util.List;
 public class ConversaController {
 
     private final ChatService service;
+    private final DenunciaMensagemService denunciaService;
 
     @PostMapping
     public ResponseEntity<ConversaDto> abrir(@Valid @RequestBody AbrirConversaDto dto,
@@ -60,6 +64,13 @@ public class ConversaController {
                                        @AuthenticationPrincipal UsuarioAutenticado usuario) {
         service.apagar(id, mensagemId, usuario);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/mensagens/{mensagemId}/denuncias")
+    public ResponseEntity<DenunciaCriadaDto> denunciar(@PathVariable Long id, @PathVariable Long mensagemId,
+                                                       @Valid @RequestBody DenunciaMensagemRequestDto dto,
+                                                       @AuthenticationPrincipal UsuarioAutenticado usuario) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(denunciaService.denunciar(id, mensagemId, usuario, dto));
     }
 
     @PatchMapping("/{id}/lidas")

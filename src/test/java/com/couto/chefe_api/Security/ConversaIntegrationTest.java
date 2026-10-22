@@ -6,6 +6,7 @@ import com.couto.chefe_api.domin.ChefeModel;
 import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.enums.Senioridade;
 import com.couto.chefe_api.enums.TipoUsuario;
+import com.couto.chefe_api.repositorys.AcaoModeracaoRepository;
 import com.couto.chefe_api.repositorys.ChefeRepository;
 import com.couto.chefe_api.repositorys.ConversaRepository;
 import com.couto.chefe_api.repositorys.DenunciaMensagemRepository;
@@ -52,6 +53,8 @@ class ConversaIntegrationTest {
     @Autowired MensagemRepository mensagemRepository;
     @Autowired DenunciaMensagemRepository denunciaMensagemRepository;
     @Autowired NotificacaoRepository notificacaoRepository;
+    @Autowired AcaoModeracaoRepository acaoModeracaoRepository;
+    @Autowired ModeracaoRegistry moderacaoRegistry;
 
     MockMvc mockMvc;
     UserModel ana;
@@ -66,6 +69,7 @@ class ConversaIntegrationTest {
 
     @AfterEach
     void limparBanco() {
+        acaoModeracaoRepository.deleteAll();
         denunciaMensagemRepository.deleteAll();
         mensagemRepository.deleteAll();
         conversaRepository.deleteAll();
@@ -204,7 +208,88 @@ class ConversaIntegrationTest {
         assertThat(mensagemRepository.findById(mensagem).orElseThrow().getTexto()).isEqualTo("olá");
     }
 
+    @Test
+    void textoOriginalSobreviveAEdicaoEExclusao() throws Exception {
+        long conversa = abrir(ana, bia).andReturnId();
+        long mensagem = new Resposta(enviar(bia, conversa, "texto ruim")).andReturnId();
+        String base = "/conversas/" + conversa + "/mensagens/" + mensagem;
+
+        denunciar(bia, base, "OFENSIVA").andExpect(status().isNotFound());
+        long denuncia = new Resposta(denunciar(ana, base, "OFENSIVA")).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("ABERTA")).andReturnId();
+        denunciar(ana, base, "SPAM").andExpect(status().isConflict());
+
+        mockMvc.perform(patch(base).cookie(cookie(bia)).contentType(MediaType.APPLICATION_JSON).content("{\"texto\":\"texto bom\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(delete(base).cookie(cookie(bia))).andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/moderacao/denuncias-mensagens").cookie(cookieModerador()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(denuncia))
+                .andExpect(jsonPath("$.content[0].textoDenunciado").value("texto ruim"))
+                .andExpect(jsonPath("$.content[0].motivo").value("OFENSIVA"))
+                .andExpect(jsonPath("$.content[0].autor.nome").value("Bia"))
+                .andExpect(jsonPath("$.content[0].denunciante.nome").value("Ana"));
+        mockMvc.perform(get("/notificacoes").cookie(cookieModerador()))
+                .andExpect(jsonPath("$.content[0].evento").value("MENSAGEM_DENUNCIADA"))
+                .andExpect(jsonPath("$.content[0].mensagem").value("Nova denúncia de mensagem (OFENSIVA)"));
+
+        mockMvc.perform(patch("/moderacao/denuncias-mensagens/" + denuncia + "/arquivar").cookie(cookieModerador()))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/moderacao/denuncias-mensagens").cookie(cookieModerador()))
+                .andExpect(jsonPath("$.content.length()").value(0));
+        mockMvc.perform(get("/moderacao/acoes").cookie(cookieModerador()))
+                .andExpect(jsonPath("$.content[0].acao").value("ARQUIVAR_DENUNCIA_MENSAGEM"))
+                .andExpect(jsonPath("$.content[0].denunciaId").value(denuncia));
+    }
+
+    @Test
+    void moderacaoRemoveMensagemParaOsDois() throws Exception {
+        long conversa = abrir(ana, bia).andReturnId();
+        long mensagem = new Resposta(enviar(ana, conversa, "golpe pix")).andReturnId();
+        long denuncia = new Resposta(denunciar(bia, "/conversas/" + conversa + "/mensagens/" + mensagem, "GOLPE")).andReturnId();
+
+        mockMvc.perform(patch("/moderacao/denuncias-mensagens/" + denuncia + "/remover-mensagem").cookie(cookieModerador()))
+                .andExpect(status().isNoContent());
+
+        for (Cookie quem : new Cookie[]{cookie(ana), cookie(bia)}) {
+            mockMvc.perform(get("/conversas/" + conversa + "/mensagens").cookie(quem))
+                    .andExpect(jsonPath("$[0].apagada").value(true))
+                    .andExpect(jsonPath("$[0].texto").doesNotExist());
+        }
+        assertThat(denunciaMensagemRepository.findById(denuncia).orElseThrow().getStatus().name()).isEqualTo("PROCEDENTE");
+        mockMvc.perform(get("/moderacao/acoes").cookie(cookieModerador()))
+                .andExpect(jsonPath("$.content[0].acao").value("REMOVER_MENSAGEM"));
+    }
+
+    @Test
+    void clienteEChefNaoVeemAFilaDeMensagens() throws Exception {
+        mockMvc.perform(get("/moderacao/denuncias-mensagens").cookie(cookie(ana))).andExpect(status().isNotFound());
+        mockMvc.perform(get("/moderacao/denuncias-mensagens").cookie(cookie(bia))).andExpect(status().isNotFound());
+        mockMvc.perform(patch("/moderacao/denuncias-mensagens/1/remover-mensagem").cookie(cookie(bia)))
+                .andExpect(status().isNotFound());
+    }
+
     // ---------------------------------------------------------------------
+
+    ResultActions denunciar(UserModel cliente, String mensagemPath, String motivo) throws Exception {
+        return denunciar(cookie(cliente), mensagemPath, motivo);
+    }
+
+    ResultActions denunciar(ChefeModel chefe, String mensagemPath, String motivo) throws Exception {
+        return denunciar(cookie(chefe), mensagemPath, motivo);
+    }
+
+    ResultActions denunciar(Cookie quem, String mensagemPath, String motivo) throws Exception {
+        return mockMvc.perform(post(mensagemPath + "/denuncias").cookie(quem).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"motivo\":\"" + motivo + "\"}"));
+    }
+
+    Cookie cookieModerador() {
+        String email = "moderacao@chefhome.test";
+        return new Cookie(AuthCookies.ACCESS_TOKEN, tokenService.gerarToken(
+                new UsuarioAutenticado(moderacaoRegistry.idDe(email), email, TipoUsuario.MODERADOR)));
+    }
 
     record Resposta(ResultActions acoes) {
         Resposta andExpect(org.springframework.test.web.servlet.ResultMatcher m) throws Exception {
@@ -223,7 +308,15 @@ class ConversaIntegrationTest {
     }
 
     ResultActions enviar(UserModel cliente, long conversa, String texto) throws Exception {
-        return mockMvc.perform(post("/conversas/" + conversa + "/mensagens").cookie(cookie(cliente))
+        return enviar(cookie(cliente), conversa, texto);
+    }
+
+    ResultActions enviar(ChefeModel chefe, long conversa, String texto) throws Exception {
+        return enviar(cookie(chefe), conversa, texto);
+    }
+
+    ResultActions enviar(Cookie quem, long conversa, String texto) throws Exception {
+        return mockMvc.perform(post("/conversas/" + conversa + "/mensagens").cookie(quem)
                 .contentType(MediaType.APPLICATION_JSON).content(JSON.writeValueAsString(java.util.Map.of("texto", texto))));
     }
 

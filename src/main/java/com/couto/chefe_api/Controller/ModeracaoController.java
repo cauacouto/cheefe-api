@@ -1,6 +1,7 @@
 package com.couto.chefe_api.Controller;
 
 import com.couto.chefe_api.Dtos.AcaoModeracaoDto;
+import com.couto.chefe_api.Dtos.DenunciaMensagemModeracaoDto;
 import com.couto.chefe_api.Dtos.DenunciaModeracaoDto;
 import com.couto.chefe_api.Security.UsuarioAutenticado;
 import com.couto.chefe_api.Services.ModeracaoService;
@@ -36,6 +37,25 @@ public class ModeracaoController {
     @PatchMapping("/denuncias/{id}/arquivar")
     public ResponseEntity<Void> arquivar(@PathVariable Long id, @AuthenticationPrincipal UsuarioAutenticado moderador) {
         service.arquivar(id, moderador.email());
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/denuncias-mensagens")
+    public ResponseEntity<Page<DenunciaMensagemModeracaoDto>> filaDeMensagens(
+            @RequestParam(defaultValue = "ABERTA") StatusDenuncia status, Pageable pageable) {
+        return ResponseEntity.ok(service.listarDenunciasMensagens(status, pageable));
+    }
+
+    @PatchMapping("/denuncias-mensagens/{id}/arquivar")
+    public ResponseEntity<Void> arquivarDenunciaMensagem(@PathVariable Long id,
+                                                         @AuthenticationPrincipal UsuarioAutenticado moderador) {
+        service.arquivarDenunciaMensagem(id, moderador.email());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/denuncias-mensagens/{id}/remover-mensagem")
+    public ResponseEntity<Void> removerMensagem(@PathVariable Long id, @AuthenticationPrincipal UsuarioAutenticado moderador) {
+        service.removerMensagem(id, moderador.email());
         return ResponseEntity.noContent().build();
     }
 
