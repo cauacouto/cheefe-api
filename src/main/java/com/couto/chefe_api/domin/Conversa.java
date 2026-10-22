@@ -35,7 +35,9 @@ public class Conversa {
 
     @PrePersist
     void aoCriar() {
-        criadaEm = LocalDateTime.now();
+        if (criadaEm == null) {
+            criadaEm = LocalDateTime.now();
+        }
         if (ultimaMensagemEm == null) {
             ultimaMensagemEm = criadaEm;
         }

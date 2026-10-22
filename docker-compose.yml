@@ -12,10 +12,10 @@ services:
     environment:
       POSTGRES_DB: chefe_api
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       # lidas só pelo script de init (primeira subida), que repassa ao setup sem gravar em arquivo
-      CHEFHOME_SENHA_MIGRACAO: ${CHEFHOME_SENHA_MIGRACAO:?defina CHEFHOME_SENHA_MIGRACAO no .env}
-      CHEFHOME_SENHA_APP: ${CHEFHOME_SENHA_APP:?defina CHEFHOME_SENHA_APP no .env}
+      CHEFHOME_SENHA_MIGRACAO: ${CHEFHOME_SENHA_MIGRACAO}
+      CHEFHOME_SENHA_APP: ${CHEFHOME_SENHA_APP}
     ports:
       # só na interface local: o banco nunca fica exposto para a rede (em VPS, idem)
       - "127.0.0.1:${CHEFHOME_PORTA:-5433}:5432"
@@ -39,7 +39,7 @@ services:
     environment:
       FLYWAY_URL: jdbc:postgresql://postgres:5432/chefe_api
       FLYWAY_USER: chefhome_migracao
-      FLYWAY_PASSWORD: ${CHEFHOME_SENHA_MIGRACAO:?defina CHEFHOME_SENHA_MIGRACAO no .env}
+      FLYWAY_PASSWORD: ${CHEFHOME_SENHA_MIGRACAO}
       FLYWAY_SCHEMAS: chefhome
       FLYWAY_LOCATIONS: filesystem:/flyway/sql
     volumes:

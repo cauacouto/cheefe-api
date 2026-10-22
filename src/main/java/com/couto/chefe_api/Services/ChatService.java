@@ -24,15 +24,22 @@ import com.couto.chefe_api.repositorys.ConversaRepository;
 import com.couto.chefe_api.repositorys.MensagemRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /** Regras do chat: só participantes veem/mexem na conversa (os demais recebem 404); só o cliente inicia. */
 @Service
@@ -40,6 +47,7 @@ import java.util.UUID;
 public class ChatService {
 
     static final int TAMANHO_MAXIMO_PAGINA = 100;
+    static final int TAMANHO_MAXIMO_PAGINA_CONVERSAS = 50;
     static final int TAMANHO_PREVIA = 100;
     static final Duration PRAZO_EDICAO = Duration.ofMinutes(15);
 
@@ -50,12 +58,24 @@ public class ChatService {
     private final NotificacaoService notificacaoService;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
+    private final TransactionTemplate transacao;
 
     public record ConversaAberta(ConversaDto conversa, boolean criada) {
     }
 
-    @Transactional
+    /**
+     * Idempotente também em paralelo (duplo clique, duas abas): se outro pedido criou a conversa no meio,
+     * a constraint única barra a segunda e uma nova transação devolve a que ficou.
+     */
     public ConversaAberta abrirConversa(UUID clienteId, UUID chefeId) {
+        try {
+            return transacao.execute(status -> abrirOuCriar(clienteId, chefeId));
+        } catch (DataIntegrityViolationException corrida) {
+            return transacao.execute(status -> abrirOuCriar(clienteId, chefeId));
+        }
+    }
+
+    private ConversaAberta abrirOuCriar(UUID clienteId, UUID chefeId) {
         ChefeModel chefe = chefeRepository.findById(chefeId)
                 .filter(c -> Boolean.TRUE.equals(c.getAtivo()))
                 .orElseThrow(ChefeNaoEncontradoException::new);
@@ -63,21 +83,29 @@ public class ChatService {
         return conversaRepository.findByCliente_IdAndChefe_Id(clienteId, chefeId)
                 .map(existente -> new ConversaAberta(paraDto(existente, clienteId, TipoUsuario.CLIENTE), false))
                 .orElseGet(() -> {
+                    LocalDateTime agora = LocalDateTime.now(clock);
                     Conversa nova = new Conversa();
                     nova.setCliente(cliente);
                     nova.setChefe(chefe);
-                    return new ConversaAberta(paraDto(conversaRepository.save(nova), clienteId, TipoUsuario.CLIENTE), true);
+                    nova.setCriadaEm(agora);
+                    nova.setUltimaMensagemEm(agora);
+                    // flush aqui: a violação da constraint sai dentro da transação, onde abrirConversa a trata
+                    return new ConversaAberta(paraDto(conversaRepository.saveAndFlush(nova), clienteId, TipoUsuario.CLIENTE), true);
                 });
     }
 
+    /** Página de conversas, a mais recente primeiro; a ordenação vinda do cliente é ignorada. */
     @Transactional(readOnly = true)
-    public List<ConversaDto> listarConversas(UsuarioAutenticado usuario) {
-        List<Conversa> conversas = switch (usuario.tipo()) {
-            case CLIENTE -> conversaRepository.findByCliente_IdOrderByUltimaMensagemEmDesc(usuario.id());
-            case CHEFE -> conversaRepository.findByChefe_IdOrderByUltimaMensagemEmDesc(usuario.id());
-            case MODERADOR -> List.of();
+    public Page<ConversaDto> listarConversas(UsuarioAutenticado usuario, Pageable pageable) {
+        PageRequest pagina = PageRequest.of(pageable.getPageNumber(),
+                Math.max(1, Math.min(pageable.getPageSize(), TAMANHO_MAXIMO_PAGINA_CONVERSAS)));
+        Page<Conversa> conversas = switch (usuario.tipo()) {
+            case CLIENTE -> conversaRepository.findByCliente_IdOrderByUltimaMensagemEmDescIdDesc(usuario.id(), pagina);
+            case CHEFE -> conversaRepository.findByChefe_IdOrderByUltimaMensagemEmDescIdDesc(usuario.id(), pagina);
+            case MODERADOR -> Page.empty(pagina);
         };
-        return conversas.stream().map(c -> paraDto(c, usuario.id(), usuario.tipo())).toList();
+        return new PageImpl<>(paraDtos(conversas.getContent(), usuario.id(), usuario.tipo()), pagina,
+                conversas.getTotalElements());
     }
 
     @Transactional(readOnly = true)
@@ -92,7 +120,9 @@ public class ChatService {
 
     @Transactional
     public MensagemDto enviar(Long conversaId, UsuarioAutenticado usuario, String texto) {
-        Conversa conversa = doParticipante(conversaId, usuario);
+        Conversa conversa = conversaRepository.travarPorId(conversaId)
+                .filter(c -> participa(c, usuario))
+                .orElseThrow(() -> new RecursoNaoEncontradoException("conversa não encontrada"));
         // chef apagado/banido: ninguém escreve mais nessa conversa (o histórico continua visível)
         conversa.getChefe().exigirAtivo();
         String normalizado = normalizar(texto);
@@ -148,7 +178,11 @@ public class ChatService {
 
     @Transactional
     public void marcarLidas(Long conversaId, UsuarioAutenticado usuario) {
-        Conversa conversa = doParticipante(conversaId, usuario);
+        // mesma trava do enviar: um envio no meio não pode ter a notificação dele marcada como lida sem ser visto
+        Conversa conversa = conversaRepository.travarPorId(conversaId)
+                .filter(c -> participa(c, usuario))
+                .orElseThrow(() -> new RecursoNaoEncontradoException("conversa não encontrada"));
+        exigirChefAtivo(conversa, usuario);
         LocalDateTime agora = LocalDateTime.now(clock);
         notificacaoService.marcarLidasDaReferencia(usuario.id(), EventoNotificacao.MENSAGEM_RECEBIDA,
                 String.valueOf(conversa.getId()));
@@ -183,6 +217,13 @@ public class ChatService {
                 .orElseThrow(() -> new RecursoNaoEncontradoException("conversa não encontrada"));
     }
 
+    /** Chef apagado/banido com token ainda válido não age mais no chat; só lê o histórico. */
+    static void exigirChefAtivo(Conversa conversa, UsuarioAutenticado usuario) {
+        if (usuario.tipo() == TipoUsuario.CHEFE) {
+            conversa.getChefe().exigirAtivo();
+        }
+    }
+
     private static UUID outroParticipante(Conversa conversa, UsuarioAutenticado usuario) {
         return usuario.tipo() == TipoUsuario.CLIENTE ? conversa.getChefe().getId() : conversa.getCliente().getId();
     }
@@ -190,6 +231,7 @@ public class ChatService {
     /** Mensagem da conversa escrita pelo usuário; mensagem dos outros, para ele, "não existe". */
     private Mensagem doAutor(Long conversaId, Long mensagemId, UsuarioAutenticado usuario) {
         Conversa conversa = doParticipante(conversaId, usuario);
+        exigirChefAtivo(conversa, usuario);
         return mensagemRepository.findByIdAndConversa_Id(mensagemId, conversa.getId())
                 .filter(m -> m.getRemetenteId().equals(usuario.id()))
                 .orElseThrow(() -> new RecursoNaoEncontradoException("mensagem não encontrada"));
@@ -212,19 +254,32 @@ public class ChatService {
     }
 
     private ConversaDto paraDto(Conversa conversa, UUID leitorId, TipoUsuario tipoLeitor) {
-        ConversaDto.ParticipanteDto outro = tipoLeitor == TipoUsuario.CLIENTE
-                ? new ConversaDto.ParticipanteDto(conversa.getChefe().getId(), conversa.getChefe().getNome(),
-                        conversa.getChefe().getImageUrl(), TipoUsuario.CHEFE)
-                : new ConversaDto.ParticipanteDto(conversa.getCliente().getId(), conversa.getCliente().getNome(),
-                        conversa.getCliente().getImageUrl(), TipoUsuario.CLIENTE);
-        ConversaDto.UltimaMensagemDto ultima = mensagemRepository.findFirstByConversa_IdOrderByIdDesc(conversa.getId())
-                .map(m -> new ConversaDto.UltimaMensagemDto(
-                        m.isApagada() ? null : previa(m.getTexto()), m.getEnviadaEm(), m.getRemetenteId().equals(leitorId),
-                        m.isApagada()))
-                .orElse(null);
-        long naoLidas = conversa.getId() == null ? 0
-                : mensagemRepository.countByConversa_IdAndRemetenteIdNotAndLidaEmIsNull(conversa.getId(), leitorId);
-        return new ConversaDto(conversa.getId(), outro, ultima, naoLidas, conversa.getUltimaMensagemEm());
+        return paraDtos(List.of(conversa), leitorId, tipoLeitor).get(0);
+    }
+
+    /** Última mensagem e não lidas de todas as conversas em duas queries, não duas por conversa. */
+    private List<ConversaDto> paraDtos(List<Conversa> conversas, UUID leitorId, TipoUsuario tipoLeitor) {
+        if (conversas.isEmpty()) {
+            return List.of();
+        }
+        List<Long> ids = conversas.stream().map(Conversa::getId).toList();
+        Map<Long, Mensagem> ultimas = mensagemRepository.ultimasDasConversas(ids).stream()
+                .collect(Collectors.toMap(m -> m.getConversa().getId(), m -> m));
+        Map<Long, Long> naoLidas = mensagemRepository.naoLidasPorConversa(ids, leitorId).stream()
+                .collect(Collectors.toMap(MensagemRepository.NaoLidas::getConversaId, MensagemRepository.NaoLidas::getTotal));
+        return conversas.stream().map(conversa -> {
+            ConversaDto.ParticipanteDto outro = tipoLeitor == TipoUsuario.CLIENTE
+                    ? new ConversaDto.ParticipanteDto(conversa.getChefe().getId(), conversa.getChefe().getNome(),
+                            conversa.getChefe().getImageUrl(), TipoUsuario.CHEFE)
+                    : new ConversaDto.ParticipanteDto(conversa.getCliente().getId(), conversa.getCliente().getNome(),
+                            conversa.getCliente().getImageUrl(), TipoUsuario.CLIENTE);
+            Mensagem m = ultimas.get(conversa.getId());
+            ConversaDto.UltimaMensagemDto ultima = m == null ? null : new ConversaDto.UltimaMensagemDto(
+                    m.isApagada() ? null : previa(m.getTexto()), m.getEnviadaEm(), m.getRemetenteId().equals(leitorId),
+                    m.isApagada());
+            return new ConversaDto(conversa.getId(), outro, ultima, naoLidas.getOrDefault(conversa.getId(), 0L),
+                    conversa.getUltimaMensagemEm());
+        }).toList();
     }
 
     private static String previa(String texto) {

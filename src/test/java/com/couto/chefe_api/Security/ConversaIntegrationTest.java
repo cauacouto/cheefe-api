@@ -6,7 +6,15 @@ import com.couto.chefe_api.domin.ChefeModel;
 import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.enums.Senioridade;
 import com.couto.chefe_api.enums.TipoUsuario;
+import com.couto.chefe_api.Services.NotificacaoService;
+import com.couto.chefe_api.domin.Agendamento;
+import com.couto.chefe_api.domin.Denuncia;
+import com.couto.chefe_api.enums.MotivoDenuncia;
+import com.couto.chefe_api.enums.EventoNotificacao;
+import com.couto.chefe_api.enums.StatusAgendamento;
 import com.couto.chefe_api.repositorys.AcaoModeracaoRepository;
+import com.couto.chefe_api.repositorys.AgendamentoRepository;
+import com.couto.chefe_api.repositorys.DenunciaRepository;
 import com.couto.chefe_api.repositorys.ChefeRepository;
 import com.couto.chefe_api.repositorys.ConversaRepository;
 import com.couto.chefe_api.repositorys.DenunciaMensagemRepository;
@@ -54,6 +62,9 @@ class ConversaIntegrationTest {
     @Autowired DenunciaMensagemRepository denunciaMensagemRepository;
     @Autowired NotificacaoRepository notificacaoRepository;
     @Autowired AcaoModeracaoRepository acaoModeracaoRepository;
+    @Autowired AgendamentoRepository agendamentoRepository;
+    @Autowired DenunciaRepository denunciaRepository;
+    @Autowired NotificacaoService notificacaoService;
     @Autowired ModeracaoRegistry moderacaoRegistry;
 
     MockMvc mockMvc;
@@ -74,6 +85,8 @@ class ConversaIntegrationTest {
         mensagemRepository.deleteAll();
         conversaRepository.deleteAll();
         notificacaoRepository.deleteAll();
+        denunciaRepository.deleteAll();
+        agendamentoRepository.deleteAll();
         usuarioRepository.deleteAll();
         chefeRepository.deleteAll();
     }
@@ -98,13 +111,13 @@ class ConversaIntegrationTest {
 
         mockMvc.perform(get("/conversas").cookie(cookie(bia)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].naoLidas").value(1))
-                .andExpect(jsonPath("$[0].ultimaMensagem.texto").value("Oi, você faz moqueca?"))
-                .andExpect(jsonPath("$[0].outroParticipante.nome").value("Ana"));
+                .andExpect(jsonPath("$.content[0].naoLidas").value(1))
+                .andExpect(jsonPath("$.content[0].ultimaMensagem.texto").value("Oi, você faz moqueca?"))
+                .andExpect(jsonPath("$.content[0].outroParticipante.nome").value("Ana"));
 
         mockMvc.perform(patch("/conversas/" + conversa + "/lidas").cookie(cookie(bia))).andExpect(status().isNoContent());
 
-        mockMvc.perform(get("/conversas").cookie(cookie(bia))).andExpect(jsonPath("$[0].naoLidas").value(0));
+        mockMvc.perform(get("/conversas").cookie(cookie(bia))).andExpect(jsonPath("$.content[0].naoLidas").value(0));
         mockMvc.perform(get("/conversas/" + conversa + "/mensagens").cookie(cookie(ana)))
                 .andExpect(jsonPath("$[0].lida").value(true))
                 .andExpect(jsonPath("$[0].lidaEm").isNotEmpty());
@@ -155,7 +168,7 @@ class ConversaIntegrationTest {
         mockMvc.perform(get("/conversas/" + conversa + "/mensagens").cookie(cookie(intruso))).andExpect(status().isNotFound());
         enviar(intruso, conversa, "oi").andExpect(status().isNotFound());
         mockMvc.perform(patch("/conversas/" + conversa + "/lidas").cookie(cookie(intruso))).andExpect(status().isNotFound());
-        mockMvc.perform(get("/conversas").cookie(cookie(intruso))).andExpect(jsonPath("$.length()").value(0));
+        mockMvc.perform(get("/conversas").cookie(cookie(intruso))).andExpect(jsonPath("$.content.length()").value(0));
     }
 
     @Test
@@ -200,8 +213,8 @@ class ConversaIntegrationTest {
                 .andExpect(jsonPath("$[0].apagada").value(true))
                 .andExpect(jsonPath("$[0].texto").doesNotExist());
         mockMvc.perform(get("/conversas").cookie(cookie(bia)))
-                .andExpect(jsonPath("$[0].ultimaMensagem.apagada").value(true))
-                .andExpect(jsonPath("$[0].ultimaMensagem.texto").doesNotExist());
+                .andExpect(jsonPath("$.content[0].ultimaMensagem.apagada").value(true))
+                .andExpect(jsonPath("$.content[0].ultimaMensagem.texto").doesNotExist());
         mockMvc.perform(patch("/conversas/" + conversa + "/mensagens/" + mensagem).cookie(cookie(ana))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"texto\":\"volta\"}"))
                 .andExpect(status().isConflict());
@@ -263,6 +276,55 @@ class ConversaIntegrationTest {
     }
 
     @Test
+    void idDeMensagemDeOutraConversaDa404MesmoParticipandoDasDuas() throws Exception {
+        ChefeModel caio = novoChefe("Caio");
+        long comBia = abrir(ana, bia).andReturnId();
+        long comCaio = abrir(ana, caio).andReturnId();
+        long minhaComCaio = new Resposta(enviar(ana, comCaio, "oi Caio")).andReturnId();
+        long doCaio = new Resposta(enviar(caio, comCaio, "oi Ana")).andReturnId();
+        String errada = "/conversas/" + comBia + "/mensagens/";
+
+        mockMvc.perform(patch(errada + minhaComCaio).cookie(cookie(ana)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"texto\":\"x\"}")).andExpect(status().isNotFound());
+        mockMvc.perform(delete(errada + minhaComCaio).cookie(cookie(ana))).andExpect(status().isNotFound());
+        denunciar(ana, errada + doCaio, "SPAM").andExpect(status().isNotFound());
+
+        assertThat(mensagemRepository.findById(minhaComCaio).orElseThrow().isApagada()).isFalse();
+        assertThat(denunciaMensagemRepository.count()).isZero();
+    }
+
+    @Test
+    void chefBanidoNaoMexeMaisNoChat() throws Exception {
+        long conversa = abrir(ana, bia).andReturnId();
+        long daBia = new Resposta(enviar(bia, conversa, "oi")).andReturnId();
+        long daAna = new Resposta(enviar(ana, conversa, "oi")).andReturnId();
+        bia.setAtivo(false);
+        chefeRepository.save(bia);
+        String base = "/conversas/" + conversa + "/mensagens/";
+
+        mockMvc.perform(patch(base + daBia).cookie(cookie(bia)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"texto\":\"x\"}")).andExpect(status().isForbidden());
+        mockMvc.perform(delete(base + daBia).cookie(cookie(bia))).andExpect(status().isForbidden());
+        denunciar(bia, base + daAna, "SPAM").andExpect(status().isForbidden());
+        mockMvc.perform(patch("/conversas/" + conversa + "/lidas").cookie(cookie(bia))).andExpect(status().isForbidden());
+        mockMvc.perform(get(base.substring(0, base.length() - 1)).cookie(cookie(bia))).andExpect(status().isOk());
+    }
+
+    @Test
+    void listaDeConversasEhPaginada() throws Exception {
+        abrir(ana, bia);
+        abrir(ana, novoChefe("Caio"));
+
+        mockMvc.perform(get("/conversas").param("size", "1").cookie(cookie(ana)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.page.totalElements").value(2))
+                .andExpect(jsonPath("$.page.size").value(1));
+        mockMvc.perform(get("/conversas").param("sort", "cliente.email").cookie(cookie(ana)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void clienteEChefNaoVeemAFilaDeMensagens() throws Exception {
         mockMvc.perform(get("/moderacao/denuncias-mensagens").cookie(cookie(ana))).andExpect(status().isNotFound());
         mockMvc.perform(get("/moderacao/denuncias-mensagens").cookie(cookie(bia))).andExpect(status().isNotFound());
@@ -283,8 +345,40 @@ class ConversaIntegrationTest {
         long conversaDeOutra = abrir(outra, bia).andReturnId();
         enviar(outra, conversaDeOutra, "fico").andExpect(status().isCreated());
 
+        Agendamento agendamento = new Agendamento();
+        agendamento.setUsuario(ana);
+        agendamento.setChefes(new ArrayList<>(java.util.List.of(bia)));
+        agendamento.setQuantidadePessoas(2);
+        agendamento.setStatus(StatusAgendamento.CONFIRMADO);
+        agendamento = agendamentoRepository.save(agendamento);
+        notificacaoService.notificar(bia.getId(), TipoUsuario.CHEFE, EventoNotificacao.AGENDAMENTO_CRIADO,
+                "Ana pediu um agendamento", String.valueOf(agendamento.getId()));
+        Denuncia denuncia = new Denuncia();
+        denuncia.setCliente(ana);
+        denuncia.setChefe(bia);
+        denuncia.setAgendamento(agendamento);
+        denuncia.setMotivo(MotivoDenuncia.COMPORTAMENTO);
+        denuncia.setDescricao("atrasou");
+        denuncia = denunciaRepository.save(denuncia);
+        notificacaoService.notificar(moderacaoRegistry.idDe("moderacao@chefhome.test"), TipoUsuario.MODERADOR,
+                EventoNotificacao.DENUNCIA_CRIADA, "Nova denúncia contra o chef Bia", String.valueOf(denuncia.getId()));
+        // mesmo número de uma conversa apagada, mas de outro tipo (agendamento de outro cliente): tem de ficar
+        String idDeConversaApagada = String.valueOf(comBia);
+        assertThat(idDeConversaApagada).isNotEqualTo(String.valueOf(agendamento.getId()));
+        notificacaoService.notificar(bia.getId(), TipoUsuario.CHEFE, EventoNotificacao.AGENDAMENTO_CRIADO,
+                "Outra pediu um agendamento", idDeConversaApagada);
+        java.util.List<Long> notificacoesQueFicam = notificacaoRepository.findAll().stream()
+                .filter(n -> (n.getReferenciaId().equals(String.valueOf(conversaDeOutra))
+                        && n.getEvento() == EventoNotificacao.MENSAGEM_RECEBIDA)
+                        || (n.getReferenciaId().equals(idDeConversaApagada) && n.getEvento() == EventoNotificacao.AGENDAMENTO_CRIADO))
+                .map(n -> n.getId()).toList();
+        assertThat(notificacoesQueFicam).hasSize(2);
+
         mockMvc.perform(delete("/usuario/me").cookie(cookie(ana))).andExpect(status().isNoContent());
 
+        // LGPD: nada que cite a Ana ou aponte para dados dela fica para trás, nem nas notificações dos outros
+        assertThat(notificacaoRepository.findAll()).extracting("id").containsExactlyInAnyOrderElementsOf(notificacoesQueFicam);
+        assertThat(denunciaRepository.count()).isZero();
         assertThat(usuarioRepository.findById(ana.getId())).isEmpty();
         assertThat(conversaRepository.findAll()).extracting("id").containsExactly(conversaDeOutra);
         assertThat(mensagemRepository.findAll()).extracting("texto").containsExactly("fico");

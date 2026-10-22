@@ -29,6 +29,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -43,6 +44,7 @@ public class ModeracaoService {
     private final AcaoModeracaoRepository acaoModeracaoRepository;
     private final DenunciaMensagemRepository denunciaMensagemRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final Clock clock;
 
     @Transactional(readOnly = true)
     public Page<DenunciaModeracaoDto> listar(StatusDenuncia status, Pageable pageable) {
@@ -135,15 +137,15 @@ public class ModeracaoService {
                 .forEach(denuncia -> resolver(denuncia, StatusDenuncia.PROCEDENTE, moderadorEmail));
     }
 
-    private static void resolver(Denuncia denuncia, StatusDenuncia status, String moderadorEmail) {
+    private void resolver(Denuncia denuncia, StatusDenuncia status, String moderadorEmail) {
         denuncia.setStatus(status);
-        denuncia.setResolvidaEm(LocalDateTime.now());
+        denuncia.setResolvidaEm(LocalDateTime.now(clock));
         denuncia.setResolvidaPor(moderadorEmail);
     }
 
-    private static void resolver(DenunciaMensagem denuncia, StatusDenuncia status, String moderadorEmail) {
+    private void resolver(DenunciaMensagem denuncia, StatusDenuncia status, String moderadorEmail) {
         denuncia.setStatus(status);
-        denuncia.setResolvidaEm(LocalDateTime.now());
+        denuncia.setResolvidaEm(LocalDateTime.now(clock));
         denuncia.setResolvidaPor(moderadorEmail);
     }
 

@@ -23,6 +23,10 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,6 +43,7 @@ import static org.mockito.Mockito.when;
 class ModeracaoServiceTest {
 
     private static final String MODERADOR = "moderacao@chefhome.test";
+    private static final Clock RELOGIO = Clock.fixed(Instant.parse("2026-10-21T15:00:00Z"), ZoneId.of("America/Sao_Paulo"));
 
     private final DenunciaRepository denunciaRepository = mock(DenunciaRepository.class);
     private final ChefeRepository chefeRepository = mock(ChefeRepository.class);
@@ -47,7 +52,7 @@ class ModeracaoServiceTest {
     private final DenunciaMensagemRepository denunciaMensagemRepository = mock(DenunciaMensagemRepository.class);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
     private final ModeracaoService service = new ModeracaoService(denunciaRepository, chefeRepository, notificacaoService,
-            acaoRepository, denunciaMensagemRepository, eventPublisher);
+            acaoRepository, denunciaMensagemRepository, eventPublisher, RELOGIO);
 
     private final ChefeModel chefe = new ChefeModel();
     private final Denuncia aberta = new Denuncia();
@@ -152,6 +157,7 @@ class ModeracaoServiceTest {
 
         assertThat(denuncia.getStatus()).isEqualTo(StatusDenuncia.ARQUIVADA);
         assertThat(denuncia.getResolvidaPor()).isEqualTo(MODERADOR);
+        assertThat(denuncia.getResolvidaEm()).isEqualTo(LocalDateTime.now(RELOGIO));
         assertThat(denuncia.getMensagem().isApagada()).isFalse();
         ArgumentCaptor<AcaoModeracao> captor = ArgumentCaptor.forClass(AcaoModeracao.class);
         verify(acaoRepository).save(captor.capture());

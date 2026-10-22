@@ -2,6 +2,7 @@ package com.couto.chefe_api.Services;
 
 import com.couto.chefe_api.Dtos.MensagemDto;
 import com.couto.chefe_api.Excepitons.ConflitoException;
+import com.couto.chefe_api.Excepitons.ContaInativaException;
 import com.couto.chefe_api.Excepitons.RecursoNaoEncontradoException;
 import com.couto.chefe_api.Excepitons.RegraDeNegocioException;
 import com.couto.chefe_api.Security.UsuarioAutenticado;
@@ -22,6 +23,8 @@ import com.couto.chefe_api.repositorys.MensagemRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -48,8 +51,11 @@ class ChatServiceTest {
     private final ConversaRepository conversaRepository = mock(ConversaRepository.class);
     private final MensagemRepository mensagemRepository = mock(MensagemRepository.class);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
+    private final UsuarioRepository usuarioRepository = mock(UsuarioRepository.class);
+    private final ChefeRepository chefeRepository = mock(ChefeRepository.class);
     private final ChatService service = new ChatService(conversaRepository, mensagemRepository,
-            mock(UsuarioRepository.class), mock(ChefeRepository.class), mock(NotificacaoService.class), eventPublisher, RELOGIO);
+            usuarioRepository, chefeRepository, mock(NotificacaoService.class), eventPublisher, RELOGIO,
+            new TransactionTemplate(mock(PlatformTransactionManager.class)));
 
     private final UserModel cliente = new UserModel();
     private final ChefeModel chefe = new ChefeModel();
@@ -77,6 +83,7 @@ class ChatServiceTest {
         mensagem.setTexto("original");
         mensagem.setEnviadaEm(AGORA.minusMinutes(5));
         when(conversaRepository.findById(1L)).thenReturn(Optional.of(conversa));
+        when(conversaRepository.travarPorId(1L)).thenReturn(Optional.of(conversa));
         when(mensagemRepository.findByIdAndConversa_Id(10L, 1L)).thenReturn(Optional.of(mensagem));
     }
 
@@ -184,6 +191,7 @@ class ChatServiceTest {
 
         service.marcarLidas(1L, bia);
 
+        verify(conversaRepository).travarPorId(1L);
         // o "visto" vai só até a última mensagem que existia antes do UPDATE (nada chega depois sem lidaEm)
         verify(mensagemRepository).marcarLidas(1L, bia.id(), 10L, AGORA);
         verify(eventPublisher).publishEvent(new MensagensLidasEvent(1L, bia.id(), ana.id(), 10L, AGORA));
@@ -202,11 +210,51 @@ class ChatServiceTest {
     @Test
     void previaNaoCortaEmojiAoMeio() {
         mensagem.setTexto("a".repeat(99) + "😀😀");
-        when(conversaRepository.findByCliente_IdOrderByUltimaMensagemEmDesc(cliente.getId())).thenReturn(java.util.List.of(conversa));
-        when(mensagemRepository.findFirstByConversa_IdOrderByIdDesc(1L)).thenReturn(Optional.of(mensagem));
+        when(conversaRepository.findByCliente_IdOrderByUltimaMensagemEmDescIdDesc(any(), any()))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(java.util.List.of(conversa)));
+        when(mensagemRepository.ultimasDasConversas(java.util.List.of(1L))).thenReturn(java.util.List.of(mensagem));
 
-        String previa = service.listarConversas(ana).get(0).ultimaMensagem().texto();
+        String previa = service.listarConversas(ana, org.springframework.data.domain.PageRequest.of(0, 20))
+                .getContent().get(0).ultimaMensagem().texto();
 
         assertThat(previa).isEqualTo("a".repeat(99) + "😀");
+    }
+
+    @Test
+    void chefApagadoNaoEditaApagaNemMarcaLidas() {
+        mensagem.setRemetenteId(chefe.getId());
+        mensagem.setRemetenteTipo(TipoUsuario.CHEFE);
+        chefe.setAtivo(false);
+
+        assertThatThrownBy(() -> service.editar(1L, 10L, bia, "x")).isInstanceOf(ContaInativaException.class);
+        assertThatThrownBy(() -> service.apagar(1L, 10L, bia)).isInstanceOf(ContaInativaException.class);
+        assertThatThrownBy(() -> service.marcarLidas(1L, bia)).isInstanceOf(ContaInativaException.class);
+        assertThat(mensagem.isApagada()).isFalse();
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void clienteAindaApagaAPropriaMensagemComChefApagado() {
+        chefe.setAtivo(false);
+
+        service.apagar(1L, 10L, ana);
+
+        assertThat(mensagem.isApagada()).isTrue();
+    }
+
+    @Test
+    void conversaNovaUsaORelogio() {
+        chefe.setAtivo(true);
+        when(chefeRepository.findById(chefe.getId())).thenReturn(Optional.of(chefe));
+        when(usuarioRepository.findById(cliente.getId())).thenReturn(Optional.of(cliente));
+        when(conversaRepository.findByCliente_IdAndChefe_Id(cliente.getId(), chefe.getId())).thenReturn(Optional.empty());
+        when(conversaRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.abrirConversa(cliente.getId(), chefe.getId());
+
+        ArgumentCaptor<Conversa> captor = ArgumentCaptor.forClass(Conversa.class);
+        verify(conversaRepository).saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getCriadaEm()).isEqualTo(AGORA);
+        assertThat(captor.getValue().getUltimaMensagemEm()).isEqualTo(AGORA);
     }
 }

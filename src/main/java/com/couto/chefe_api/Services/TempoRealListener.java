@@ -5,7 +5,7 @@ import com.couto.chefe_api.Services.eventos.MensagemApagadaEvent;
 import com.couto.chefe_api.Services.eventos.MensagemEditadaEvent;
 import com.couto.chefe_api.Services.eventos.MensagemEnviadaEvent;
 import com.couto.chefe_api.Services.eventos.MensagensLidasEvent;
-import com.couto.chefe_api.Services.eventos.NotificacaoCriadaEvent;
+import com.couto.chefe_api.Services.eventos.NotificacoesAlteradasEvent;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -62,7 +62,7 @@ public class TempoRealListener {
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void aoNotificar(NotificacaoCriadaEvent evento) {
+    public void aoNotificar(NotificacoesAlteradasEvent evento) {
         enviar(evento.destinatarioId(), "notificacao", new ContagemDto(evento.total()));
     }
 

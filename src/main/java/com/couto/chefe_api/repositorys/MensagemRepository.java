@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -30,6 +31,21 @@ public interface MensagemRepository extends JpaRepository<Mensagem, Long> {
             + "AND m.id <= :ateId AND m.remetenteId <> :leitorId AND m.lidaEm IS NULL")
     int marcarLidas(@Param("conversaId") Long conversaId, @Param("leitorId") UUID leitorId, @Param("ateId") Long ateId,
                     @Param("agora") LocalDateTime agora);
+
+    /** Última mensagem de cada conversa da página, numa query só. */
+    @Query("SELECT m FROM Mensagem m WHERE m.id IN "
+            + "(SELECT MAX(m2.id) FROM Mensagem m2 WHERE m2.conversa.id IN :conversas GROUP BY m2.conversa.id)")
+    List<Mensagem> ultimasDasConversas(@Param("conversas") Collection<Long> conversas);
+
+    interface NaoLidas {
+        Long getConversaId();
+
+        long getTotal();
+    }
+
+    @Query("SELECT m.conversa.id AS conversaId, COUNT(m) AS total FROM Mensagem m WHERE m.conversa.id IN :conversas "
+            + "AND m.remetenteId <> :leitorId AND m.lidaEm IS NULL GROUP BY m.conversa.id")
+    List<NaoLidas> naoLidasPorConversa(@Param("conversas") Collection<Long> conversas, @Param("leitorId") UUID leitorId);
 
     void deleteByConversa_Cliente_Id(UUID clienteId);
 }

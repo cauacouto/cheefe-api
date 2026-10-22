@@ -20,6 +20,9 @@ public interface DenunciaRepository extends JpaRepository<Denuncia, Long> {
 
     List<Denuncia> findByChefe_IdAndStatus(UUID chefeId, StatusDenuncia status);
 
+    @Query("SELECT d.id FROM Denuncia d WHERE d.cliente.id = :clienteId")
+    List<Long> idsDoCliente(@Param("clienteId") UUID clienteId);
+
     void deleteByCliente_Id(UUID clienteId);
 
     Page<Denuncia> findByStatusOrderByCriadaEmAscIdAsc(StatusDenuncia status, Pageable pageable);
