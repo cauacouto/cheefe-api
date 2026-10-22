@@ -271,6 +271,41 @@ class ConversaIntegrationTest {
     }
 
     @Test
+    void idDeMensagemDeOutraConversaDa404MesmoParticipandoDasDuas() throws Exception {
+        ChefeModel caio = novoChefe("Caio");
+        long comBia = abrir(ana, bia).andReturnId();
+        long comCaio = abrir(ana, caio).andReturnId();
+        long minhaComCaio = new Resposta(enviar(ana, comCaio, "oi Caio")).andReturnId();
+        long doCaio = new Resposta(enviar(caio, comCaio, "oi Ana")).andReturnId();
+        String errada = "/conversas/" + comBia + "/mensagens/";
+
+        mockMvc.perform(patch(errada + minhaComCaio).cookie(cookie(ana)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"texto\":\"x\"}")).andExpect(status().isNotFound());
+        mockMvc.perform(delete(errada + minhaComCaio).cookie(cookie(ana))).andExpect(status().isNotFound());
+        denunciar(ana, errada + doCaio, "SPAM").andExpect(status().isNotFound());
+
+        assertThat(mensagemRepository.findById(minhaComCaio).orElseThrow().isApagada()).isFalse();
+        assertThat(denunciaMensagemRepository.count()).isZero();
+    }
+
+    @Test
+    void chefBanidoNaoMexeMaisNoChat() throws Exception {
+        long conversa = abrir(ana, bia).andReturnId();
+        long daBia = new Resposta(enviar(bia, conversa, "oi")).andReturnId();
+        long daAna = new Resposta(enviar(ana, conversa, "oi")).andReturnId();
+        bia.setAtivo(false);
+        chefeRepository.save(bia);
+        String base = "/conversas/" + conversa + "/mensagens/";
+
+        mockMvc.perform(patch(base + daBia).cookie(cookie(bia)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"texto\":\"x\"}")).andExpect(status().isForbidden());
+        mockMvc.perform(delete(base + daBia).cookie(cookie(bia))).andExpect(status().isForbidden());
+        denunciar(bia, base + daAna, "SPAM").andExpect(status().isForbidden());
+        mockMvc.perform(patch("/conversas/" + conversa + "/lidas").cookie(cookie(bia))).andExpect(status().isForbidden());
+        mockMvc.perform(get(base.substring(0, base.length() - 1)).cookie(cookie(bia))).andExpect(status().isOk());
+    }
+
+    @Test
     void clienteEChefNaoVeemAFilaDeMensagens() throws Exception {
         mockMvc.perform(get("/moderacao/denuncias-mensagens").cookie(cookie(ana))).andExpect(status().isNotFound());
         mockMvc.perform(get("/moderacao/denuncias-mensagens").cookie(cookie(bia))).andExpect(status().isNotFound());

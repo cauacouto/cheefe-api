@@ -66,6 +66,8 @@ public class DenunciaMensagem {
 
     @PrePersist
     void aoCriar() {
-        criadaEm = LocalDateTime.now();
+        if (criadaEm == null) {
+            criadaEm = LocalDateTime.now();
+        }
     }
 }

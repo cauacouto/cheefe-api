@@ -63,9 +63,12 @@ public class ChatService {
         return conversaRepository.findByCliente_IdAndChefe_Id(clienteId, chefeId)
                 .map(existente -> new ConversaAberta(paraDto(existente, clienteId, TipoUsuario.CLIENTE), false))
                 .orElseGet(() -> {
+                    LocalDateTime agora = LocalDateTime.now(clock);
                     Conversa nova = new Conversa();
                     nova.setCliente(cliente);
                     nova.setChefe(chefe);
+                    nova.setCriadaEm(agora);
+                    nova.setUltimaMensagemEm(agora);
                     return new ConversaAberta(paraDto(conversaRepository.save(nova), clienteId, TipoUsuario.CLIENTE), true);
                 });
     }
@@ -149,6 +152,7 @@ public class ChatService {
     @Transactional
     public void marcarLidas(Long conversaId, UsuarioAutenticado usuario) {
         Conversa conversa = doParticipante(conversaId, usuario);
+        exigirChefAtivo(conversa, usuario);
         LocalDateTime agora = LocalDateTime.now(clock);
         notificacaoService.marcarLidasDaReferencia(usuario.id(), EventoNotificacao.MENSAGEM_RECEBIDA,
                 String.valueOf(conversa.getId()));
@@ -183,6 +187,13 @@ public class ChatService {
                 .orElseThrow(() -> new RecursoNaoEncontradoException("conversa não encontrada"));
     }
 
+    /** Chef apagado/banido com token ainda válido não age mais no chat; só lê o histórico. */
+    static void exigirChefAtivo(Conversa conversa, UsuarioAutenticado usuario) {
+        if (usuario.tipo() == TipoUsuario.CHEFE) {
+            conversa.getChefe().exigirAtivo();
+        }
+    }
+
     private static UUID outroParticipante(Conversa conversa, UsuarioAutenticado usuario) {
         return usuario.tipo() == TipoUsuario.CLIENTE ? conversa.getChefe().getId() : conversa.getCliente().getId();
     }
@@ -190,6 +201,7 @@ public class ChatService {
     /** Mensagem da conversa escrita pelo usuário; mensagem dos outros, para ele, "não existe". */
     private Mensagem doAutor(Long conversaId, Long mensagemId, UsuarioAutenticado usuario) {
         Conversa conversa = doParticipante(conversaId, usuario);
+        exigirChefAtivo(conversa, usuario);
         return mensagemRepository.findByIdAndConversa_Id(mensagemId, conversa.getId())
                 .filter(m -> m.getRemetenteId().equals(usuario.id()))
                 .orElseThrow(() -> new RecursoNaoEncontradoException("mensagem não encontrada"));

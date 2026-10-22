@@ -3,6 +3,7 @@ package com.couto.chefe_api.Services;
 import com.couto.chefe_api.Dtos.DenunciaCriadaDto;
 import com.couto.chefe_api.Dtos.DenunciaMensagemRequestDto;
 import com.couto.chefe_api.Excepitons.ConflitoException;
+import com.couto.chefe_api.Excepitons.ContaInativaException;
 import com.couto.chefe_api.Excepitons.RecursoNaoEncontradoException;
 import com.couto.chefe_api.Security.ModeracaoRegistry;
 import com.couto.chefe_api.Security.UsuarioAutenticado;
@@ -22,7 +23,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -42,8 +46,10 @@ class DenunciaMensagemServiceTest {
     private final DenunciaMensagemRepository denunciaRepository = mock(DenunciaMensagemRepository.class);
     private final NotificacaoService notificacaoService = mock(NotificacaoService.class);
     private final ModeracaoRegistry moderacao = new ModeracaoRegistry("m1@x.com,m2@x.com");
+    private static final Clock RELOGIO = Clock.fixed(Instant.parse("2026-10-21T15:00:00Z"), ZoneId.of("America/Sao_Paulo"));
     private final DenunciaMensagemService service = new DenunciaMensagemService(conversaRepository, mensagemRepository,
-            denunciaRepository, notificacaoService, moderacao);
+            denunciaRepository, notificacaoService, moderacao, RELOGIO);
+    private ChefeModel chefe;
 
     private final Mensagem mensagem = new Mensagem();
     private UsuarioAutenticado ana;
@@ -53,7 +59,7 @@ class DenunciaMensagemServiceTest {
     void setUp() {
         UserModel cliente = new UserModel();
         cliente.setId(UUID.randomUUID());
-        ChefeModel chefe = new ChefeModel();
+        chefe = new ChefeModel();
         chefe.setId(UUID.randomUUID());
         Conversa conversa = new Conversa();
         conversa.setId(1L);
@@ -92,6 +98,7 @@ class DenunciaMensagemServiceTest {
         assertThat(denuncia.getAutorId()).isEqualTo(bia.id());
         assertThat(denuncia.getAutorTipo()).isEqualTo(TipoUsuario.CHEFE);
         assertThat(denuncia.getDescricao()).isEqualTo("me xingou");
+        assertThat(denuncia.getCriadaEm()).isEqualTo(LocalDateTime.now(RELOGIO));
         moderacao.ids().forEach(id -> verify(notificacaoService).notificar(eq(id), eq(TipoUsuario.MODERADOR),
                 eq(EventoNotificacao.MENSAGEM_DENUNCIADA), eq("Nova denúncia de mensagem (OFENSIVA)"), eq("77")));
     }
@@ -135,5 +142,15 @@ class DenunciaMensagemServiceTest {
 
     private static DenunciaMensagemRequestDto pedido() {
         return new DenunciaMensagemRequestDto(MotivoDenunciaMensagem.ASSEDIO, null);
+    }
+
+    @Test
+    void chefApagadoNaoDenuncia() {
+        mensagem.setRemetenteId(ana.id());
+        mensagem.setRemetenteTipo(TipoUsuario.CLIENTE);
+        chefe.setAtivo(false);
+
+        assertThatThrownBy(() -> service.denunciar(1L, 10L, bia, pedido())).isInstanceOf(ContaInativaException.class);
+        verify(denunciaRepository, never()).save(any());
     }
 }
