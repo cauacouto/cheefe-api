@@ -1,7 +1,7 @@
 # Ciclo de vida do agendamento — Design
 
 **Data:** 2026-10-22
-**Status:** v1 — aprovado em conversa (partes 1, 2 e 3), aguardando revisão do spec
+**Status:** v2 — spec aprovado; v2 acrescenta motivos pré-definidos além do texto livre
 **Branch:** `feat/ciclo-agendamento`
 
 ## Objetivo
@@ -22,7 +22,7 @@ Hoje o agendamento nasce `PENDENTE` e só pode virar `CONFIRMADO`. `CANCELADO` e
 | Chef desistir de um confirmado | Pode, antes do início; mesma regra da recusa; sem chefs → `CANCELADO` |
 | Conclusão | Automática depois do fim, e o chef pode marcar antes (só depois do início) |
 | Pendente que chega no horário | Vira `EXPIRADO` (status próprio) |
-| Motivo | Opcional, até 300 caracteres, em cancelar, recusar e desistir |
+| Motivo | Opcional, em cancelar, recusar e desistir: um código de uma lista pré-definida (uma lista para o cliente, outra para o chef) e/ou um texto livre de até 300 caracteres |
 | Modelagem | Transições como métodos da entidade + tabela de histórico só de inserção |
 
 ## Estados e transições
@@ -64,7 +64,31 @@ O recálculo do valor quando um chef sai usa a mesma regra de hoje (`calcularVal
 
 ## API
 
-Todas as rotas novas respondem **200 sem corpo** (como o `confirmar` atual). Corpo opcional `{ "motivo": "..." }` (até 300 caracteres; em branco vira nulo) em cancelar, recusar e desistir.
+Todas as rotas novas respondem **200 sem corpo** (como o `confirmar` atual). Em cancelar, recusar e desistir, corpo opcional `{ "motivo": "<código>", "descricao": "<texto livre>" }`, os dois campos opcionais; `descricao` até 300 caracteres (em branco vira nulo). `OUTRO` sem descrição é aceito.
+
+### Motivos pré-definidos
+
+Cada rota só aceita a lista do seu lado; código inexistente ou da lista do outro lado → 400. Cada valor tem um rótulo em português (usado nas notificações e devolvido no histórico).
+
+`MotivoCancelamento` (cliente, `PATCH /cancelar`):
+
+| Código | Rótulo |
+|---|---|
+| `MUDANCA_DE_PLANOS` | Mudança de planos |
+| `DATA_OU_HORARIO` | Preciso mudar a data ou o horário |
+| `ENCONTREI_OUTRA_OPCAO` | Encontrei outra opção |
+| `VALOR` | O valor ficou alto |
+| `OUTRO` | Outro motivo |
+
+`MotivoRecusa` (chef, `PATCH /recusar` e `PATCH /desistir`):
+
+| Código | Rótulo |
+|---|---|
+| `AGENDA_INDISPONIVEL` | Não tenho agenda nesse horário |
+| `LOCAL_FORA_DA_AREA` | O local fica fora da minha área de atendimento |
+| `NUMERO_DE_PESSOAS` | Não atendo essa quantidade de pessoas |
+| `IMPREVISTO` | Tive um imprevisto |
+| `OUTRO` | Outro motivo |
 
 | Rota | Papel |
 |---|---|
@@ -74,7 +98,7 @@ Todas as rotas novas respondem **200 sem corpo** (como o `confirmar` atual). Cor
 | `PATCH /agendamentos/{id}/concluir` | CHEFE do agendamento (sem corpo) |
 | `GET /agendamentos/{id}/historico` | cliente dono ou chef atual do agendamento |
 
-`GET /agendamentos/{id}/historico` → `[{ "acao", "autor": { "id", "nome", "tipo" } | null, "motivo", "ocorridoEm" }]`, do mais antigo ao mais novo. `autor` nulo = sistema. Chef que já saiu do agendamento recebe 404.
+`GET /agendamentos/{id}/historico` → `[{ "acao", "autor": { "id", "nome", "tipo" } | null, "motivo": { "codigo", "rotulo" } | null, "descricao", "ocorridoEm" }]`, do mais antigo ao mais novo. `autor` nulo = sistema. Chef que já saiu do agendamento recebe 404.
 
 Rotas no `SecurityConfiguration`: `PATCH /agendamentos/*/cancelar` → CLIENTE; `PATCH /agendamentos/*/recusar|desistir|concluir` → CHEFE; `GET /agendamentos/*/historico` → CLIENTE ou CHEFE.
 
@@ -89,7 +113,8 @@ Tabela `agendamento_historico`:
 | `acao` | varchar CHECK (`CRIADO`, `EDITADO`, `CONFIRMADO`, `CANCELADO`, `RECUSADO`, `DESISTENCIA`, `CONCLUIDO`, `EXPIRADO`) |
 | `autor_id` | uuid, nulo = sistema |
 | `autor_tipo` | varchar CHECK (`CLIENTE`, `CHEFE`), nulo = sistema |
-| `motivo` | varchar(300) |
+| `motivo` | varchar CHECK (valores de `MotivoCancelamento` ∪ `MotivoRecusa`; `OUTRO` aparece uma vez), nulo = sem motivo |
+| `descricao` | varchar(300) |
 | `ocorrido_em` | timestamp NOT NULL |
 
 Índice `(agendamento_id, ocorrido_em)`.
@@ -107,12 +132,12 @@ Eventos novos em `EventoNotificacao`. Mesma mecânica de hoje: eventos de domín
 
 | Evento | Para quem | Texto |
 |---|---|---|
-| `AGENDAMENTO_CANCELADO` | cada chef do agendamento | "{cliente} cancelou o agendamento de {dd/MM}" + ": {motivo}" |
+| `AGENDAMENTO_CANCELADO` | cada chef do agendamento | "{cliente} cancelou o agendamento de {dd/MM}" + ": {rótulo}" + " — {descrição}" |
 | `AGENDAMENTO_RECUSADO` | cliente | com chefs restantes: "Chef {nome} recusou seu pedido de {dd/MM}. Novo valor: R$ {valor}" + motivo; sem chefs: "Seu pedido de {dd/MM} foi recusado" + motivo |
 | `CHEF_DESISTIU` | cliente | com chefs restantes: "Chef {nome} desistiu do agendamento de {dd/MM}. Novo valor: R$ {valor}" + motivo; sem chefs: "O agendamento de {dd/MM} foi cancelado: o chef {nome} desistiu" + motivo |
 | `AGENDAMENTO_EXPIRADO` | cliente | "Seu pedido de {dd/MM} expirou sem confirmação" |
 
-- O motivo entra encurtado (até 120 caracteres, com "…") para caber nos 300 da notificação; o texto completo fica no histórico.
+- "+ motivo" = `": {rótulo}"` quando há código e `" — {descrição}"` quando há texto (ex.: "Chef Bia recusou seu pedido de 25/10: O local fica fora da minha área de atendimento — fico em Santo André"). A descrição entra encurtada (até 120 caracteres, com "…") para caber nos 300 da notificação; o texto completo fica no histórico.
 - Conclusão não notifica por enquanto (vai junto com as avaliações).
 
 ## Rotina
@@ -133,13 +158,13 @@ Eventos novos em `EventoNotificacao`. Mesma mecânica de hoje: eventos de domín
 | Agendamento de outro cliente / chef que não está nele | 404 |
 | Papel errado | 403 |
 | Status não permite a ação / fora do prazo | 409 (`AgendamentoTransicaoInvalidaException`, mensagem com o motivo) |
-| Motivo com mais de 300 caracteres | 400 |
+| Descrição com mais de 300 caracteres; código de motivo inexistente ou da lista do outro lado | 400 |
 | Chef apagado ou banido | 403 (`ContaInativaException`) |
 
 ## Testes
 
 - **Unidade (entidade, `Clock` fixo):** cada linha da tabela de transições, com o caso válido e o 409: cancelar confirmado com 24h e 23h59 de antecedência; concluir antes do início; recusar pendente depois do início; qualquer ação a partir de estado final; recusa e desistência parciais (chef sai, valor recalculado, status mantido) e com o último chef (`RECUSADO` / `CANCELADO`).
-- **Integração pela API (H2):** 404 para quem não é dono/chef; 403 para papel errado e chef banido; histórico com autor, motivo e horário; `GET /historico` e chef que saiu → 404; notificações com os textos acima e contagem pelo SSE; horário liberado depois do cancelamento aceita outro confirmado; denúncia de agendamento `CONCLUIDO`; rotina com relógio adiantado conclui e expira, e rodar duas vezes não duplica nada.
+- **Integração pela API (H2):** 404 para quem não é dono/chef; 403 para papel errado e chef banido; histórico com autor, código de motivo, descrição e horário; motivo do cliente na rota do chef (e vice-versa) → 400; `GET /historico` e chef que saiu → 404; notificações com os textos acima e contagem pelo SSE; horário liberado depois do cancelamento aceita outro confirmado; denúncia de agendamento `CONCLUIDO`; rotina com relógio adiantado conclui e expira, e rodar duas vezes não duplica nada.
 - **Postgres real (Testcontainers):** V6 aplica e o `validate` passa; `chefhome_app` sem `UPDATE`/`DELETE` no histórico; apagar a conta do cliente leva o histórico pela cascata; CHECKs batem com os enums Java.
 
 ## Pontos de atenção da revisão
