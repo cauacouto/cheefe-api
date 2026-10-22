@@ -47,6 +47,8 @@ public class Notificacao {
 
     @PrePersist
     void aoCriar() {
-        criadaEm = LocalDateTime.now();
+        if (criadaEm == null) {
+            criadaEm = LocalDateTime.now();
+        }
     }
 }

@@ -14,6 +14,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
@@ -24,6 +26,7 @@ public class NotificacaoService {
 
     private final NotificacaoRepository repository;
     private final ApplicationEventPublisher eventPublisher;
+    private final Clock clock;
 
     @Transactional(readOnly = true)
     public Page<NotificacaoDto> listar(UUID destinatarioId, boolean somenteNaoLidas, Pageable pageable) {
@@ -76,6 +79,7 @@ public class NotificacaoService {
         notificacao.setEvento(evento);
         notificacao.setMensagem(mensagem);
         notificacao.setReferenciaId(referenciaId);
+        notificacao.setCriadaEm(LocalDateTime.now(clock));
         repository.save(notificacao);
         avisarContagem(destinatarioId);
     }

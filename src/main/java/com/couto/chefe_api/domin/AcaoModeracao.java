@@ -42,6 +42,8 @@ public class AcaoModeracao {
 
     @PrePersist
     void aoCriar() {
-        realizadaEm = LocalDateTime.now();
+        if (realizadaEm == null) {
+            realizadaEm = LocalDateTime.now();
+        }
     }
 }
