@@ -15,6 +15,7 @@ import com.couto.chefe_api.repositorys.ChefeRepository;
 import com.couto.chefe_api.repositorys.DenunciaMensagemRepository;
 import com.couto.chefe_api.repositorys.DenunciaRepository;
 import com.couto.chefe_api.Services.eventos.MensagemApagadaEvent;
+import com.couto.chefe_api.User.UserModel;
 import com.couto.chefe_api.domin.Conversa;
 import com.couto.chefe_api.domin.DenunciaMensagem;
 import com.couto.chefe_api.domin.Mensagem;
@@ -171,7 +172,7 @@ class ModeracaoServiceTest {
         assertThat(mensagem.isRemovidaPorModeracao()).isTrue();
         assertThat(mensagem.getTexto()).isEqualTo("original");
         assertThat(List.of(denuncia, outra)).allSatisfy(d -> assertThat(d.getStatus()).isEqualTo(StatusDenuncia.PROCEDENTE));
-        verify(eventPublisher).publishEvent(new MensagemApagadaEvent(1L, 10L));
+        verify(eventPublisher).publishEvent(new MensagemApagadaEvent(1L, 10L, CLIENTE_ID, chefe.getId()));
         ArgumentCaptor<AcaoModeracao> captor = ArgumentCaptor.forClass(AcaoModeracao.class);
         verify(acaoRepository).save(captor.capture());
         assertThat(captor.getValue().getAcao()).isEqualTo(TipoAcaoModeracao.REMOVER_MENSAGEM);
@@ -190,9 +191,15 @@ class ModeracaoServiceTest {
         verify(eventPublisher, never()).publishEvent(any());
     }
 
-    private static Mensagem mensagemNaConversa(Long mensagemId, Long conversaId) {
+    private static final UUID CLIENTE_ID = UUID.randomUUID();
+
+    private Mensagem mensagemNaConversa(Long mensagemId, Long conversaId) {
         Conversa conversa = new Conversa();
         conversa.setId(conversaId);
+        UserModel cliente = new UserModel();
+        cliente.setId(CLIENTE_ID);
+        conversa.setCliente(cliente);
+        conversa.setChefe(chefe);
         Mensagem mensagem = new Mensagem();
         mensagem.setId(mensagemId);
         mensagem.setConversa(conversa);

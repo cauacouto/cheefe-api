@@ -9,6 +9,7 @@ import com.couto.chefe_api.Excepitons.RecursoNaoEncontradoException;
 import com.couto.chefe_api.domin.AcaoModeracao;
 import com.couto.chefe_api.domin.ChefeModel;
 import com.couto.chefe_api.Services.eventos.MensagemApagadaEvent;
+import com.couto.chefe_api.domin.Conversa;
 import com.couto.chefe_api.domin.Denuncia;
 import com.couto.chefe_api.domin.DenunciaMensagem;
 import com.couto.chefe_api.domin.Mensagem;
@@ -108,7 +109,9 @@ public class ModeracaoService {
         denunciaMensagemRepository.findByMensagem_IdAndStatus(mensagem.getId(), StatusDenuncia.ABERTA)
                 .forEach(outra -> resolver(outra, StatusDenuncia.PROCEDENTE, moderadorEmail));
         registrar(moderadorEmail, TipoAcaoModeracao.REMOVER_MENSAGEM, null, denunciaId);
-        eventPublisher.publishEvent(new MensagemApagadaEvent(mensagem.getConversa().getId(), mensagem.getId()));
+        Conversa conversa = mensagem.getConversa();
+        eventPublisher.publishEvent(new MensagemApagadaEvent(conversa.getId(), mensagem.getId(),
+                conversa.getCliente().getId(), conversa.getChefe().getId()));
     }
 
     @Transactional(readOnly = true)

@@ -7,6 +7,9 @@ import com.couto.chefe_api.Excepitons.RegraDeNegocioException;
 import com.couto.chefe_api.Security.UsuarioAutenticado;
 import com.couto.chefe_api.Services.eventos.MensagemApagadaEvent;
 import com.couto.chefe_api.Services.eventos.MensagemEditadaEvent;
+import com.couto.chefe_api.Services.eventos.MensagemEnviadaEvent;
+import com.couto.chefe_api.Services.eventos.MensagensLidasEvent;
+import org.mockito.ArgumentCaptor;
 import com.couto.chefe_api.User.UserModel;
 import com.couto.chefe_api.User.UsuarioRepository;
 import com.couto.chefe_api.domin.ChefeModel;
@@ -85,7 +88,7 @@ class ChatServiceTest {
         assertThat(mensagem.getEditadaEm()).isEqualTo(AGORA);
         assertThat(dto.editada()).isTrue();
         assertThat(dto.texto()).isEqualTo("corrigido");
-        verify(eventPublisher).publishEvent(new MensagemEditadaEvent(10L));
+        verify(eventPublisher).publishEvent(new MensagemEditadaEvent(ana.id(), dto, bia.id(), MensagemDto.de(mensagem, bia.id())));
     }
 
     @Test
@@ -134,7 +137,7 @@ class ChatServiceTest {
 
         assertThat(primeira).isEqualTo(AGORA);
         assertThat(mensagem.getApagadaEm()).isEqualTo(primeira);
-        verify(eventPublisher, times(1)).publishEvent(new MensagemApagadaEvent(1L, 10L));
+        verify(eventPublisher, times(1)).publishEvent(new MensagemApagadaEvent(1L, 10L, cliente.getId(), chefe.getId()));
     }
 
     @Test
@@ -152,5 +155,44 @@ class ChatServiceTest {
         assertThat(dto.texto()).isNull();
         assertThat(dto.apagada()).isTrue();
         assertThat(mensagem.getTexto()).isEqualTo("original");
+    }
+
+    @Test
+    void enviarPublicaAMensagemDoPontoDeVistaDeCadaUm() {
+        when(mensagemRepository.save(any())).thenAnswer(inv -> {
+            Mensagem m = inv.getArgument(0);
+            m.setId(11L);
+            return m;
+        });
+
+        MensagemDto dto = service.enviar(1L, ana, "oi");
+
+        ArgumentCaptor<MensagemEnviadaEvent> captor = ArgumentCaptor.forClass(MensagemEnviadaEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        MensagemEnviadaEvent evento = captor.getValue();
+        assertThat(evento.remetenteId()).isEqualTo(ana.id());
+        assertThat(evento.paraRemetente()).isEqualTo(dto);
+        assertThat(evento.paraRemetente().minha()).isTrue();
+        assertThat(evento.destinatarioId()).isEqualTo(bia.id());
+        assertThat(evento.paraDestinatario().minha()).isFalse();
+    }
+
+    @Test
+    void marcarLidasAvisaQuemEnviou() {
+        when(mensagemRepository.marcarLidas(any(), any(), any())).thenReturn(2);
+        when(mensagemRepository.findFirstByConversa_IdOrderByIdDesc(1L)).thenReturn(Optional.of(mensagem));
+
+        service.marcarLidas(1L, bia);
+
+        verify(eventPublisher).publishEvent(new MensagensLidasEvent(1L, bia.id(), ana.id(), 10L, AGORA));
+    }
+
+    @Test
+    void marcarLidasSemNadaNovoNaoAvisa() {
+        when(mensagemRepository.marcarLidas(any(), any(), any())).thenReturn(0);
+
+        service.marcarLidas(1L, bia);
+
+        verify(eventPublisher, never()).publishEvent(any());
     }
 }

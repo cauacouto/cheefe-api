@@ -107,9 +107,11 @@ public class ChatService {
         Mensagem salva = mensagemRepository.save(mensagem);
         conversa.setUltimaMensagemEm(agora);
 
-        notificarDestinatario(conversa, usuario);
-        eventPublisher.publishEvent(new MensagemEnviadaEvent(salva.getId()));
-        return MensagemDto.de(salva, usuario.id());
+        UUID destinatario = outroParticipante(conversa, usuario);
+        notificarDestinatario(conversa, usuario, destinatario);
+        MensagemDto dto = MensagemDto.de(salva, usuario.id());
+        eventPublisher.publishEvent(new MensagemEnviadaEvent(usuario.id(), dto, destinatario, MensagemDto.de(salva, destinatario)));
+        return dto;
     }
 
     /** Só o autor, até 15 minutos depois do envio. */
@@ -125,8 +127,10 @@ public class ChatService {
         }
         mensagem.setTexto(normalizar(texto));
         mensagem.setEditadaEm(agora);
-        eventPublisher.publishEvent(new MensagemEditadaEvent(mensagem.getId()));
-        return MensagemDto.de(mensagem, usuario.id());
+        MensagemDto dto = MensagemDto.de(mensagem, usuario.id());
+        UUID outro = outroParticipante(mensagem.getConversa(), usuario);
+        eventPublisher.publishEvent(new MensagemEditadaEvent(usuario.id(), dto, outro, MensagemDto.de(mensagem, outro)));
+        return dto;
     }
 
     /** Só o autor, a qualquer momento; o texto fica guardado (prova para denúncias). Apagar de novo não faz nada. */
@@ -137,7 +141,9 @@ public class ChatService {
             return;
         }
         mensagem.setApagadaEm(LocalDateTime.now(clock));
-        eventPublisher.publishEvent(new MensagemApagadaEvent(conversaId, mensagem.getId()));
+        Conversa conversa = mensagem.getConversa();
+        eventPublisher.publishEvent(new MensagemApagadaEvent(conversa.getId(), mensagem.getId(),
+                conversa.getCliente().getId(), conversa.getChefe().getId()));
     }
 
     @Transactional
@@ -149,14 +155,14 @@ public class ChatService {
                 String.valueOf(conversa.getId()));
         if (lidas > 0) {
             Long ateId = mensagemRepository.findFirstByConversa_IdOrderByIdDesc(conversa.getId()).map(Mensagem::getId).orElse(null);
-            eventPublisher.publishEvent(new MensagensLidasEvent(conversa.getId(), usuario.id(), ateId, agora));
+            eventPublisher.publishEvent(new MensagensLidasEvent(conversa.getId(), usuario.id(),
+                    outroParticipante(conversa, usuario), ateId, agora));
         }
     }
 
     /** Uma notificação por conversa enquanto não for lida: dez mensagens seguidas = um aviso. */
-    private void notificarDestinatario(Conversa conversa, UsuarioAutenticado remetente) {
+    private void notificarDestinatario(Conversa conversa, UsuarioAutenticado remetente, UUID destinatario) {
         boolean remetenteEhCliente = remetente.tipo() == TipoUsuario.CLIENTE;
-        UUID destinatario = remetenteEhCliente ? conversa.getChefe().getId() : conversa.getCliente().getId();
         TipoUsuario tipoDestinatario = remetenteEhCliente ? TipoUsuario.CHEFE : TipoUsuario.CLIENTE;
         String nomeRemetente = remetenteEhCliente ? conversa.getCliente().getNome() : conversa.getChefe().getNome();
         String referencia = String.valueOf(conversa.getId());
@@ -171,6 +177,10 @@ public class ChatService {
         return conversaRepository.findById(conversaId)
                 .filter(c -> participa(c, usuario))
                 .orElseThrow(() -> new RecursoNaoEncontradoException("conversa não encontrada"));
+    }
+
+    private static UUID outroParticipante(Conversa conversa, UsuarioAutenticado usuario) {
+        return usuario.tipo() == TipoUsuario.CLIENTE ? conversa.getChefe().getId() : conversa.getCliente().getId();
     }
 
     /** Mensagem da conversa escrita pelo usuário; mensagem dos outros, para ele, "não existe". */
