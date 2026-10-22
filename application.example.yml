@@ -3,9 +3,17 @@
 
 spring:
   datasource:
+    # Usuário da API = chefhome_app (só SELECT/INSERT/UPDATE/DELETE). Nunca use aqui o chefhome_migracao.
+    # Ex.: jdbc:postgresql://localhost:5432/chefe_api?currentSchema=chefhome
     url: ${DATABASE_URL}
     username: ${DATABASE_USERNAME}
     password: ${DATABASE_PASSWORD}
+
+  jpa:
+    hibernate:
+      # O schema vem das migrations do Flyway (./mvnw flyway:migrate, passo separado).
+      # A API só confere: se o schema divergir das entidades, ela não sobe.
+      ddl-auto: validate
 
   servlet:
     multipart:
@@ -32,7 +40,12 @@ server:
 jwt:
   key: ${JWT_KEY}
 
-# Fotos de pratos: bucket compatível com S3 (Cloudflare R2, AWS S3, MinIO...).
+# E-mails (separados por vírgula) que entram como moderação ao logar com o Google.
+# Moderadores não existem no banco; tirar um e-mail daqui derruba a sessão dele na hora.
+moderacao:
+  emails: ${MODERACAO_EMAILS:}
+
+# Fotos de pratos e de perfil: bucket compatível com S3 (Cloudflare R2, AWS S3, MinIO...).
 # R2: endpoint https://<ACCOUNT_ID>.r2.cloudflarestorage.com; public-url é o r2.dev ou domínio próprio do bucket.
 storage:
   endpoint: ${R2_ENDPOINT}
