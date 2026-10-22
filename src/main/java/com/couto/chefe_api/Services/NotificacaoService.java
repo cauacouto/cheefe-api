@@ -6,7 +6,7 @@ import com.couto.chefe_api.domin.Notificacao;
 import com.couto.chefe_api.enums.EventoNotificacao;
 import com.couto.chefe_api.enums.TipoUsuario;
 import com.couto.chefe_api.repositorys.NotificacaoRepository;
-import com.couto.chefe_api.Services.eventos.NotificacaoCriadaEvent;
+import com.couto.chefe_api.Services.eventos.NotificacoesAlteradasEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -41,12 +41,17 @@ public class NotificacaoService {
     public void marcarLida(Long id, UUID destinatarioId) {
         Notificacao notificacao = repository.findByIdAndDestinatarioId(id, destinatarioId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("notificação não encontrada"));
-        notificacao.setLida(true);
+        if (!notificacao.isLida()) {
+            notificacao.setLida(true);
+            avisarContagem(destinatarioId);
+        }
     }
 
     @Transactional
     public void marcarTodasLidas(UUID destinatarioId) {
-        repository.marcarTodasLidas(destinatarioId);
+        if (repository.marcarTodasLidas(destinatarioId) > 0) {
+            avisarContagem(destinatarioId);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -56,7 +61,9 @@ public class NotificacaoService {
 
     @Transactional
     public void marcarLidasDaReferencia(UUID destinatarioId, EventoNotificacao evento, String referenciaId) {
-        repository.marcarLidasDaReferencia(destinatarioId, evento, referenciaId);
+        if (repository.marcarLidasDaReferencia(destinatarioId, evento, referenciaId) > 0) {
+            avisarContagem(destinatarioId);
+        }
     }
 
     @Transactional
@@ -68,6 +75,12 @@ public class NotificacaoService {
         notificacao.setMensagem(mensagem);
         notificacao.setReferenciaId(referenciaId);
         repository.save(notificacao);
-        eventPublisher.publishEvent(new NotificacaoCriadaEvent(destinatarioId, repository.countByDestinatarioIdAndLidaFalse(destinatarioId)));
+        avisarContagem(destinatarioId);
+    }
+
+    /** O sino de todas as abas acompanha: a contagem sai pelo SSE depois do commit. */
+    private void avisarContagem(UUID destinatarioId) {
+        eventPublisher.publishEvent(new NotificacoesAlteradasEvent(destinatarioId,
+                repository.countByDestinatarioIdAndLidaFalse(destinatarioId)));
     }
 }

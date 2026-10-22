@@ -1,6 +1,9 @@
 package com.couto.chefe_api.Security;
 
+import com.couto.chefe_api.Dtos.ContagemDto;
+import com.couto.chefe_api.Services.NotificacaoService;
 import com.couto.chefe_api.Services.SseRegistry;
+import com.couto.chefe_api.enums.EventoNotificacao;
 import com.couto.chefe_api.User.UserModel;
 import com.couto.chefe_api.User.UsuarioRepository;
 import com.couto.chefe_api.domin.ChefeModel;
@@ -38,10 +41,12 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -59,6 +64,7 @@ class EventosIntegrationTest {
     @Autowired ConversaRepository conversaRepository;
     @Autowired MensagemRepository mensagemRepository;
     @Autowired NotificacaoRepository notificacaoRepository;
+    @Autowired NotificacaoService notificacaoService;
     @MockitoSpyBean SseRegistry sseRegistry;
 
     MockMvc mockMvc;
@@ -128,6 +134,38 @@ class EventosIntegrationTest {
         String recebido = stream.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8); // SSE é sempre UTF-8
         assertThat(recebido).contains("event:mensagem").contains("\"texto\":\"chego às 19h\"").contains("\"minha\":false")
                 .containsPattern("\"enviadaEm\":\"\\d{2}-\\d{2}-\\d{4} \\d{2}:\\d{2}\"");
+    }
+
+    @Test
+    void lerAtualizaOContadorDoSinoNasOutrasAbas() throws Exception {
+        long conversaId = JSON.readTree(mockMvc.perform(post("/conversas").cookie(cookieAna())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"chefeId\":\"" + bia.getId() + "\"}"))
+                .andReturn().getResponse().getContentAsString()).get("id").asLong();
+        mockMvc.perform(post("/conversas/" + conversaId + "/mensagens").cookie(cookieAna())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"texto\":\"oi\"}")).andExpect(status().isCreated());
+        verify(sseRegistry).enviar(bia.getId(), "notificacao", new ContagemDto(1));
+
+        mockMvc.perform(patch("/conversas/" + conversaId + "/lidas").cookie(cookieBia())).andExpect(status().isNoContent());
+        verify(sseRegistry).enviar(bia.getId(), "notificacao", new ContagemDto(0));
+
+        // nada mudou: nada a avisar
+        mockMvc.perform(patch("/notificacoes/lidas").cookie(cookieBia())).andExpect(status().isNoContent());
+        verify(sseRegistry, times(1)).enviar(bia.getId(), "notificacao", new ContagemDto(0));
+    }
+
+    @Test
+    void marcarUmaOuTodasComoLidasAvisaOContador() throws Exception {
+        notificacaoService.notificar(bia.getId(), TipoUsuario.CHEFE, EventoNotificacao.AGENDAMENTO_CRIADO, "a", "1");
+        notificacaoService.notificar(bia.getId(), TipoUsuario.CHEFE, EventoNotificacao.AGENDAMENTO_CRIADO, "b", "2");
+        long primeira = notificacaoRepository.findAll().get(0).getId();
+
+        mockMvc.perform(patch("/notificacoes/" + primeira + "/lida").cookie(cookieBia())).andExpect(status().isNoContent());
+        verify(sseRegistry, times(2)).enviar(bia.getId(), "notificacao", new ContagemDto(1));
+        mockMvc.perform(patch("/notificacoes/" + primeira + "/lida").cookie(cookieBia())).andExpect(status().isNoContent());
+        verify(sseRegistry, times(2)).enviar(bia.getId(), "notificacao", new ContagemDto(1));
+
+        mockMvc.perform(patch("/notificacoes/lidas").cookie(cookieBia())).andExpect(status().isNoContent());
+        verify(sseRegistry).enviar(bia.getId(), "notificacao", new ContagemDto(0));
     }
 
     @Test

@@ -175,7 +175,7 @@ O front abre **uma** conexão por aba e recebe tudo por ela:
 const eventos = new EventSource(`${API}/eventos`, { withCredentials: true });
 eventos.addEventListener('mensagem', e => mostrar(JSON.parse(e.data)));      // MensagemDto (minha=true nas outras abas de quem enviou)
 eventos.addEventListener('mensagens_lidas', e => marcarVisto(JSON.parse(e.data))); // {conversaId, ateId, lidaEm}
-eventos.addEventListener('notificacao', e => atualizarSino(JSON.parse(e.data).total));
+eventos.addEventListener('notificacao', e => atualizarSino(JSON.parse(e.data).total));  // a cada notificação criada ou lida, em todas as abas
 ```
 
 - Os eventos só saem **depois do commit**; se a entrega falhar (aba fechada, rede), a mensagem continua gravada e aparece no próximo `GET /conversas/{id}/mensagens`.

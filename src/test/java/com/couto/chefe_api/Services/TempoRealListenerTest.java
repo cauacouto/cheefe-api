@@ -5,7 +5,7 @@ import com.couto.chefe_api.Dtos.MensagemDto;
 import com.couto.chefe_api.Services.eventos.MensagemApagadaEvent;
 import com.couto.chefe_api.Services.eventos.MensagemEnviadaEvent;
 import com.couto.chefe_api.Services.eventos.MensagensLidasEvent;
-import com.couto.chefe_api.Services.eventos.NotificacaoCriadaEvent;
+import com.couto.chefe_api.Services.eventos.NotificacoesAlteradasEvent;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -56,7 +56,7 @@ class TempoRealListenerTest {
 
     @Test
     void notificacaoCriadaEnviaAContagem() {
-        listener.aoNotificar(new NotificacaoCriadaEvent(bia, 3));
+        listener.aoNotificar(new NotificacoesAlteradasEvent(bia, 3));
 
         verify(registry).enviar(bia, "notificacao", new ContagemDto(3));
     }
@@ -65,7 +65,7 @@ class TempoRealListenerTest {
     void falhaNoEnvioNuncaSobeParaQuemChamou() {
         doThrow(new IllegalStateException("emitter já fechado")).when(registry).enviar(any(), anyString(), any());
 
-        assertThatCode(() -> listener.aoNotificar(new NotificacaoCriadaEvent(bia, 1))).doesNotThrowAnyException();
+        assertThatCode(() -> listener.aoNotificar(new NotificacoesAlteradasEvent(bia, 1))).doesNotThrowAnyException();
         assertThatCode(() -> listener.aoApagar(new MensagemApagadaEvent(1L, 10L, ana, bia))).doesNotThrowAnyException();
     }
 }
