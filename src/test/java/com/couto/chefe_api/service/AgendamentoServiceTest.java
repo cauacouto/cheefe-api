@@ -215,6 +215,19 @@ class AgendamentoServiceTest {
     }
 
     @Test
+    void criadoEmVemDoRelogio() {
+        chefesExistentes(chefeA);
+        java.time.Instant fixo = java.time.Instant.parse("2026-10-21T15:00:00Z");
+        org.mockito.Mockito.doReturn(fixo).when(clock).instant();
+
+        service.criarAgendamento(dto(DIA.withHour(18), DIA.withHour(21), 1L, ids(chefeA), 2), USUARIO_ID);
+
+        org.mockito.ArgumentCaptor<Agendamento> salvo = org.mockito.ArgumentCaptor.forClass(Agendamento.class);
+        verify(agendamentoRepository).save(salvo.capture());
+        assertThat(salvo.getValue().getCriadoEm()).isEqualTo(LocalDateTime.ofInstant(fixo, clock.getZone()));
+    }
+
+    @Test
     void agendarChefSuspensoDa409() {
         chefeA.setSuspenso(true);
         chefesExistentes(chefeA);

@@ -75,7 +75,9 @@ public class Agendamento  implements Serializable {
 
     @PrePersist
     public void Prepersist(){
-        this.criadoEm =LocalDateTime.now();
+        if (this.criadoEm == null) {
+            this.criadoEm = LocalDateTime.now();
+        }
     }
 
     // ─── Transições (spec: tabela de transições). Só regra de status e horário, sem banco. ───

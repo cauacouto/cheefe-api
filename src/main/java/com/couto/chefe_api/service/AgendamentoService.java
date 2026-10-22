@@ -95,6 +95,7 @@ public class AgendamentoService {
         agendamento.setDataHoraInicial(dto.getDataHoraInicial());
         agendamento.setDataHoraFinal(dto.getDataHoraFinal());
         agendamento.setQuantidadePessoas(dto.getQuantidadePessoas());
+        agendamento.setCriadoEm(agora());
         agendamento.setValorTotal(Agendamento.calcularValor(chefes, dto.getDataHoraInicial(), dto.getDataHoraFinal()));
         exigirHorarioLivre(agendamento);
         Agendamento salvo = agendamentoRepository.save(agendamento);
