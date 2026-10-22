@@ -1,5 +1,10 @@
 package com.couto.chefe_api.repositorys;
 
+import org.springframework.data.repository.query.Param;
+import java.util.List;
+import java.util.Collection;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 import com.couto.chefe_api.domin.ChefeModel;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -24,6 +29,11 @@ public interface ChefeRepository extends JpaRepository<ChefeModel, UUID>, JpaSpe
             "AND c.suspenso = false " +
             "AND (SELECT COUNT(DISTINCT d.cliente.id) FROM Denuncia d WHERE d.chefe = c " +
             "AND d.status = com.couto.chefe_api.enums.StatusDenuncia.ABERTA) < 3";
+
+    /** SELECT ... FOR UPDATE sempre na mesma ordem (por id): confirmações simultâneas esperam e não travam umas às outras. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM ChefeModel c WHERE c.id IN :ids ORDER BY c.id")
+    List<ChefeModel> travar(@Param("ids") Collection<UUID> ids);
 
     @Query(value = "SELECT c FROM ChefeModel c LEFT JOIN c.agendamentos a WHERE " + VISIVEL +
             " GROUP BY c ORDER BY COUNT(a) DESC",
