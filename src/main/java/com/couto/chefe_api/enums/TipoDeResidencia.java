@@ -1,7 +1,7 @@
 package com.couto.chefe_api.enums;
 
-import com.couto.chefe_api.Excepitons.EnderecoInvalidoException;
-import com.couto.chefe_api.domin.EnderecoModel;
+import com.couto.chefe_api.exception.EnderecoInvalidoException;
+import com.couto.chefe_api.domain.EnderecoModel;
 
 public enum TipoDeResidencia {
     CASA {
@@ -12,7 +12,7 @@ public enum TipoDeResidencia {
     APARTAMENTO {
         public void validar(EnderecoModel endereco) {
             if (endereco.getComplemento() == null || endereco.getComplemento().isBlank()) {
-                throw new EnderecoInvalidoException("Apartamento exige complemento (bloco/número do apto/nomeCondomino)");
+                throw new EnderecoInvalidoException("Apartamento exige complemento (bloco, número do apartamento ou nome do condomínio)");
             }
         }
     };

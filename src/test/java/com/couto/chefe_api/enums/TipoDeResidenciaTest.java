@@ -1,7 +1,7 @@
 package com.couto.chefe_api.enums;
 
-import com.couto.chefe_api.Excepitons.EnderecoInvalidoException;
-import com.couto.chefe_api.domin.EnderecoModel;
+import com.couto.chefe_api.exception.EnderecoInvalidoException;
+import com.couto.chefe_api.domain.EnderecoModel;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;

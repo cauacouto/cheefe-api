@@ -1,21 +1,21 @@
 package com.couto.chefe_api;
 
-import com.couto.chefe_api.Security.AuthCookies;
-import com.couto.chefe_api.Security.TokenService;
-import com.couto.chefe_api.Security.UsuarioAutenticado;
-import com.couto.chefe_api.User.UserModel;
-import com.couto.chefe_api.User.UsuarioRepository;
-import com.couto.chefe_api.domin.Agendamento;
-import com.couto.chefe_api.domin.ChefeModel;
-import com.couto.chefe_api.domin.EnderecoModel;
+import com.couto.chefe_api.security.AuthCookies;
+import com.couto.chefe_api.security.TokenService;
+import com.couto.chefe_api.security.UsuarioAutenticado;
+import com.couto.chefe_api.domain.UserModel;
+import com.couto.chefe_api.repository.UsuarioRepository;
+import com.couto.chefe_api.domain.Agendamento;
+import com.couto.chefe_api.domain.ChefeModel;
+import com.couto.chefe_api.domain.EnderecoModel;
 import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.enums.Senioridade;
 import com.couto.chefe_api.enums.StatusAgendamento;
 import com.couto.chefe_api.enums.TipoDeResidencia;
 import com.couto.chefe_api.enums.TipoUsuario;
-import com.couto.chefe_api.repositorys.AgendamentoRepository;
-import com.couto.chefe_api.repositorys.ChefeRepository;
-import com.couto.chefe_api.repositorys.EndercoRepository;
+import com.couto.chefe_api.repository.AgendamentoRepository;
+import com.couto.chefe_api.repository.ChefeRepository;
+import com.couto.chefe_api.repository.EnderecoRepository;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -61,7 +61,7 @@ class AgendamentoConcorrenciaPostgresTest {
     @Autowired TokenService tokenService;
     @Autowired UsuarioRepository usuarioRepository;
     @Autowired ChefeRepository chefeRepository;
-    @Autowired EndercoRepository enderecoRepository;
+    @Autowired EnderecoRepository enderecoRepository;
     @Autowired AgendamentoRepository agendamentoRepository;
 
     final List<Agendamento> agendamentos = new ArrayList<>();
