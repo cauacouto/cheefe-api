@@ -55,20 +55,46 @@ O `src/main/resources/application.yml` não é versionado. Use o modelo [`applic
 | `AUTH_COOKIE_SECURE` | `false` só em dev via HTTP; `true` em produção |
 | `JWT_KEY` | segredo aleatório longo (`openssl rand -base64 48`) |
 | `MODERACAO_EMAILS` | e-mails (separados por vírgula) que entram como moderação ao logar com o Google; não existem contas de moderação no banco |
-| `DATABASE_*` | banco de dados |
+| `DATABASE_URL` / `DATABASE_USERNAME` / `DATABASE_PASSWORD` | conexão da API: `jdbc:postgresql://host:5432/chefe_api?currentSchema=chefhome`, usuário **`chefhome_app`** (só manipula dados) |
+| `FLYWAY_URL` / `FLYWAY_USER` / `FLYWAY_PASSWORD` | **só no passo de migração**, nunca no ambiente da API: usuário `chefhome_migracao` |
 | `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_PUBLIC_URL` | bucket de fotos dos pratos (Cloudflare R2 ou outro compatível com S3, com leitura pública) |
 
 A aplicação **não sobe** sem o registro do Google e sem `FRONT_URL`.
 
-**Bancos criados antes do onboarding** (chef pode entrar só com o nome) precisam liberar as colunas uma vez, porque o `ddl-auto: update` não remove `NOT NULL`:
+### 🗄️ Banco de dados (privilégio mínimo)
 
-```sql
-ALTER TABLE chefe ALTER COLUMN nacionalidade DROP NOT NULL;
-ALTER TABLE chefe ALTER COLUMN idiomas DROP NOT NULL;
-ALTER TABLE chefe ALTER COLUMN anos_de_experiencia DROP NOT NULL;
--- moderação (coluna nova com default; seguro rodar mais de uma vez)
-ALTER TABLE chefe ADD COLUMN IF NOT EXISTS suspenso boolean NOT NULL DEFAULT false;
+O schema é versionado com **Flyway** (`src/main/resources/db/migration`) e fica no schema `chefhome`. São dois usuários:
+
+| Usuário | Pode | Usado por |
+|---|---|---|
+| `chefhome_migracao` | criar/alterar/apagar tabelas no schema `chefhome` | só o passo `flyway:migrate` |
+| `chefhome_app` | só `SELECT`/`INSERT`/`UPDATE`/`DELETE` | a API (`ddl-auto: validate`: ela não sobe se o schema divergir das entidades) |
+
+Mesmo que a API seja comprometida, ela não consegue criar, alterar ou apagar tabelas, nem mexer no histórico de migrations.
+
+**Criar (ou recriar) o banco local:**
+
+```bash
+# 1. banco novo (como superusuário postgres)
+dropdb -U postgres --if-exists chefe_api && createdb -U postgres chefe_api
+
+# 2. usuários e schema (senhas só na linha de comando, nunca em arquivo versionado)
+psql -U postgres -d chefe_api -v ON_ERROR_STOP=1 \
+     -v senha_migracao='SENHA_MIGRACAO' -v senha_app='SENHA_APP' -v nome_banco=chefe_api \
+     -f db/setup/01_usuarios.sql
+
+# 3. migrations (passo separado; a API nunca recebe esta senha)
+FLYWAY_URL=jdbc:postgresql://localhost:5432/chefe_api \
+FLYWAY_USER=chefhome_migracao FLYWAY_PASSWORD='SENHA_MIGRACAO' ./mvnw flyway:migrate
+
+# 4. API com o usuário de aplicação
+#    DATABASE_URL=jdbc:postgresql://localhost:5432/chefe_api?currentSchema=chefhome
+#    DATABASE_USERNAME=chefhome_app   DATABASE_PASSWORD='SENHA_APP'
 ```
+
+**Deploy:** rode `./mvnw flyway:migrate` (com as variáveis `FLYWAY_*`) **antes** de subir a nova versão da API. Se a migration falhar, a versão anterior continua no ar.
+
+**Mudou uma entidade?** Crie `src/main/resources/db/migration/V{n}__descricao.sql` com o SQL equivalente. Migrations já aplicadas **nunca** são editadas. O teste `MigracoesPostgresTest` (Postgres real via Testcontainers; roda no CI e localmente com Docker ligado) falha se o schema não bater com as entidades ou se a API ganhar algum privilégio de DDL.
 
 ### 🔐 Login com Google (BFF)
 
