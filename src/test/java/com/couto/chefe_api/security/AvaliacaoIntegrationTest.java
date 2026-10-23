@@ -688,6 +688,8 @@ class AvaliacaoIntegrationTest {
         denunciaCriada(cookieDe(bia), daAnaSobreBia, "FALSA");
         mockMvc.perform(get("/chefe/" + bia.getId() + "/reputacao").cookie(cookieDe(bia)))
                 .andExpect(jsonPath("$.notaMedia").value(4.4));
+        assertThat(notificacaoRepository.findAll())
+                .anyMatch(n -> n.getEvento().name().equals("AVALIACAO_DENUNCIADA"));
 
         mockMvc.perform(delete("/usuario/me").cookie(cookieDe(ana))).andExpect(status().is2xxSuccessful());
 

@@ -186,7 +186,7 @@ Listas paginadas respondem `{ "content": [...], "page": { "size", "number", "tot
 | Agendamentos do chef | `GET /agendamentos/recebidos?page=&size=` (paginado como `/agendamentos/meus`), `PATCH /agendamentos/{id}/confirmar` (só chef do agendamento, só `PENDENTE`; **409** se algum chef do agendamento já tiver outro confirmado no mesmo horário), `PATCH /agendamentos/{id}/recusar`·`desistir`·`concluir` | CHEFE |
 | Linha do tempo | `GET /agendamentos/{id}/historico` (cliente dono ou chef que ainda está no agendamento) | CLIENTE, CHEFE |
 | Avaliar | `POST /agendamentos/{id}/avaliacoes`, `GET /agendamentos/{id}/avaliacoes/pendentes` (cliente dono ou chef que ainda está no agendamento; veja "Avaliações") | CLIENTE, CHEFE |
-| Responder e denunciar avaliação | `PUT /avaliacoes/{id}/resposta` `{texto}`, `POST /avaliacoes/{id}/denuncias` `{motivo, descricao?}` (só o chef avaliado) | CHEFE |
+| Responder e denunciar avaliação | `PUT /avaliacoes/{id}/resposta` `{texto}` → 200 `{resposta}` (o texto como ficou, depois do filtro), `POST /avaliacoes/{id}/denuncias` `{motivo, descricao?}` → 201 `{id, status}` (só o chef avaliado) | CHEFE |
 | Reputação do cliente | `GET /clientes/{id}/reputacao` (só chef que tem ou teve agendamento com o cliente; para os demais, 404) | CHEFE |
 | Denúncias | `POST /denuncias` (só de chef com quem teve agendamento confirmado e já ocorrido) | CLIENTE |
 | Abrir conversa | `POST /conversas` `{chefeId}` (201 nova, 200 se já existe; só o cliente inicia) | CLIENTE |
