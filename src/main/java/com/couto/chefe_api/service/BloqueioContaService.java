@@ -12,6 +12,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -26,6 +28,7 @@ public class BloqueioContaService {
     private final BloqueioContaRepository bloqueioRepository;
     private final NotificacaoService notificacaoService;
     private final ModeracaoRegistry moderacaoRegistry;
+    private final SseRegistry sseRegistry;
     private final Clock clock;
 
     /**
@@ -62,7 +65,22 @@ public class BloqueioContaService {
             notificacaoService.notificar(moderador, TipoUsuario.MODERADOR,
                     EventoNotificacao.CONTA_BLOQUEADA, mensagem, String.valueOf(bloqueio.getId()));
         }
+        encerrarStreamsAposCommit(contaId);
         return bloqueio;
+    }
+
+    /** Depois do commit: uma reconexão imediata já enxerga a conta bloqueada e é recusada. */
+    private void encerrarStreamsAposCommit(UUID contaId) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    sseRegistry.encerrar(contaId);
+                }
+            });
+        } else {
+            sseRegistry.encerrar(contaId);
+        }
     }
 
     private static String cortar(String valor, int max) {

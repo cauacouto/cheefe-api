@@ -72,6 +72,15 @@ public class SseRegistry {
         emitter.complete();
     }
 
+    /** Fecha e remove todas as abas do usuário (conta bloqueada: as sessões caem na hora). */
+    public void encerrar(UUID usuarioId) {
+        Deque<SseEmitter> abas = conexoes.remove(usuarioId);
+        if (abas == null) {
+            return;
+        }
+        abas.forEach(SseEmitter::complete);
+    }
+
     /** Entrega a todas as abas do usuário; a que falhar é descartada. Nunca lança exceção. */
     public void enviar(UUID usuarioId, String evento, Object dados) {
         Deque<SseEmitter> abas = conexoes.get(usuarioId);

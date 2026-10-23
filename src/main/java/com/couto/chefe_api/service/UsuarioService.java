@@ -38,6 +38,7 @@ public class UsuarioService {
     private final MensagemRepository mensagemRepository;
     private final ConversaRepository conversaRepository;
     private final NotificacaoService notificacaoService;
+    private final com.couto.chefe_api.repository.BloqueioContaRepository bloqueioContaRepository;
     private final AgendamentoRepository agendamentoRepository;
 
     /**
@@ -88,6 +89,7 @@ public class UsuarioService {
         List<Long> conversas = conversaRepository.travarDoCliente(usuarioId).stream().map(Conversa::getId).toList();
         // apagar a conta apaga os dados do cliente, inclusive as denúncias que ele fez (LGPD)
         apagarNotificacoes(usuarioId, conversas);
+        bloqueioContaRepository.deleteByContaId(usuarioId);
         denunciaRepository.deleteByCliente_Id(usuarioId);
         // o chat do cliente vai junto (ordem das FKs): denúncias de mensagens, mensagens e conversas
         denunciaMensagemRepository.deleteByMensagem_Conversa_Cliente_Id(usuarioId);

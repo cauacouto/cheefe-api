@@ -1,6 +1,11 @@
 package com.couto.chefe_api.service;
 
 import com.couto.chefe_api.dto.AcaoModeracaoDto;
+import com.couto.chefe_api.dto.BloqueioContaDto;
+import com.couto.chefe_api.domain.BloqueioConta;
+import com.couto.chefe_api.enums.StatusBloqueio;
+import com.couto.chefe_api.repository.BloqueioContaRepository;
+import com.couto.chefe_api.repository.UsuarioRepository;
 import com.couto.chefe_api.dto.DenunciaMensagemModeracaoDto;
 import com.couto.chefe_api.dto.DenunciaModeracaoDto;
 import com.couto.chefe_api.exception.ChefeNaoEncontradoException;
@@ -43,6 +48,8 @@ public class ModeracaoService {
     private final NotificacaoService notificacaoService;
     private final AcaoModeracaoRepository acaoModeracaoRepository;
     private final DenunciaMensagemRepository denunciaMensagemRepository;
+    private final BloqueioContaRepository bloqueioContaRepository;
+    private final UsuarioRepository usuarioRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
@@ -114,6 +121,68 @@ public class ModeracaoService {
         Conversa conversa = mensagem.getConversa();
         eventPublisher.publishEvent(new MensagemApagadaEvent(conversa.getId(), mensagem.getId(),
                 conversa.getCliente().getId(), conversa.getChefe().getId()));
+    }
+
+    @Transactional(readOnly = true)
+    public Page<BloqueioContaDto> listarBloqueios(StatusBloqueio status, Pageable pageable) {
+        return bloqueioContaRepository.findByStatusOrderByCriadoEmAscIdAsc(status, pageable)
+                .map(b -> BloqueioContaDto.de(b, nomeDaConta(b)));
+    }
+
+    /** Confirma o bloqueio automático: chef passa a inativo (banido); cliente continua bloqueado. */
+    @Transactional
+    public void confirmarBloqueio(Long id, String moderadorEmail) {
+        BloqueioConta bloqueio = buscarBloqueioAberto(id);
+        if (bloqueio.getContaTipo() == TipoUsuario.CHEFE) {
+            chefeRepository.findById(bloqueio.getContaId()).ifPresent(c -> c.setAtivo(false));
+        }
+        resolver(bloqueio, StatusBloqueio.CONFIRMADO, moderadorEmail);
+        registrar(moderadorEmail, TipoAcaoModeracao.CONFIRMAR_BLOQUEIO, chefeDoBloqueio(bloqueio), id);
+    }
+
+    /** Reverte: a conta volta a logar e a operar (mesmo cookie volta a valer). */
+    @Transactional
+    public void reverterBloqueio(Long id, String moderadorEmail) {
+        BloqueioConta bloqueio = buscarBloqueioAberto(id);
+        if (bloqueio.getContaTipo() == TipoUsuario.CHEFE) {
+            chefeRepository.findById(bloqueio.getContaId()).ifPresent(c -> {
+                c.setBloqueadoEm(null);
+                c.setBloqueioMotivo(null);
+            });
+        } else {
+            usuarioRepository.findById(bloqueio.getContaId()).ifPresent(u -> {
+                u.setBloqueadoEm(null);
+                u.setBloqueioMotivo(null);
+            });
+        }
+        resolver(bloqueio, StatusBloqueio.REVERTIDO, moderadorEmail);
+        registrar(moderadorEmail, TipoAcaoModeracao.REVERTER_BLOQUEIO, chefeDoBloqueio(bloqueio), id);
+    }
+
+    private BloqueioConta buscarBloqueioAberto(Long id) {
+        BloqueioConta bloqueio = bloqueioContaRepository.findById(id)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("bloqueio não encontrado"));
+        if (bloqueio.getStatus() != StatusBloqueio.ABERTO) {
+            throw new ConflitoException("bloqueio já resolvido");
+        }
+        return bloqueio;
+    }
+
+    private void resolver(BloqueioConta bloqueio, StatusBloqueio status, String moderadorEmail) {
+        bloqueio.setStatus(status);
+        bloqueio.setResolvidoEm(LocalDateTime.now(clock));
+        bloqueio.setResolvidoPor(moderadorEmail);
+    }
+
+    private static UUID chefeDoBloqueio(BloqueioConta bloqueio) {
+        return bloqueio.getContaTipo() == TipoUsuario.CHEFE ? bloqueio.getContaId() : null;
+    }
+
+    private String nomeDaConta(BloqueioConta bloqueio) {
+        if (bloqueio.getContaTipo() == TipoUsuario.CHEFE) {
+            return chefeRepository.findById(bloqueio.getContaId()).map(ChefeModel::getNome).orElse(null);
+        }
+        return usuarioRepository.findById(bloqueio.getContaId()).map(u -> u.getNome()).orElse(null);
     }
 
     @Transactional(readOnly = true)

@@ -1,6 +1,8 @@
 package com.couto.chefe_api.controller;
 
 import com.couto.chefe_api.dto.AcaoModeracaoDto;
+import com.couto.chefe_api.dto.BloqueioContaDto;
+import com.couto.chefe_api.enums.StatusBloqueio;
 import com.couto.chefe_api.dto.DenunciaMensagemModeracaoDto;
 import com.couto.chefe_api.dto.DenunciaModeracaoDto;
 import com.couto.chefe_api.security.UsuarioAutenticado;
@@ -56,6 +58,24 @@ public class ModeracaoController {
     @PatchMapping("/denuncias-mensagens/{id}/remover-mensagem")
     public ResponseEntity<Void> removerMensagem(@PathVariable Long id, @AuthenticationPrincipal UsuarioAutenticado moderador) {
         service.removerMensagem(id, moderador.email());
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/bloqueios")
+    public ResponseEntity<Page<BloqueioContaDto>> filaDeBloqueios(
+            @RequestParam(defaultValue = "ABERTO") StatusBloqueio status, Pageable pageable) {
+        return ResponseEntity.ok(service.listarBloqueios(status, pageable));
+    }
+
+    @PatchMapping("/bloqueios/{id}/confirmar")
+    public ResponseEntity<Void> confirmarBloqueio(@PathVariable Long id, @AuthenticationPrincipal UsuarioAutenticado moderador) {
+        service.confirmarBloqueio(id, moderador.email());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/bloqueios/{id}/reverter")
+    public ResponseEntity<Void> reverterBloqueio(@PathVariable Long id, @AuthenticationPrincipal UsuarioAutenticado moderador) {
+        service.reverterBloqueio(id, moderador.email());
         return ResponseEntity.noContent().build();
     }
 
