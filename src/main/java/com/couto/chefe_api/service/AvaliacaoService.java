@@ -80,6 +80,7 @@ public class AvaliacaoService {
     public Long avaliar(Long agendamentoId, UsuarioAutenticado autor, AvaliarRequestDto dto) {
         LocalDateTime agora = LocalDateTime.now(clock);
         Agendamento agendamento = doParticipante(agendamentoId, autor);
+        exigirChefAtivo(autor);
         exigirDentroDoPrazo(agendamento, agora);
         Avaliado avaliado = avaliadoPor(agendamento, autor, dto.chefeId());
         if (avaliacaoRepository.existsByAgendamento_IdAndAutorIdAndAvaliadoId(agendamento.getId(), autor.id(), avaliado.id())) {
@@ -208,9 +209,18 @@ public class AvaliacaoService {
 
     /** Avaliação que um cliente fez sobre este chef; para qualquer outro ela "não existe". */
     Avaliacao sobreOChef(Long avaliacaoId, UsuarioAutenticado chef) {
-        return avaliacaoRepository.findById(avaliacaoId)
+        Avaliacao avaliacao = avaliacaoRepository.findById(avaliacaoId)
                 .filter(a -> a.getAvaliadoTipo() == TipoUsuario.CHEFE && a.getAvaliadoId().equals(chef.id()))
                 .orElseThrow(() -> new RecursoNaoEncontradoException("avaliação não encontrada"));
+        exigirChefAtivo(chef);
+        return avaliacao;
+    }
+
+    /** Chef apagado ou banido (ativo=false) não opera, mesmo com o token ainda válido. */
+    private void exigirChefAtivo(UsuarioAutenticado usuario) {
+        if (usuario.tipo() == TipoUsuario.CHEFE) {
+            chefeRepository.findById(usuario.id()).orElseThrow(ChefeNaoEncontradoException::new).exigirAtivo();
+        }
     }
 
     /** Resposta e denúncia só valem para comentário que está na lista pública (e não foi removido). */

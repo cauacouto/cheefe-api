@@ -604,6 +604,59 @@ class AvaliacaoIntegrationTest {
         mockMvc.perform(get("/chefe/" + bia.getId() + "/reputacao").cookie(ana)).andExpect(status().isNotFound());
     }
 
+    @Test
+    void chefInativoNaoAvaliaNaoRespondeNemDenuncia() throws Exception {
+        ChefeModel bia = novoChefe("Bia");
+        UserModel ana = novoCliente("Ana");
+        Agendamento a = concluido(novoAgendamento(ana, BASE, bia), LocalDateTime.now().minusDays(1));
+        Avaliacao av = avaliacaoSalva(a, ana, bia, 4, "Boa", true, LocalDateTime.now());
+        bia.setAtivo(false);
+        chefeRepository.save(bia);
+
+        avaliar(cookieDe(bia), a, "{\"nota\":5}").andExpect(status().isForbidden());
+        responder(cookieDe(bia), av, "Oi").andExpect(status().isForbidden());
+        denunciar(cookieDe(bia), av, "{\"motivo\":\"FALSA\"}").andExpect(status().isForbidden());
+
+        assertThat(avaliacaoRepository.findAll()).singleElement()
+                .satisfies(x -> assertThat(x.getResposta()).isNull());
+        assertThat(denunciaAvaliacaoRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    void denunciaSoDeComentarioPublicadoEPapelCerto() throws Exception {
+        ChefeModel bia = novoChefe("Bia");
+        UserModel ana = novoCliente("Ana");
+        Agendamento a = concluido(novoAgendamento(ana, BASE, bia), LocalDateTime.now().minusDays(1));
+        Avaliacao semComentario = avaliacaoSalva(a, ana, bia, 4, null, true, LocalDateTime.now());
+        Avaliacao esperando = avaliacaoSalva(a, novoCliente("Gil"), bia, 4, "Com nome", false, null);
+        Avaliacao removida = avaliacaoSalva(a, novoCliente("Ivo"), bia, 1, "Ruim", true, LocalDateTime.now());
+        removida.setComentarioRemovido(true);
+        avaliacaoRepository.save(removida);
+
+        for (Avaliacao av : List.of(semComentario, esperando, removida)) {
+            denunciar(cookieDe(bia), av, "{\"motivo\":\"FALSA\"}").andExpect(status().isConflict());
+        }
+        denunciar(cookieDe(ana), removida, "{\"motivo\":\"FALSA\"}").andExpect(status().isForbidden());
+        denunciar(cookieModerador(), removida, "{\"motivo\":\"FALSA\"}").andExpect(status().isForbidden());
+        responder(cookieModerador(), removida, "Oi").andExpect(status().isForbidden());
+        mockMvc.perform(patch("/moderacao/denuncias-avaliacoes/999999/arquivar").cookie(cookieModerador()))
+                .andExpect(status().isNotFound());
+        assertThat(denunciaAvaliacaoRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    void edicaoComOdioMantemARespostaAnterior() throws Exception {
+        ChefeModel bia = novoChefe("Bia");
+        UserModel ana = novoCliente("Ana");
+        Agendamento a = concluido(novoAgendamento(ana, BASE, bia), LocalDateTime.now().minusDays(1));
+        Avaliacao av = avaliacaoSalva(a, ana, bia, 4, "Boa", true, LocalDateTime.now());
+        responder(cookieDe(bia), av, "Obrigada").andExpect(status().isOk());
+
+        responder(cookieDe(bia), av, "vou te pegar").andExpect(status().isForbidden());
+
+        assertThat(avaliacaoRepository.findById(av.getId()).orElseThrow().getResposta()).isEqualTo("Obrigada");
+    }
+
     // --- Task 5: conta apagada ------------------------------------------------
 
     @Test

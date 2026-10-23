@@ -317,7 +317,7 @@ public class ModeracaoService {
     }
 
     private DenunciaAvaliacao buscarDenunciaAvaliacaoAberta(Long denunciaId) {
-        DenunciaAvaliacao denuncia = denunciaAvaliacaoRepository.findById(denunciaId)
+        DenunciaAvaliacao denuncia = denunciaAvaliacaoRepository.travarPorId(denunciaId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("denúncia não encontrada"));
         if (denuncia.getStatus() != StatusDenuncia.ABERTA) {
             throw new ConflitoException("denúncia já resolvida");
