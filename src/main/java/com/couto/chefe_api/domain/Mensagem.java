@@ -38,6 +38,10 @@ public class Mensagem {
     @Column(nullable = false, length = 2000)
     private String texto;
 
+    /** Como foi escrito, quando o filtro mascarou algo; só a moderação vê. Nulo = igual ao texto. */
+    @Column(length = 2000)
+    private String textoOriginal;
+
     @Column(nullable = false)
     private LocalDateTime enviadaEm;
 

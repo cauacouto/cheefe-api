@@ -19,6 +19,8 @@ public record DenunciaMensagemModeracaoDto(
         @JsonFormat(pattern = "dd-MM-yyyy HH:mm")
         LocalDateTime criadaEm,
         String textoDenunciado,
+        /** O que o autor escreveu antes do ***; nulo se nada foi mascarado. */
+        String textoOriginal,
         Long mensagemId,
         Long conversaId,
         boolean mensagemApagada,
@@ -32,7 +34,7 @@ public record DenunciaMensagemModeracaoDto(
     public static DenunciaMensagemModeracaoDto de(DenunciaMensagem denuncia) {
         Conversa conversa = denuncia.getMensagem().getConversa();
         return new DenunciaMensagemModeracaoDto(denuncia.getId(), denuncia.getMotivo(), denuncia.getDescricao(),
-                denuncia.getStatus(), denuncia.getCriadaEm(), denuncia.getTextoDenunciado(),
+                denuncia.getStatus(), denuncia.getCriadaEm(), denuncia.getTextoDenunciado(), denuncia.getTextoOriginal(),
                 denuncia.getMensagem().getId(), conversa.getId(), denuncia.getMensagem().isApagada(),
                 pessoa(conversa, denuncia.getDenuncianteId(), denuncia.getDenuncianteTipo()),
                 pessoa(conversa, denuncia.getAutorId(), denuncia.getAutorTipo()));

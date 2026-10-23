@@ -12,14 +12,9 @@ import com.couto.chefe_api.enums.TipoDeResidencia;
 import com.couto.chefe_api.enums.TipoUsuario;
 import com.couto.chefe_api.domain.Avaliacao;
 import com.couto.chefe_api.domain.DenunciaAvaliacao;
-import com.couto.chefe_api.enums.CategoriaConteudo;
 import com.couto.chefe_api.repository.AvaliacaoRepository;
 import com.couto.chefe_api.repository.BloqueioContaRepository;
 import com.couto.chefe_api.repository.NotificacaoRepository;
-import com.couto.chefe_api.service.FiltroConteudo;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import java.util.Map;
 import com.couto.chefe_api.enums.StatusAgendamento;
 import com.couto.chefe_api.repository.AgendamentoRepository;
@@ -65,22 +60,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /** Avaliar depois de um agendamento concluído (spec avaliações: "Quem avalia", "Média e anonimato"). */
 @SpringBootTest
 @ActiveProfiles("test")
+@org.springframework.context.annotation.Import(com.couto.chefe_api.FiltroDeTeste.class)
 class AvaliacaoIntegrationTest {
 
     static final LocalDateTime BASE = LocalDateTime.now().minusDays(3).withHour(18).withMinute(0).withSecond(0).withNano(0);
-
-    /** Termos fictícios: o teste não depende da lista de produção. */
-    @TestConfiguration
-    static class FiltroDeTeste {
-        @Bean
-        @Primary
-        FiltroConteudo filtroDeTeste() {
-            return new FiltroConteudo(Map.of(
-                    CategoriaConteudo.OFENSA, List.of("palavrao"),
-                    CategoriaConteudo.ODIO, List.of("odiento"),
-                    CategoriaConteudo.AMEACA, List.of("vou te pegar")));
-        }
-    }
 
     @Autowired WebApplicationContext context;
     @Autowired TokenService tokenService;

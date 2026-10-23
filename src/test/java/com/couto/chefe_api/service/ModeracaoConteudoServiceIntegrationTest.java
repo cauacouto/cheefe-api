@@ -4,7 +4,6 @@ import com.couto.chefe_api.domain.BloqueioConta;
 import com.couto.chefe_api.domain.ChefeModel;
 import com.couto.chefe_api.domain.Notificacao;
 import com.couto.chefe_api.domain.UserModel;
-import com.couto.chefe_api.enums.CategoriaConteudo;
 import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.enums.EventoNotificacao;
 import com.couto.chefe_api.enums.Senioridade;
@@ -21,9 +20,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -40,19 +36,8 @@ import static org.mockito.Mockito.verify;
 
 @SpringBootTest
 @ActiveProfiles("test")
+@org.springframework.context.annotation.Import(com.couto.chefe_api.FiltroDeTeste.class)
 class ModeracaoConteudoServiceIntegrationTest {
-
-    @TestConfiguration
-    static class FiltroDeTeste {
-        @Bean
-        @Primary
-        FiltroConteudo filtroFicticio() {
-            return new FiltroConteudo(Map.of(
-                    CategoriaConteudo.OFENSA, List.of("palavrao"),
-                    CategoriaConteudo.ODIO, List.of("odiento"),
-                    CategoriaConteudo.AMEACA, List.of("vou te pegar")));
-        }
-    }
 
     @Autowired
     private ModeracaoConteudoService service;

@@ -49,6 +49,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @ActiveProfiles("test")
+@org.springframework.context.annotation.Import(com.couto.chefe_api.FiltroDeTeste.class)
 class ConversaIntegrationTest {
 
     static final JsonMapper JSON = JsonMapper.builder().build();
@@ -66,6 +67,7 @@ class ConversaIntegrationTest {
     @Autowired DenunciaRepository denunciaRepository;
     @Autowired NotificacaoService notificacaoService;
     @Autowired ModeracaoRegistry moderacaoRegistry;
+    @Autowired com.couto.chefe_api.repository.BloqueioContaRepository bloqueioContaRepository;
 
     MockMvc mockMvc;
     UserModel ana;
@@ -81,6 +83,7 @@ class ConversaIntegrationTest {
     @AfterEach
     void limparBanco() {
         acaoModeracaoRepository.deleteAll();
+        bloqueioContaRepository.deleteAll();
         denunciaMensagemRepository.deleteAll();
         mensagemRepository.deleteAll();
         conversaRepository.deleteAll();
@@ -254,6 +257,63 @@ class ConversaIntegrationTest {
         mockMvc.perform(get("/moderacao/acoes").cookie(cookieModerador()))
                 .andExpect(jsonPath("$.content[0].acao").value("ARQUIVAR_DENUNCIA_MENSAGEM"))
                 .andExpect(jsonPath("$.content[0].denunciaId").value(denuncia));
+    }
+
+    // --- filtro de conteúdo ---------------------------------------------------
+
+    @Test
+    void palavraoChegaMascaradoEOOriginalFicaSoParaAModeracao() throws Exception {
+        long conversa = abrir(ana, bia).andReturnId();
+        long mensagem = new Resposta(enviar(bia, conversa, "que palavrao de pedido")).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.texto").value("que *** de pedido")).andReturnId();
+        long limpa = new Resposta(enviar(bia, conversa, "tudo certo")).andReturnId();
+
+        mockMvc.perform(get("/conversas/" + conversa + "/mensagens").cookie(cookie(ana)))
+                .andExpect(jsonPath("$[1].texto").value("que *** de pedido"))
+                .andExpect(jsonPath("$[1].textoOriginal").doesNotExist());
+        assertThat(mensagemRepository.findById(mensagem).orElseThrow().getTextoOriginal()).isEqualTo("que palavrao de pedido");
+        assertThat(mensagemRepository.findById(limpa).orElseThrow().getTextoOriginal()).isNull();
+
+        String base = "/conversas/" + conversa + "/mensagens/" + mensagem;
+        denunciar(ana, base, "OFENSIVA").andExpect(status().isCreated());
+        // editar depois da denúncia não muda a cópia que a moderação vê
+        mockMvc.perform(patch(base).cookie(cookie(bia)).contentType(MediaType.APPLICATION_JSON).content("{\"texto\":\"desculpa\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/moderacao/denuncias-mensagens").cookie(cookieModerador()))
+                .andExpect(jsonPath("$.content[0].textoDenunciado").value("que *** de pedido"))
+                .andExpect(jsonPath("$.content[0].textoOriginal").value("que palavrao de pedido"));
+    }
+
+    @Test
+    void odioNoChatBloqueiaAContaENadaChegaAoOutroLado() throws Exception {
+        long conversa = abrir(ana, bia).andReturnId();
+
+        enviar(ana, conversa, "seu odiento").andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.detail").value("Conteúdo bloqueado e conta suspensa para análise da moderação"));
+
+        assertThat(mensagemRepository.findAll()).isEmpty();
+        assertThat(usuarioRepository.findById(ana.getId()).orElseThrow().getBloqueadoEm()).isNotNull();
+        assertThat(notificacaoRepository.findAll()).noneMatch(n -> n.getEvento().name().equals("MENSAGEM_RECEBIDA"));
+        assertThat(bloqueioContaRepository.findAll()).singleElement()
+                .satisfies(b -> assertThat(b.getTexto()).isEqualTo("seu odiento"));
+    }
+
+    @Test
+    void edicaoPassaPeloFiltroEComAmeacaMantemOTextoAnterior() throws Exception {
+        long conversa = abrir(ana, bia).andReturnId();
+        long mensagem = new Resposta(enviar(bia, conversa, "oi")).andReturnId();
+        String base = "/conversas/" + conversa + "/mensagens/" + mensagem;
+
+        mockMvc.perform(patch(base).cookie(cookie(bia)).contentType(MediaType.APPLICATION_JSON).content("{\"texto\":\"oi palavrao\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.texto").value("oi ***"));
+        assertThat(mensagemRepository.findById(mensagem).orElseThrow().getTextoOriginal()).isEqualTo("oi palavrao");
+
+        mockMvc.perform(patch(base).cookie(cookie(bia)).contentType(MediaType.APPLICATION_JSON).content("{\"texto\":\"vou te pegar\"}"))
+                .andExpect(status().isForbidden());
+
+        assertThat(mensagemRepository.findById(mensagem).orElseThrow().getTexto()).isEqualTo("oi ***");
+        assertThat(chefeRepository.findById(bia.getId()).orElseThrow().getBloqueadoEm()).isNotNull();
     }
 
     @Test
