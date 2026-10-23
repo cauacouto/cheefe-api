@@ -5,6 +5,7 @@ import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.enums.Senioridade;
 import jakarta.persistence.*;
 import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.DynamicUpdate;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -16,6 +17,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 
+// só as colunas alteradas vão no UPDATE: uma gravação que leu a conta antes (ex.: foto subindo) não
+// desfaz contadores somados no banco nem um bloqueio automático que commitou no meio-tempo
+@DynamicUpdate
 @Entity
 @Getter
 @Setter

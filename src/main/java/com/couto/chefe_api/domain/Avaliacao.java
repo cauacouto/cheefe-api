@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.DynamicUpdate;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
@@ -19,6 +20,9 @@ import java.util.UUID;
  * cliente). Autor e avaliado são ids soltos + tipo, como nas mensagens do chat. Some junto com o
  * agendamento (ON DELETE CASCADE, ex.: LGPD).
  */
+// só as colunas alteradas vão no UPDATE: responder ao mesmo tempo em que a moderação remove o
+// comentário não devolve o comentário
+@DynamicUpdate
 @Entity
 @Table(name = "avaliacao",
         uniqueConstraints = @UniqueConstraint(name = "uk_avaliacao_agendamento_autor_avaliado",

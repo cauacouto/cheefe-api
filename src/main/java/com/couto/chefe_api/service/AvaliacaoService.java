@@ -176,6 +176,7 @@ public class AvaliacaoService {
     /** Só para chef que tem (ou teve) agendamento com o cliente; para os demais o cliente "não existe". */
     @Transactional(readOnly = true)
     public ReputacaoDto reputacaoDoCliente(UUID clienteId, UsuarioAutenticado chef) {
+        exigirChefAtivo(chef);
         if (!agendamentoRepository.existsByUsuario_IdAndChefes_Id(clienteId, chef.id())) {
             throw new RecursoNaoEncontradoException("cliente não encontrado");
         }
