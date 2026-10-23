@@ -34,6 +34,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -234,7 +235,7 @@ class ModeracaoServiceTest {
         b.setCategoria(com.couto.chefe_api.enums.CategoriaConteudo.AMEACA);
         b.setTermo("x");
         b.setTexto("texto");
-        when(bloqueioRepository.findById(9L)).thenReturn(Optional.of(b));
+        when(bloqueioRepository.travarPorId(9L)).thenReturn(Optional.of(b));
         return b;
     }
 
@@ -302,6 +303,55 @@ class ModeracaoServiceTest {
 
         assertThat(cliente.getBloqueadoEm()).isNull();
         assertThat(cliente.getBloqueioMotivo()).isNull();
+    }
+
+    @Test
+    void confirmarReaplicaOBloqueioSeOutraDecisaoJaTinhaLimpado() {
+        UserModel cliente = new UserModel();
+        cliente.setId(UUID.randomUUID());
+        bloqueioAberto(cliente.getId(), TipoUsuario.CLIENTE);
+        when(usuarioRepository.findById(cliente.getId())).thenReturn(Optional.of(cliente));
+
+        service.confirmarBloqueio(9L, MODERADOR);
+
+        assertThat(cliente.getBloqueadoEm()).isEqualTo(LocalDateTime.now(RELOGIO));
+        assertThat(cliente.getBloqueioMotivo()).isEqualTo("AMEACA");
+    }
+
+    @Test
+    void confirmarBloqueioDeChefFechaDenunciasAbertasComoProcedentes() {
+        chefe.setBloqueadoEm(LocalDateTime.now());
+        bloqueioAberto(chefe.getId(), TipoUsuario.CHEFE);
+
+        service.confirmarBloqueio(9L, MODERADOR);
+
+        assertThat(aberta.getStatus()).isEqualTo(StatusDenuncia.PROCEDENTE);
+        assertThat(aberta.getResolvidaPor()).isEqualTo(MODERADOR);
+    }
+
+    @Test
+    void reverterMantemBloqueadaQuandoHaOutroBloqueioAbertoOuConfirmado() {
+        LocalDateTime antes = LocalDateTime.now();
+        chefe.setBloqueadoEm(antes);
+        chefe.setBloqueioMotivo("AMEACA");
+        var b = bloqueioAberto(chefe.getId(), TipoUsuario.CHEFE);
+        when(bloqueioRepository.existsByContaIdAndIdNotAndStatusIn(eq(chefe.getId()), eq(9L), any())).thenReturn(true);
+
+        service.reverterBloqueio(9L, MODERADOR);
+
+        assertThat(chefe.getBloqueadoEm()).isEqualTo(antes);
+        assertThat(chefe.getBloqueioMotivo()).isEqualTo("AMEACA");
+        assertThat(b.getStatus()).isEqualTo(com.couto.chefe_api.enums.StatusBloqueio.REVERTIDO);
+    }
+
+    @Test
+    void decisoesTravamOBloqueioParaSerializarModeradores() {
+        bloqueioAberto(chefe.getId(), TipoUsuario.CHEFE);
+
+        service.reverterBloqueio(9L, MODERADOR);
+
+        verify(bloqueioRepository).travarPorId(9L);
+        verify(bloqueioRepository, never()).findById(any());
     }
 
     @Test

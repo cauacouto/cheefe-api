@@ -72,6 +72,12 @@ class FiltroConteudoTest {
                 "a carne estava de matar", "vou te pegar na escola", "o macaco comeu a banana")) {
             assertThat(producao.analisar(ok).violacao()).as(ok).isEmpty();
         }
+        for (String benigno : List.of("deixou o fogão preto imundo de gordura", "vou te matar de tanto comer",
+                "achei uma bicha nojenta na alface", "carne de raça inferior", "não levou o lixo embora")) {
+            ResultadoFiltro r = producao.analisar(benigno);
+            assertThat(r.violacao()).as(benigno).isEmpty();
+            assertThat(r.textoExibido()).as(benigno).isEqualTo(benigno);
+        }
         assertThat(producao.analisar("esse tempero assassino vai de matar, vou atacar o prato").violacao()).isEmpty();
     }
 

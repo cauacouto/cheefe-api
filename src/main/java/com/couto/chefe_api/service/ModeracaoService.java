@@ -36,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -129,38 +130,64 @@ public class ModeracaoService {
                 .map(b -> BloqueioContaDto.de(b, nomeDaConta(b)));
     }
 
-    /** Confirma o bloqueio automático: chef passa a inativo (banido); cliente continua bloqueado. */
+    /**
+     * Confirma o bloqueio automático: chef passa a inativo (banido) e as denúncias abertas dele procedem;
+     * a conta fica bloqueada (reaplica o bloqueio se outra decisão sobre a mesma conta o tinha limpado).
+     */
     @Transactional
     public void confirmarBloqueio(Long id, String moderadorEmail) {
         BloqueioConta bloqueio = buscarBloqueioAberto(id);
+        LocalDateTime agora = LocalDateTime.now(clock);
+        String motivo = bloqueio.getCategoria().name();
         if (bloqueio.getContaTipo() == TipoUsuario.CHEFE) {
-            chefeRepository.findById(bloqueio.getContaId()).ifPresent(c -> c.setAtivo(false));
+            chefeRepository.findById(bloqueio.getContaId()).ifPresent(c -> {
+                c.setAtivo(false);
+                if (c.getBloqueadoEm() == null) {
+                    c.setBloqueadoEm(agora);
+                    c.setBloqueioMotivo(motivo);
+                }
+            });
+            fecharAbertasComoProcedentes(bloqueio.getContaId(), moderadorEmail);
+        } else {
+            usuarioRepository.findById(bloqueio.getContaId()).ifPresent(u -> {
+                if (u.getBloqueadoEm() == null) {
+                    u.setBloqueadoEm(agora);
+                    u.setBloqueioMotivo(motivo);
+                }
+            });
         }
         resolver(bloqueio, StatusBloqueio.CONFIRMADO, moderadorEmail);
         registrar(moderadorEmail, TipoAcaoModeracao.CONFIRMAR_BLOQUEIO, chefeDoBloqueio(bloqueio), id);
     }
 
-    /** Reverte: a conta volta a logar e a operar (mesmo cookie volta a valer). */
+    /**
+     * Reverte: a conta volta a logar e a operar (mesmo cookie volta a valer), a menos que outro bloqueio
+     * da mesma conta (aberto ou confirmado) a mantenha suspensa.
+     */
     @Transactional
     public void reverterBloqueio(Long id, String moderadorEmail) {
         BloqueioConta bloqueio = buscarBloqueioAberto(id);
-        if (bloqueio.getContaTipo() == TipoUsuario.CHEFE) {
-            chefeRepository.findById(bloqueio.getContaId()).ifPresent(c -> {
-                c.setBloqueadoEm(null);
-                c.setBloqueioMotivo(null);
-            });
-        } else {
-            usuarioRepository.findById(bloqueio.getContaId()).ifPresent(u -> {
-                u.setBloqueadoEm(null);
-                u.setBloqueioMotivo(null);
-            });
+        boolean outroBloqueio = bloqueioContaRepository.existsByContaIdAndIdNotAndStatusIn(
+                bloqueio.getContaId(), id, List.of(StatusBloqueio.ABERTO, StatusBloqueio.CONFIRMADO));
+        if (!outroBloqueio) {
+            if (bloqueio.getContaTipo() == TipoUsuario.CHEFE) {
+                chefeRepository.findById(bloqueio.getContaId()).ifPresent(c -> {
+                    c.setBloqueadoEm(null);
+                    c.setBloqueioMotivo(null);
+                });
+            } else {
+                usuarioRepository.findById(bloqueio.getContaId()).ifPresent(u -> {
+                    u.setBloqueadoEm(null);
+                    u.setBloqueioMotivo(null);
+                });
+            }
         }
         resolver(bloqueio, StatusBloqueio.REVERTIDO, moderadorEmail);
         registrar(moderadorEmail, TipoAcaoModeracao.REVERTER_BLOQUEIO, chefeDoBloqueio(bloqueio), id);
     }
 
     private BloqueioConta buscarBloqueioAberto(Long id) {
-        BloqueioConta bloqueio = bloqueioContaRepository.findById(id)
+        BloqueioConta bloqueio = bloqueioContaRepository.travarPorId(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("bloqueio não encontrado"));
         if (bloqueio.getStatus() != StatusBloqueio.ABERTO) {
             throw new ConflitoException("bloqueio já resolvido");

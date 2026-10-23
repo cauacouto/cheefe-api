@@ -27,6 +27,10 @@ public final class ChefeSpecification {
         return (root, query, cb) -> cb.isFalse(root.get("suspenso"));
     }
 
+    public static Specification<ChefeModel> naoBloqueado() {
+        return (root, query, cb) -> cb.isNull(root.get("bloqueadoEm"));
+    }
+
     /** Menos de {@link DenunciaService#LIMITE_OCULTACAO} clientes distintos com denúncia aberta. */
     public static Specification<ChefeModel> semDenunciasEmExcesso() {
         return (root, query, cb) -> {

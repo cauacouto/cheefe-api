@@ -135,6 +135,29 @@ class ListagensIntegrationTest {
     }
 
     @Test
+    void chefBloqueadoSomeDaBuscaDoDestaqueEDosPratos() throws Exception {
+        ChefeModel bia = novoChefe("Bia");
+        ChefeModel bloqueado = novoChefe("Caio");
+        bloqueado.setBloqueadoEm(LocalDateTime.now());
+        chefeRepository.save(bloqueado);
+        novoPrato(bia, "Moqueca");
+        novoPrato(bloqueado, "Feijoada");
+        UserModel ana = novoCliente("Ana");
+        novoAgendamento(ana, BASE, bloqueado);
+        Cookie cookie = cookieDe(ana);
+
+        mockMvc.perform(get("/chefe").cookie(cookie))
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].nome").value("Bia"));
+        mockMvc.perform(get("/chefe/destaque").cookie(cookie))
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].nome").value("Bia"));
+        mockMvc.perform(get("/pratos").cookie(cookie))
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].chefeId").value(bia.getId().toString()));
+    }
+
+    @Test
     void chefEClienteTrazemAFoto() throws Exception {
         ChefeModel bia = novoChefe("Bia");
         bia.setImageUrl("https://img.test/bia.jpg");

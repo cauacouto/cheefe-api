@@ -1,6 +1,7 @@
 package com.couto.chefe_api.service;
 
 import com.couto.chefe_api.dto.MensagemDto;
+import com.couto.chefe_api.exception.ChefeIndisponivelException;
 import com.couto.chefe_api.exception.ConflitoException;
 import com.couto.chefe_api.exception.ContaInativaException;
 import com.couto.chefe_api.exception.RecursoNaoEncontradoException;
@@ -162,6 +163,14 @@ class ChatServiceTest {
         assertThat(dto.texto()).isNull();
         assertThat(dto.apagada()).isTrue();
         assertThat(mensagem.getTexto()).isEqualTo("original");
+    }
+
+    @Test
+    void enviarParaChefBloqueadoEhRecusado() {
+        chefe.setBloqueadoEm(java.time.LocalDateTime.now());
+
+        assertThatThrownBy(() -> service.enviar(1L, ana, "oi")).isInstanceOf(ChefeIndisponivelException.class);
+        verify(mensagemRepository, never()).save(any());
     }
 
     @Test

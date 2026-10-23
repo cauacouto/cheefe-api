@@ -374,6 +374,7 @@ public class AgendamentoService {
 
         boolean todosValidos = chefes.stream()
                 .allMatch(chefe -> chefe.isDisponivel() && Boolean.TRUE.equals(chefe.getAtivo()) && !chefe.isSuspenso()
+                        && chefe.getBloqueadoEm() == null
                         && denunciaRepository.countDistinctClienteByChefeIdAndStatus(chefe.getId(), StatusDenuncia.ABERTA)
                         < DenunciaService.LIMITE_OCULTACAO);
         if (!todosValidos) {

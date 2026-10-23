@@ -25,6 +25,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
@@ -34,6 +35,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -65,6 +68,8 @@ class ModeracaoConteudoServiceIntegrationTest {
     private NotificacaoRepository notificacaoRepository;
     @Autowired
     private ModeracaoRegistry moderacaoRegistry;
+    @MockitoSpyBean
+    private SseRegistry sseRegistry;
 
     @AfterEach
     void limpar() {
@@ -159,6 +164,38 @@ class ModeracaoConteudoServiceIntegrationTest {
 
         assertThat(bloqueioRepository.findAll()).singleElement()
                 .satisfies(b -> assertThat(b.getTexto()).hasSize(2000));
+    }
+
+    @Test
+    void bloqueioEncerraOsStreamsDaContaDepoisDoCommit() {
+        UserModel cliente = cliente();
+
+        assertThatThrownBy(() -> service.verificar("seu odiento", autenticado(cliente.getId(), TipoUsuario.CLIENTE)))
+                .isInstanceOf(ConteudoBloqueadoException.class);
+
+        verify(sseRegistry).encerrar(cliente.getId());
+    }
+
+    @Test
+    void falhaAoEncerrarStreamsNaoQuebraOBloqueio() {
+        UserModel cliente = cliente();
+        doThrow(new IllegalStateException("sse")).when(sseRegistry).encerrar(cliente.getId());
+
+        assertThatThrownBy(() -> service.verificar("seu odiento", autenticado(cliente.getId(), TipoUsuario.CLIENTE)))
+                .isInstanceOf(ConteudoBloqueadoException.class);
+
+        assertThat(usuarioRepository.findById(cliente.getId()).orElseThrow().getBloqueadoEm()).isNotNull();
+    }
+
+    @Test
+    void moderadorNuncaEhBloqueado() {
+        assertThatThrownBy(() -> service.verificar("seu odiento",
+                autenticado(moderacaoRegistry.ids().iterator().next(), TipoUsuario.MODERADOR)))
+                .isInstanceOf(ConteudoBloqueadoException.class);
+
+        assertThat(bloqueioRepository.count()).isZero();
+        assertThat(notificacaoRepository.findAll().stream()
+                .filter(n -> n.getEvento() == EventoNotificacao.CONTA_BLOQUEADA)).isEmpty();
     }
 
     private UserModel cliente() {

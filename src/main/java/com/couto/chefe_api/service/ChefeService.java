@@ -56,6 +56,7 @@ public class ChefeService {
                 .and(ChefeSpecification.disponivel())
                 .and(ChefeSpecification.perfilCompleto())
                 .and(ChefeSpecification.naoSuspenso())
+                .and(ChefeSpecification.naoBloqueado())
                 .and(ChefeSpecification.semDenunciasEmExcesso())
                 .and(ChefeSpecification.valorMinimoMaior(valorMinimo))
                 .and(ChefeSpecification.valorMaximoMenor(valorMaximo));

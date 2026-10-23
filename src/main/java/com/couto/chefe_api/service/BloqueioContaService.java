@@ -9,6 +9,7 @@ import com.couto.chefe_api.repository.UsuarioRepository;
 import com.couto.chefe_api.security.ModeracaoRegistry;
 import com.couto.chefe_api.service.FiltroConteudo.Violacao;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,7 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class BloqueioContaService {
@@ -75,11 +77,20 @@ public class BloqueioContaService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    sseRegistry.encerrar(contaId);
+                    encerrarSemFalhar(contaId);
                 }
             });
         } else {
+            encerrarSemFalhar(contaId);
+        }
+    }
+
+    /** O bloqueio já foi commitado: uma falha ao fechar os streams nunca pode chegar ao chamador. */
+    private void encerrarSemFalhar(UUID contaId) {
+        try {
             sseRegistry.encerrar(contaId);
+        } catch (RuntimeException e) {
+            log.warn("bloqueio: falha ao encerrar os streams da conta {}", contaId, e);
         }
     }
 

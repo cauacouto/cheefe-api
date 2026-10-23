@@ -179,6 +179,21 @@ class ContaBloqueadaIntegrationTest {
     }
 
     @Test
+    void reverterUmDeDoisBloqueiosMantemAContaBloqueada() throws Exception {
+        ChefeModel chefe = novoChefe();
+        BloqueioConta primeiro = bloqueioAberto(chefeId, TipoUsuario.CHEFE);
+        BloqueioConta segundo = bloqueioAberto(chefeId, TipoUsuario.CHEFE);
+
+        mockMvc.perform(patch("/moderacao/bloqueios/" + primeiro.getId() + "/reverter").cookie(cookieModerador()))
+                .andExpect(status().isNoContent());
+        assertThat(chefeRepository.findById(chefeId).orElseThrow().getBloqueadoEm()).isNotNull();
+
+        mockMvc.perform(patch("/moderacao/bloqueios/" + segundo.getId() + "/reverter").cookie(cookieModerador()))
+                .andExpect(status().isNoContent());
+        assertThat(chefeRepository.findById(chefeId).orElseThrow().getBloqueadoEm()).isNull();
+    }
+
+    @Test
     void filaListaAbertosParaModeracao() throws Exception {
         ChefeModel chefe = novoChefe();
         bloqueioAberto(chefeId, TipoUsuario.CHEFE);

@@ -23,12 +23,12 @@ public interface ChefeRepository extends JpaRepository<ChefeModel, UUID>, JpaSpe
 
     boolean existsByIdAndBloqueadoEmIsNotNull(UUID id);
 
-    // visível = ativo, disponível, perfil completo, não suspenso e < 3 denunciantes com denúncia aberta
+    // visível = ativo, disponível, perfil completo, não suspenso, não bloqueado e < 3 denunciantes com denúncia aberta
     String VISIVEL = "c.ativo = true AND c.disponivel = true " +
             "AND TRIM(COALESCE(c.nacionalidade, '')) <> '' AND c.especialidade IS NOT NULL " +
             "AND c.senioridade IS NOT NULL AND c.anosDeExperiencia IS NOT NULL " +
             "AND TRIM(COALESCE(c.idiomas, '')) <> '' AND c.valorHora IS NOT NULL " +
-            "AND c.suspenso = false " +
+            "AND c.suspenso = false AND c.bloqueadoEm IS NULL " +
             "AND (SELECT COUNT(DISTINCT d.cliente.id) FROM Denuncia d WHERE d.chefe = c " +
             "AND d.status = com.couto.chefe_api.enums.StatusDenuncia.ABERTA) < 3";
 
