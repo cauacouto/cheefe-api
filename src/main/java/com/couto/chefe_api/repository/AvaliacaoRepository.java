@@ -24,6 +24,10 @@ public interface AvaliacaoRepository extends JpaRepository<Avaliacao, Long> {
     Page<Avaliacao> findByAvaliadoIdAndAvaliadoTipoAndPublicadoEmIsNotNullOrderByPublicadoEmDescIdDesc(
             UUID avaliadoId, TipoUsuario avaliadoTipo, Pageable pageable);
 
+    /** Comentários de chefs sobre clientes: só a moderação lê. */
+    Page<Avaliacao> findByAvaliadoTipoAndComentarioIsNotNullOrderByCriadaEmDescIdDesc(TipoUsuario avaliadoTipo,
+                                                                                      Pageable pageable);
+
     List<Avaliacao> findByAutorIdOrAvaliadoId(UUID autorId, UUID avaliadoId);
 
     /** Comentários com nome cujo prazo de espera acabou (a rotina publica). */

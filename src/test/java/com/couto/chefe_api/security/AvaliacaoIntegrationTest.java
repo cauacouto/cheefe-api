@@ -11,6 +11,7 @@ import com.couto.chefe_api.enums.Senioridade;
 import com.couto.chefe_api.enums.TipoDeResidencia;
 import com.couto.chefe_api.enums.TipoUsuario;
 import com.couto.chefe_api.domain.Avaliacao;
+import com.couto.chefe_api.domain.DenunciaAvaliacao;
 import com.couto.chefe_api.enums.CategoriaConteudo;
 import com.couto.chefe_api.repository.AvaliacaoRepository;
 import com.couto.chefe_api.repository.BloqueioContaRepository;
@@ -91,6 +92,9 @@ class AvaliacaoIntegrationTest {
     @Autowired NotificacaoRepository notificacaoRepository;
     @Autowired BloqueioContaRepository bloqueioContaRepository;
     @Autowired org.springframework.transaction.support.TransactionTemplate transacao;
+    @Autowired ModeracaoRegistry moderacaoRegistry;
+    @Autowired com.couto.chefe_api.repository.AcaoModeracaoRepository acaoModeracaoRepository;
+    @Autowired com.couto.chefe_api.repository.DenunciaAvaliacaoRepository denunciaAvaliacaoRepository;
 
     MockMvc mockMvc;
 
@@ -102,6 +106,7 @@ class AvaliacaoIntegrationTest {
     @AfterEach
     void limparBanco() {
         notificacaoRepository.deleteAll();
+        acaoModeracaoRepository.deleteAll();
         bloqueioContaRepository.deleteAll();
         agendamentoRepository.deleteAll();
         pratosRepository.deleteAll();
@@ -405,11 +410,227 @@ class AvaliacaoIntegrationTest {
                 .andExpect(status().isForbidden());
     }
 
+
+    // --- Task 4: resposta do chef, denúncia e moderação ----------------------
+
+    @Test
+    void chefRespondeEditaEOClienteENotificadoUmaVez() throws Exception {
+        ChefeModel bia = novoChefe("Bia");
+        UserModel ana = novoCliente("Ana");
+        Agendamento a = concluido(novoAgendamento(ana, BASE, bia), LocalDateTime.now().minusDays(1));
+        Avaliacao av = avaliacaoSalva(a, ana, bia, 4, "Muito boa", true, LocalDateTime.now());
+
+        responder(cookieDe(bia), av, "Obrigada!").andExpect(status().isOk());
+        responder(cookieDe(bia), av, "Obrigada, volte sempre um palavrao").andExpect(status().isOk());
+
+        Avaliacao depois = avaliacaoRepository.findById(av.getId()).orElseThrow();
+        assertThat(depois.getResposta()).isEqualTo("Obrigada, volte sempre um ***");
+        assertThat(depois.getRespostaOriginal()).isEqualTo("Obrigada, volte sempre um palavrao");
+        assertThat(depois.getRespondidaEm()).isNotNull();
+        mockMvc.perform(get("/chefe/" + bia.getId() + "/avaliacoes").cookie(cookieDe(ana)))
+                .andExpect(jsonPath("$.content[0].resposta").value("Obrigada, volte sempre um ***"));
+        assertThat(notificacaoRepository.findAll()).singleElement().satisfies(n -> {
+            assertThat(n.getDestinatarioId()).isEqualTo(ana.getId());
+            assertThat(n.getEvento().name()).isEqualTo("AVALIACAO_RESPONDIDA");
+            assertThat(n.getMensagem()).isEqualTo("Chef Bia respondeu sua avaliação");
+            assertThat(n.getReferenciaId()).isEqualTo(String.valueOf(av.getId()));
+        });
+    }
+
+    @Test
+    void respostaSoDoChefAvaliadoESoEmComentarioPublicado() throws Exception {
+        ChefeModel bia = novoChefe("Bia");
+        UserModel ana = novoCliente("Ana");
+        Agendamento a = concluido(novoAgendamento(ana, BASE, bia), LocalDateTime.now().minusDays(1));
+        Avaliacao publicada = avaliacaoSalva(a, ana, bia, 4, "Boa", true, LocalDateTime.now());
+        Avaliacao semComentario = avaliacaoSalva(a, novoCliente("Edu"), bia, 4, null, true, LocalDateTime.now());
+        Avaliacao esperando = avaliacaoSalva(a, novoCliente("Gil"), bia, 4, "Com nome", false, null);
+        Avaliacao removida = avaliacaoSalva(a, novoCliente("Ivo"), bia, 1, "Ruim", true, LocalDateTime.now());
+        removida.setComentarioRemovido(true);
+        avaliacaoRepository.save(removida);
+
+        responder(cookieDe(novoChefe("Caio")), publicada, "Oi").andExpect(status().isNotFound());
+        responder(cookieDe(ana), publicada, "Oi").andExpect(status().isForbidden()); // papel errado
+        responder(cookieDe(bia), semComentario, "Oi").andExpect(status().isConflict());
+        responder(cookieDe(bia), esperando, "Oi").andExpect(status().isConflict());
+        responder(cookieDe(bia), removida, "Oi").andExpect(status().isConflict());
+        responder(cookieDe(bia), publicada, " ").andExpect(status().isBadRequest());
+        responder(cookieDe(bia), publicada, "x".repeat(1001)).andExpect(status().isBadRequest());
+        assertThat(avaliacaoRepository.findAll()).allSatisfy(av -> assertThat(av.getResposta()).isNull());
+    }
+
+    @Test
+    void respostaComOdioBloqueiaOChefENaoGrava() throws Exception {
+        ChefeModel bia = novoChefe("Bia");
+        UserModel ana = novoCliente("Ana");
+        Agendamento a = concluido(novoAgendamento(ana, BASE, bia), LocalDateTime.now().minusDays(1));
+        Avaliacao av = avaliacaoSalva(a, ana, bia, 4, "Boa", true, LocalDateTime.now());
+
+        responder(cookieDe(bia), av, "seu odiento").andExpect(status().isForbidden());
+
+        assertThat(avaliacaoRepository.findById(av.getId()).orElseThrow().getResposta()).isNull();
+        assertThat(chefeRepository.findById(bia.getId()).orElseThrow().getBloqueadoEm()).isNotNull();
+    }
+
+    @Test
+    void chefDenunciaUmaVezEAModeracaoENotificada() throws Exception {
+        ChefeModel bia = novoChefe("Bia");
+        UserModel ana = novoCliente("Ana");
+        Agendamento a = concluido(novoAgendamento(ana, BASE, bia), LocalDateTime.now().minusDays(1));
+        Avaliacao av = avaliacaoSalva(a, ana, bia, 1, "Chef horrível ***", true, LocalDateTime.now());
+        av.setComentarioOriginal("Chef horrível palavrao");
+        avaliacaoRepository.save(av);
+
+        denunciar(cookieDe(bia), av, "{\"motivo\":\"OFENSIVA\",\"descricao\":\"  mentira  \"}")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").isNumber())
+                .andExpect(jsonPath("$.status").value("ABERTA"));
+        denunciar(cookieDe(bia), av, "{\"motivo\":\"FALSA\"}").andExpect(status().isConflict());
+        denunciar(cookieDe(novoChefe("Caio")), av, "{\"motivo\":\"FALSA\"}").andExpect(status().isNotFound());
+        denunciar(cookieDe(bia), av, "{\"motivo\":\"INVENTADO\"}").andExpect(status().isBadRequest());
+
+        assertThat(notificacaoRepository.findAll())
+                .filteredOn(n -> n.getEvento().name().equals("AVALIACAO_DENUNCIADA"))
+                .hasSize(moderacaoRegistry.ids().size())
+                .allSatisfy(n -> assertThat(n.getMensagem()).isEqualTo("Nova denúncia de avaliação (OFENSIVA)"));
+        mockMvc.perform(get("/moderacao/denuncias-avaliacoes").cookie(cookieModerador()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].motivo").value("OFENSIVA"))
+                .andExpect(jsonPath("$.content[0].descricao").value("mentira"))
+                .andExpect(jsonPath("$.content[0].textoDenunciado").value("Chef horrível ***"))
+                .andExpect(jsonPath("$.content[0].comentarioOriginal").value("Chef horrível palavrao"))
+                .andExpect(jsonPath("$.content[0].autor.nome").value("Ana"))
+                .andExpect(jsonPath("$.content[0].denunciante.nome").value("Bia"));
+    }
+
+    @Test
+    void removerComentarioMantemNotaEEscondeONome() throws Exception {
+        ChefeModel bia = novoChefe("Bia");
+        UserModel ana = novoCliente("Ana");
+        Agendamento a = concluido(novoAgendamento(ana, BASE, bia), LocalDateTime.now().minusDays(1));
+        Avaliacao av = avaliacaoSalva(a, ana, bia, 1, "Comentário ruim", false, LocalDateTime.now(), "ATRASOU");
+        bia.setSomaNotas(1);
+        bia.setTotalAvaliacoes(1);
+        chefeRepository.save(bia);
+        Long primeira = denunciaCriada(cookieDe(bia), av, "OFENSIVA");
+        DenunciaAvaliacao outra = new DenunciaAvaliacao();
+        outra.setAvaliacao(av);
+        outra.setDenuncianteId(UUID.randomUUID());
+        outra.setDenuncianteTipo(TipoUsuario.CHEFE);
+        outra.setAutorId(ana.getId());
+        outra.setAutorTipo(TipoUsuario.CLIENTE);
+        outra.setTextoDenunciado("Comentário ruim");
+        outra.setMotivo(com.couto.chefe_api.enums.MotivoDenunciaAvaliacao.SPAM);
+        denunciaAvaliacaoRepository.save(outra);
+
+        mockMvc.perform(patch("/moderacao/denuncias-avaliacoes/" + primeira + "/remover-comentario").cookie(cookieModerador()))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/chefe/" + bia.getId() + "/avaliacoes").cookie(cookieDe(ana)))
+                .andExpect(jsonPath("$.content[0].comentario").value("Comentário removido pela moderação"))
+                .andExpect(jsonPath("$.content[0].autor").value("Cliente verificado"))
+                .andExpect(jsonPath("$.content[0].nota").value(1))
+                .andExpect(jsonPath("$.content[0].tags[0].codigo").value("ATRASOU"));
+        mockMvc.perform(get("/chefe/" + bia.getId() + "/reputacao").cookie(cookieDe(ana)))
+                .andExpect(jsonPath("$.totalAvaliacoes").value(1));
+        assertThat(denunciaAvaliacaoRepository.findAll()).allSatisfy(d -> assertThat(d.getStatus().name()).isEqualTo("PROCEDENTE"));
+        assertThat(acaoModeracaoRepository.findAll()).singleElement().satisfies(acao -> {
+            assertThat(acao.getAcao().name()).isEqualTo("REMOVER_COMENTARIO_AVALIACAO");
+            assertThat(acao.getDenunciaId()).isEqualTo(primeira);
+            assertThat(acao.getChefeId()).isEqualTo(bia.getId());
+        });
+        responder(cookieDe(bia), av, "Resposta").andExpect(status().isConflict());
+        mockMvc.perform(patch("/moderacao/denuncias-avaliacoes/" + primeira + "/arquivar").cookie(cookieModerador()))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void arquivarDenunciaDeixaOComentarioERegistra() throws Exception {
+        ChefeModel bia = novoChefe("Bia");
+        UserModel ana = novoCliente("Ana");
+        Agendamento a = concluido(novoAgendamento(ana, BASE, bia), LocalDateTime.now().minusDays(1));
+        Avaliacao av = avaliacaoSalva(a, ana, bia, 3, "Mediano", true, LocalDateTime.now());
+        Long denuncia = denunciaCriada(cookieDe(bia), av, "FALSA");
+
+        mockMvc.perform(patch("/moderacao/denuncias-avaliacoes/" + denuncia + "/arquivar").cookie(cookieModerador()))
+                .andExpect(status().isNoContent());
+
+        assertThat(denunciaAvaliacaoRepository.findById(denuncia).orElseThrow().getStatus().name()).isEqualTo("ARQUIVADA");
+        assertThat(avaliacaoRepository.findById(av.getId()).orElseThrow().isComentarioRemovido()).isFalse();
+        assertThat(acaoModeracaoRepository.findAll()).singleElement()
+                .satisfies(acao -> assertThat(acao.getAcao().name()).isEqualTo("ARQUIVAR_DENUNCIA_AVALIACAO"));
+        mockMvc.perform(get("/moderacao/denuncias-avaliacoes").param("status", "ARQUIVADA").cookie(cookieModerador()))
+                .andExpect(jsonPath("$.content.length()").value(1));
+    }
+
+    @Test
+    void comentariosSobreClientesSoNaModeracao() throws Exception {
+        ChefeModel bia = novoChefe("Bia");
+        UserModel ana = novoCliente("Ana");
+        Agendamento a = concluido(novoAgendamento(ana, BASE, bia), LocalDateTime.now().minusDays(1));
+        Avaliacao sobreAna = avaliacaoSalva(a, ana, bia, 2, "Cliente grosseiro ***", true, LocalDateTime.now());
+        sobreAna.setComentarioOriginal("Cliente grosseiro palavrao");
+        sobreAna.setAutorId(bia.getId());
+        sobreAna.setAutorTipo(TipoUsuario.CHEFE);
+        sobreAna.setAvaliadoId(ana.getId());
+        sobreAna.setAvaliadoTipo(TipoUsuario.CLIENTE);
+        avaliacaoRepository.save(sobreAna);
+        avaliacaoSalva(a, ana, bia, 5, "Sobre o chef", true, LocalDateTime.now());
+
+        mockMvc.perform(get("/moderacao/comentarios-de-clientes").cookie(cookieModerador()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].comentario").value("Cliente grosseiro ***"))
+                .andExpect(jsonPath("$.content[0].comentarioOriginal").value("Cliente grosseiro palavrao"))
+                .andExpect(jsonPath("$.content[0].nota").value(2))
+                .andExpect(jsonPath("$.content[0].autor.nome").value("Bia"))
+                .andExpect(jsonPath("$.content[0].avaliado.nome").value("Ana"));
+        for (Cookie quem : List.of(cookieDe(ana), cookieDe(bia))) {
+            mockMvc.perform(get("/moderacao/comentarios-de-clientes").cookie(quem)).andExpect(status().isNotFound());
+            mockMvc.perform(get("/moderacao/denuncias-avaliacoes").cookie(quem)).andExpect(status().isNotFound());
+        }
+    }
+
+    @Test
+    void chefBloqueadoNaoTemListaNemReputacaoPublica() throws Exception {
+        ChefeModel bia = novoChefe("Bia");
+        bia.setBloqueadoEm(LocalDateTime.now());
+        chefeRepository.save(bia);
+        Cookie ana = cookieDe(novoCliente("Ana"));
+
+        mockMvc.perform(get("/chefe/" + bia.getId() + "/avaliacoes").cookie(ana)).andExpect(status().isNotFound());
+        mockMvc.perform(get("/chefe/" + bia.getId() + "/reputacao").cookie(ana)).andExpect(status().isNotFound());
+    }
+
     // ---------------------------------------------------------------------
 
     private ResultActions avaliar(Cookie quem, Agendamento agendamento, String corpo) throws Exception {
         return mockMvc.perform(post("/agendamentos/" + agendamento.getId() + "/avaliacoes").cookie(quem)
                 .contentType(MediaType.APPLICATION_JSON).content(corpo));
+    }
+
+    private ResultActions responder(Cookie quem, Avaliacao avaliacao, String texto) throws Exception {
+        return mockMvc.perform(put("/avaliacoes/" + avaliacao.getId() + "/resposta").cookie(quem)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"texto\":\"" + texto + "\"}"));
+    }
+
+    private ResultActions denunciar(Cookie quem, Avaliacao avaliacao, String corpo) throws Exception {
+        return mockMvc.perform(post("/avaliacoes/" + avaliacao.getId() + "/denuncias").cookie(quem)
+                .contentType(MediaType.APPLICATION_JSON).content(corpo));
+    }
+
+    private Long denunciaCriada(Cookie quem, Avaliacao avaliacao, String motivo) throws Exception {
+        denunciar(quem, avaliacao, "{\"motivo\":\"" + motivo + "\"}").andExpect(status().isCreated());
+        return denunciaAvaliacaoRepository.findAll().stream()
+                .filter(d -> d.getAvaliacao().getId().equals(avaliacao.getId()))
+                .findFirst().orElseThrow().getId();
+    }
+
+    private Cookie cookieModerador() {
+        String email = "moderacao@chefhome.test"; // application-test.yml
+        return new Cookie(AuthCookies.ACCESS_TOKEN, tokenService.gerarToken(
+                new UsuarioAutenticado(moderacaoRegistry.idDe(email), email, TipoUsuario.MODERADOR)));
     }
 
     private Agendamento concluido(Agendamento agendamento, LocalDateTime concluidoEm) {

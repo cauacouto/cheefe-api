@@ -3,6 +3,8 @@ package com.couto.chefe_api.controller;
 import com.couto.chefe_api.dto.AcaoModeracaoDto;
 import com.couto.chefe_api.dto.BloqueioContaDto;
 import com.couto.chefe_api.enums.StatusBloqueio;
+import com.couto.chefe_api.dto.ComentarioClienteModeracaoDto;
+import com.couto.chefe_api.dto.DenunciaAvaliacaoModeracaoDto;
 import com.couto.chefe_api.dto.DenunciaMensagemModeracaoDto;
 import com.couto.chefe_api.dto.DenunciaModeracaoDto;
 import com.couto.chefe_api.security.UsuarioAutenticado;
@@ -59,6 +61,31 @@ public class ModeracaoController {
     public ResponseEntity<Void> removerMensagem(@PathVariable Long id, @AuthenticationPrincipal UsuarioAutenticado moderador) {
         service.removerMensagem(id, moderador.email());
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/denuncias-avaliacoes")
+    public ResponseEntity<Page<DenunciaAvaliacaoModeracaoDto>> filaDeAvaliacoes(
+            @RequestParam(defaultValue = "ABERTA") StatusDenuncia status, Pageable pageable) {
+        return ResponseEntity.ok(service.listarDenunciasAvaliacoes(status, pageable));
+    }
+
+    @PatchMapping("/denuncias-avaliacoes/{id}/arquivar")
+    public ResponseEntity<Void> arquivarDenunciaAvaliacao(@PathVariable Long id,
+                                                          @AuthenticationPrincipal UsuarioAutenticado moderador) {
+        service.arquivarDenunciaAvaliacao(id, moderador.email());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/denuncias-avaliacoes/{id}/remover-comentario")
+    public ResponseEntity<Void> removerComentarioAvaliacao(@PathVariable Long id,
+                                                           @AuthenticationPrincipal UsuarioAutenticado moderador) {
+        service.removerComentarioAvaliacao(id, moderador.email());
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/comentarios-de-clientes")
+    public ResponseEntity<Page<ComentarioClienteModeracaoDto>> comentariosDeClientes(Pageable pageable) {
+        return ResponseEntity.ok(service.listarComentariosDeClientes(pageable));
     }
 
     @GetMapping("/bloqueios")

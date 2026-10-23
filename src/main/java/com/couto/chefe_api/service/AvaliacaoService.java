@@ -151,12 +151,12 @@ public class AvaliacaoService {
         // a ordem é sempre a da publicação: a do cliente é ignorada
         Page<Avaliacao> pagina = avaliacaoRepository.findByAvaliadoIdAndAvaliadoTipoAndPublicadoEmIsNotNullOrderByPublicadoEmDescIdDesc(
                 chefeId, TipoUsuario.CHEFE, PageRequest.of(pageable.getPageNumber(), tamanho(pageable)));
-        Set<UUID> comNome = pagina.stream().filter(a -> !a.isAnonimo()).map(Avaliacao::getAutorId)
+        Set<UUID> comNome = pagina.stream().filter(AvaliacaoService::mostraNome).map(Avaliacao::getAutorId)
                 .collect(Collectors.toSet());
         Map<UUID, String> nomes = usuarioRepository.findAllById(comNome).stream()
                 .collect(Collectors.toMap(UserModel::getId, UserModel::getNome));
         return pagina.map(a -> new AvaliacaoPublicaDto(a.getId(), a.getNota(), tagsDe(a), comentarioPublico(a),
-                a.isAnonimo() ? AUTOR_ANONIMO : primeiroNome(nomes.get(a.getAutorId())),
+                mostraNome(a) ? primeiroNome(nomes.get(a.getAutorId())) : AUTOR_ANONIMO,
                 MES_E_ANO.format(a.getPublicadoEm()), a.getResposta()));
     }
 
@@ -177,8 +177,53 @@ public class AvaliacaoService {
         return reputacao(cliente.getId(), TipoUsuario.CLIENTE, cliente.getSomaNotas(), cliente.getTotalAvaliacoes());
     }
 
+    /**
+     * Resposta pública do chef avaliado; responder de novo substitui (edição). O cliente autor é
+     * notificado só na primeira.
+     */
+    @Transactional
+    public String responder(Long avaliacaoId, UsuarioAutenticado chef, String texto) {
+        Avaliacao avaliacao = sobreOChef(avaliacaoId, chef);
+        exigirComentarioPublicado(avaliacao, "Só é possível responder comentário publicado");
+        String original = texto.strip();
+        String exibido = moderacaoConteudo.verificar(original, chef);
+        boolean primeira = avaliacao.getRespondidaEm() == null;
+        avaliacao.setResposta(exibido);
+        avaliacao.setRespostaOriginal(original);
+        avaliacao.setRespondidaEm(LocalDateTime.now(clock));
+        if (primeira) {
+            String nome = chefeRepository.findById(chef.id()).map(ChefeModel::getNome).orElse("");
+            notificacaoService.notificar(avaliacao.getAutorId(), avaliacao.getAutorTipo(),
+                    EventoNotificacao.AVALIACAO_RESPONDIDA, "Chef " + nome + " respondeu sua avaliação",
+                    String.valueOf(avaliacao.getId()));
+        }
+        return exibido;
+    }
+
+    /** Avaliação que um cliente fez sobre este chef; para qualquer outro ela "não existe". */
+    Avaliacao sobreOChef(Long avaliacaoId, UsuarioAutenticado chef) {
+        return avaliacaoRepository.findById(avaliacaoId)
+                .filter(a -> a.getAvaliadoTipo() == TipoUsuario.CHEFE && a.getAvaliadoId().equals(chef.id()))
+                .orElseThrow(() -> new RecursoNaoEncontradoException("avaliação não encontrada"));
+    }
+
+    /** Resposta e denúncia só valem para comentário que está na lista pública (e não foi removido). */
+    static void exigirComentarioPublicado(Avaliacao avaliacao, String mensagem) {
+        if (avaliacao.getComentario() == null || avaliacao.getPublicadoEm() == null || avaliacao.isComentarioRemovido()) {
+            throw new ConflitoException(mensagem);
+        }
+    }
+
+    /** Chef bloqueado ou banido/inativo não aparece em lugar público: a reputação dele também não. */
     private ChefeModel exigirChef(UUID chefeId) {
-        return chefeRepository.findById(chefeId).orElseThrow(ChefeNaoEncontradoException::new);
+        return chefeRepository.findById(chefeId)
+                .filter(c -> Boolean.TRUE.equals(c.getAtivo()) && c.getBloqueadoEm() == null)
+                .orElseThrow(ChefeNaoEncontradoException::new);
+    }
+
+    /** O primeiro nome só aparece se o cliente escolheu e o comentário continua lá. */
+    private static boolean mostraNome(Avaliacao avaliacao) {
+        return !avaliacao.isAnonimo() && !avaliacao.isComentarioRemovido();
     }
 
     private ReputacaoDto reputacao(UUID id, TipoUsuario tipo, int soma, int total) {
