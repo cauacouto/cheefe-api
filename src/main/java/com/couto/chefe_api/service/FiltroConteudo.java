@@ -32,6 +32,8 @@ public class FiltroConteudo {
 
     public record ResultadoFiltro(String textoExibido, Optional<Violacao> violacao) {}
 
+    static final int TAMANHO_MINIMO_DO_TERMO = 3;
+
     private static final Pattern PALAVRA = Pattern.compile("[\\p{L}\\p{N}\\p{M}]+");
     private static final Pattern MARCAS = Pattern.compile("\\p{M}+");
     private static final List<CategoriaConteudo> PRIORIDADE =
@@ -47,7 +49,12 @@ public class FiltroConteudo {
             List<List<String>> palavras = new ArrayList<>();
             for (String t : lista) {
                 List<String> p = palavrasNormalizadas(t);
-                if (!p.isEmpty()) palavras.add(p);
+                // o "***" ocupa 3 caracteres: um trecho menor que isso faria o texto exibido crescer
+                if (String.join(" ", p).length() < TAMANHO_MINIMO_DO_TERMO) {
+                    throw new IllegalArgumentException("Termo do filtro de conteúdo com menos de "
+                            + TAMANHO_MINIMO_DO_TERMO + " caracteres (" + c + "): '" + t + "'");
+                }
+                palavras.add(p);
             }
             this.termos.put(c, palavras);
         }

@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class FiltroConteudoTest {
 
@@ -83,10 +84,10 @@ class FiltroConteudoTest {
 
     @Test
     void termoMaisLongoVenceIndependenteDaOrdem() {
-        for (List<String> ordem : List.of(List.of("x", "x y"), List.of("x y", "x"))) {
+        for (List<String> ordem : List.of(List.of("xxx", "xxx yyy"), List.of("xxx yyy", "xxx"))) {
             FiltroConteudo f = new FiltroConteudo(Map.of(CategoriaConteudo.OFENSA, ordem));
-            assertThat(f.analisar("a x y b").textoExibido()).isEqualTo("a *** b");
-            assertThat(f.analisar("x y x").textoExibido()).isEqualTo("*** ***");
+            assertThat(f.analisar("a xxx yyy b").textoExibido()).isEqualTo("a *** b");
+            assertThat(f.analisar("xxx yyy xxx").textoExibido()).isEqualTo("*** ***");
         }
     }
 
@@ -104,5 +105,21 @@ class FiltroConteudoTest {
     void ameacaTemPrioridadeSobreOfensa() {
         assertThat(filtro.analisar("palavrao vou te pegar").violacao()).hasValueSatisfying(v ->
                 assertThat(v.categoria()).isEqualTo(CategoriaConteudo.AMEACA));
+    }
+
+    @Test
+    void recusaTermoComMenosDeTresCaracteres() {
+        // "***" no lugar de um termo curto faria o texto exibido passar do limite da coluna
+        for (CategoriaConteudo c : CategoriaConteudo.values()) {
+            for (String curto : List.of("ab", "a", "  x ", "!!", "")) {
+                assertThatThrownBy(() -> new FiltroConteudo(Map.of(c, List.of("palavrao", curto))))
+                        .as(c + " '" + curto + "'")
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessageContaining("3");
+            }
+        }
+        // três caracteres bastam, também no total de uma expressão
+        assertThat(new FiltroConteudo(Map.of(CategoriaConteudo.OFENSA, List.of("bob", "a b"))).analisar("seu bob").textoExibido())
+                .isEqualTo("seu ***");
     }
 }
