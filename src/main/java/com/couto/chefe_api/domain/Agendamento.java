@@ -55,6 +55,9 @@ public class Agendamento  implements Serializable {
     @JoinColumn(name = "endereco_id")
     private EnderecoModel endereco;
 
+    /** Quando passou a CONCLUIDO; começa o prazo de 7 dias das avaliações. */
+    private LocalDateTime concluidoEm;
+
     @JsonFormat(pattern = "dd-MM-yyyy HH:mm")
     private LocalDateTime dataHoraInicial;
 
@@ -131,6 +134,7 @@ public class Agendamento  implements Serializable {
             throw new AgendamentoTransicaoInvalidaException("Só é possível concluir depois do início do agendamento");
         }
         status = StatusAgendamento.CONCLUIDO;
+        concluidoEm = agora;
     }
 
     /** Rotina: conclui o confirmado cujo fim já passou; false (sem erro) quando não se aplica. */
@@ -139,6 +143,7 @@ public class Agendamento  implements Serializable {
             return false;
         }
         status = StatusAgendamento.CONCLUIDO;
+        concluidoEm = agora;
         return true;
     }
 

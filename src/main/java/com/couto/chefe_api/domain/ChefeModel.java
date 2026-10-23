@@ -62,6 +62,11 @@ private Boolean ativo = true;
     private LocalDateTime bloqueadoEm;
 
     private String bloqueioMotivo;
+
+    /** Soma das notas recebidas e quantas são: a média é soma / total (ver Avaliacao). */
+    private int somaNotas;
+
+    private int totalAvaliacoes;
     private String idiomas;
 
     private String imageUrl;

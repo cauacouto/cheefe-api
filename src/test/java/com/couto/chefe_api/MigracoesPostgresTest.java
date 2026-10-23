@@ -207,6 +207,49 @@ class MigracoesPostgresTest {
     }
 
     @Test
+    void apagarAgendamentoLevaAvaliacoesTagsEDenuncias() throws Exception {
+        try (Connection app = conectar("chefhome_app", SENHA_APP);
+             Statement st = app.createStatement()) {
+            st.execute("INSERT INTO chefhome.agendamentos (id, status) VALUES (900003, 'CONCLUIDO')");
+            try {
+                st.execute("INSERT INTO chefhome.avaliacao (id, agendamento_id, autor_id, autor_tipo, avaliado_id, avaliado_tipo, "
+                        + "nota, comentario, anonimo, publicado_em, comentario_removido, criada_em) VALUES "
+                        + "(900003, 900003, gen_random_uuid(), 'CLIENTE', gen_random_uuid(), 'CHEFE', 5, 'ótimo', true, now(), false, now())");
+                st.execute("INSERT INTO chefhome.avaliacao_tag (avaliacao_id, tag) VALUES (900003, 'PONTUAL'), (900003, 'SIMPATICO')");
+                st.execute("INSERT INTO chefhome.denuncia_avaliacao (avaliacao_id, denunciante_id, denunciante_tipo, autor_id, autor_tipo, "
+                        + "texto_denunciado, motivo, status, criada_em) VALUES "
+                        + "(900003, gen_random_uuid(), 'CHEFE', gen_random_uuid(), 'CLIENTE', 'ótimo', 'SPAM', 'ABERTA', now())");
+
+                st.execute("DELETE FROM chefhome.agendamentos WHERE id = 900003");
+
+                assertThat(coluna(st, "SELECT count(*)::text FROM chefhome.avaliacao WHERE id = 900003")).containsExactly("0");
+                assertThat(coluna(st, "SELECT count(*)::text FROM chefhome.avaliacao_tag WHERE avaliacao_id = 900003")).containsExactly("0");
+                assertThat(coluna(st, "SELECT count(*)::text FROM chefhome.denuncia_avaliacao WHERE avaliacao_id = 900003")).containsExactly("0");
+            } finally {
+                st.execute("DELETE FROM chefhome.agendamentos WHERE id = 900003");
+            }
+        }
+    }
+
+    @Test
+    void notaDaAvaliacaoVaiDeUmACinco() throws Exception {
+        try (Connection app = conectar("chefhome_app", SENHA_APP);
+             Statement st = app.createStatement()) {
+            st.execute("INSERT INTO chefhome.agendamentos (id, status) VALUES (900004, 'CONCLUIDO')");
+            try {
+                for (int nota : new int[]{0, 6}) {
+                    assertThatThrownBy(() -> st.execute("INSERT INTO chefhome.avaliacao (agendamento_id, autor_id, autor_tipo, "
+                            + "avaliado_id, avaliado_tipo, nota, criada_em) VALUES (900004, gen_random_uuid(), 'CLIENTE', "
+                            + "gen_random_uuid(), 'CHEFE', " + nota + ", now())"))
+                            .isInstanceOfSatisfying(SQLException.class, e -> assertThat(e.getSQLState()).isEqualTo("23514"));
+                }
+            } finally {
+                st.execute("DELETE FROM chefhome.agendamentos WHERE id = 900004");
+            }
+        }
+    }
+
+    @Test
     void notificacaoTemIndicePorReferencia() throws SQLException {
         try (Connection app = conectar("chefhome_app", SENHA_APP);
              Statement st = app.createStatement();
@@ -238,6 +281,18 @@ class MigracoesPostgresTest {
         assertCheckDeTexto("bloqueio_conta", "status", com.couto.chefe_api.enums.StatusBloqueio.values());
         assertCheckDeTexto("bloqueio_conta", "conta_tipo",
                 java.util.List.of(com.couto.chefe_api.enums.TipoUsuario.CLIENTE.name(), com.couto.chefe_api.enums.TipoUsuario.CHEFE.name()));
+        java.util.List<String> tpUsuario = java.util.List.of(
+                com.couto.chefe_api.enums.TipoUsuario.CLIENTE.name(), com.couto.chefe_api.enums.TipoUsuario.CHEFE.name());
+        assertCheckDeTexto("avaliacao", "autor_tipo", tpUsuario);
+        assertCheckDeTexto("avaliacao", "avaliado_tipo", tpUsuario);
+        assertCheckDeTexto("avaliacao_tag", "tag", java.util.stream.Stream.concat(
+                        java.util.Arrays.stream(com.couto.chefe_api.enums.TagAvaliacaoChef.values()),
+                        java.util.Arrays.stream(com.couto.chefe_api.enums.TagAvaliacaoCliente.values()))
+                .map(Enum::name).distinct().toList());
+        assertCheckDeTexto("denuncia_avaliacao", "motivo", com.couto.chefe_api.enums.MotivoDenunciaAvaliacao.values());
+        assertCheckDeTexto("denuncia_avaliacao", "status", com.couto.chefe_api.enums.StatusDenuncia.values());
+        assertCheckDeTexto("denuncia_avaliacao", "denunciante_tipo", com.couto.chefe_api.enums.TipoUsuario.values());
+        assertCheckDeTexto("denuncia_avaliacao", "autor_tipo", com.couto.chefe_api.enums.TipoUsuario.values());
         assertCheckDeTexto("agendamento_historico", "acao", com.couto.chefe_api.enums.AcaoAgendamento.values());
         assertCheckDeTexto("agendamento_historico", "autor_tipo",
                 java.util.List.of(com.couto.chefe_api.enums.TipoUsuario.CLIENTE.name(), com.couto.chefe_api.enums.TipoUsuario.CHEFE.name()));

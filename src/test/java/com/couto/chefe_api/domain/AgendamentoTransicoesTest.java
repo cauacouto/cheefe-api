@@ -70,6 +70,7 @@ class AgendamentoTransicoesTest {
 
         a.concluirPeloChef(INICIO);
         assertThat(a.getStatus()).isEqualTo(StatusAgendamento.CONCLUIDO);
+        assertThat(a.getConcluidoEm()).isEqualTo(INICIO);
     }
 
     @Test
@@ -138,9 +139,12 @@ class AgendamentoTransicoesTest {
         Agendamento confirmado = agendamento(StatusAgendamento.CONFIRMADO, bia);
         assertThat(confirmado.concluirPeloSistema(FIM.minusMinutes(1))).isFalse();
         assertThat(confirmado.getStatus()).isEqualTo(StatusAgendamento.CONFIRMADO);
+        assertThat(confirmado.getConcluidoEm()).isNull();
         assertThat(confirmado.concluirPeloSistema(FIM)).isTrue();
         assertThat(confirmado.getStatus()).isEqualTo(StatusAgendamento.CONCLUIDO);
+        assertThat(confirmado.getConcluidoEm()).isEqualTo(FIM);
         assertThat(confirmado.concluirPeloSistema(FIM.plusHours(1))).isFalse();
+        assertThat(confirmado.getConcluidoEm()).isEqualTo(FIM);
 
         Agendamento pendente = agendamento(StatusAgendamento.PENDENTE, bia);
         assertThat(pendente.expirarPeloSistema(INICIO.minusMinutes(1))).isFalse();
