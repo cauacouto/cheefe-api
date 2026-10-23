@@ -5,6 +5,7 @@ import com.couto.chefe_api.dto.ListaAgendamentoChefeDto;
 import com.couto.chefe_api.dto.ListaAgendamentoUsuarioDto;
 import com.couto.chefe_api.domain.Agendamento;
 import com.couto.chefe_api.domain.ChefeModel;
+import com.couto.chefe_api.domain.Reputacao;
 import com.couto.chefe_api.enums.Especialidades;
 import org.mapstruct.IterableMapping;
 import org.mapstruct.Mapper;
@@ -12,7 +13,7 @@ import org.mapstruct.Mapping;
 import org.mapstruct.Named;
 import java.util.List;
 
-@Mapper(config = MapeamentoEstrito.class)
+@Mapper(config = MapeamentoEstrito.class, imports = Reputacao.class)
 public interface AgendamentoMapper {
 
     // ─── toDto (AgendamentoResponseDto) ───────────────────────────────
@@ -41,6 +42,9 @@ public interface AgendamentoMapper {
     @Mapping(source = "endereco.cep",              target = "cep")
     @Mapping(source = "quantidadePessoas",           target = "quantidadePessoas")
     @Mapping(source = "dataHoraInicial",             target = "dataHora")
+    @Mapping(target = "clienteNotaMedia", expression = "java(Reputacao.media(agendamento.getUsuario().getSomaNotas(), "
+            + "agendamento.getUsuario().getTotalAvaliacoes()))")
+    @Mapping(source = "usuario.totalAvaliacoes",     target = "clienteTotalAvaliacoes")
     ListaAgendamentoChefeDto toChefeDto(Agendamento agendamento);
 
     @IterableMapping(qualifiedByName = "toChefeDto")

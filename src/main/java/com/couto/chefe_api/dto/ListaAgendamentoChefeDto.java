@@ -29,4 +29,7 @@ public class ListaAgendamentoChefeDto {
     private String complemento;
     private String estado;
     private String cep;
+    /** Reputação do cliente para o chef decidir; nula com menos de 5 avaliações. */
+    private BigDecimal clienteNotaMedia;
+    private int clienteTotalAvaliacoes;
 }

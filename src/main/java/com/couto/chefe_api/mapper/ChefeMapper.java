@@ -4,13 +4,15 @@ import com.couto.chefe_api.dto.ChefeRequestDto;
 import com.couto.chefe_api.dto.ChefeResponseDto;
 import com.couto.chefe_api.dto.RegisterRequestDto;
 import com.couto.chefe_api.domain.ChefeModel;
+import com.couto.chefe_api.domain.Reputacao;
 import org.mapstruct.*;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
-@Mapper(config = MapeamentoEstrito.class)
+@Mapper(config = MapeamentoEstrito.class, imports = Reputacao.class)
 public interface ChefeMapper {
 
 
+    @Mapping(target = "notaMedia", expression = "java(Reputacao.media(model.getSomaNotas(), model.getTotalAvaliacoes()))")
     ChefeResponseDto toDto(ChefeModel model);
 
 

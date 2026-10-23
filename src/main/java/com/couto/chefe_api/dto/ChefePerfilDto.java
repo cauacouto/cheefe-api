@@ -1,6 +1,7 @@
 package com.couto.chefe_api.dto;
 
 import com.couto.chefe_api.domain.ChefeModel;
+import com.couto.chefe_api.domain.Reputacao;
 import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.enums.Senioridade;
 
@@ -23,13 +24,16 @@ public record ChefePerfilDto(
         boolean perfilCompleto,
         List<String> camposPendentes,
         boolean suspenso,
-        boolean ocultoPorDenuncias
+        boolean ocultoPorDenuncias,
+        BigDecimal notaMedia,
+        int totalAvaliacoes
 ) {
 
     public static ChefePerfilDto de(ChefeModel chefe, boolean ocultoPorDenuncias) {
         return new ChefePerfilDto(chefe.getId(), chefe.getNome(), chefe.getNacionalidade(), chefe.getEspecialidade(),
                 chefe.getAnosDeExperiencia(), chefe.getSenioridade(), chefe.isDisponivel(), chefe.getIdiomas(),
                 chefe.getValorHora(), chefe.getImageUrl(), chefe.isPerfilCompleto(), chefe.camposPendentes(),
-                chefe.isSuspenso(), ocultoPorDenuncias);
+                chefe.isSuspenso(), ocultoPorDenuncias,
+                Reputacao.media(chefe.getSomaNotas(), chefe.getTotalAvaliacoes()), chefe.getTotalAvaliacoes());
     }
 }

@@ -215,6 +215,58 @@ class ListagensIntegrationTest {
                 .andExpect(jsonPath("$.page.size").value(50));
     }
 
+    @Test
+    void buscaPorNotaMediaComNovoPorUltimo() throws Exception {
+        comNotas(novoChefe("Ana"), 20, 4);   // 4 avaliações: ainda "Novo"
+        ChefeModel bom = comNotas(novoChefe("Bia"), 22, 5);    // 4.4
+        comNotas(novoChefe("Caio"), 24, 5); // 4.8
+        Cookie edu = cookieDe(novoCliente("Edu"));
+
+        mockMvc.perform(get("/chefe").param("sort", "notaMedia").cookie(edu))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(3))
+                .andExpect(jsonPath("$.content[0].nome").value("Caio"))
+                .andExpect(jsonPath("$.content[0].notaMedia").value(4.8))
+                .andExpect(jsonPath("$.content[0].totalAvaliacoes").value(5))
+                .andExpect(jsonPath("$.content[1].nome").value("Bia"))
+                .andExpect(jsonPath("$.content[2].nome").value("Ana"))
+                .andExpect(jsonPath("$.content[2].notaMedia").doesNotExist())
+                .andExpect(jsonPath("$.content[2].totalAvaliacoes").value(4))
+                .andExpect(jsonPath("$.page.totalElements").value(3));
+        // segunda página: a ordem continua valendo com paginação
+        mockMvc.perform(get("/chefe").param("sort", "notaMedia,desc").param("size", "1").param("page", "2").cookie(edu))
+                .andExpect(jsonPath("$.content[0].nome").value("Ana"));
+        mockMvc.perform(get("/chefe/me").cookie(cookieDe(bom)))
+                .andExpect(jsonPath("$.notaMedia").value(4.4))
+                .andExpect(jsonPath("$.totalAvaliacoes").value(5));
+        mockMvc.perform(get("/chefe/destaque").cookie(edu))
+                .andExpect(jsonPath("$.content[?(@.nome == 'Caio')].notaMedia").value(org.hamcrest.Matchers.contains(4.8)));
+    }
+
+    @Test
+    void recebidosTrazemAMediaDoCliente() throws Exception {
+        ChefeModel bia = novoChefe("Bia");
+        UserModel ana = novoCliente("Ana");
+        ana.setSomaNotas(23);
+        ana.setTotalAvaliacoes(5);
+        usuarioRepository.save(ana);
+        novoAgendamento(ana, BASE.plusDays(2), bia);
+        novoAgendamento(novoCliente("Edu"), BASE.plusDays(1), bia);
+
+        mockMvc.perform(get("/agendamentos/recebidos").cookie(cookieDe(bia)))
+                .andExpect(jsonPath("$.content[0].nomeUsuario").value("Ana"))
+                .andExpect(jsonPath("$.content[0].clienteNotaMedia").value(4.6))
+                .andExpect(jsonPath("$.content[0].clienteTotalAvaliacoes").value(5))
+                .andExpect(jsonPath("$.content[1].clienteNotaMedia").doesNotExist())
+                .andExpect(jsonPath("$.content[1].clienteTotalAvaliacoes").value(0));
+    }
+
+    private ChefeModel comNotas(ChefeModel chefe, int soma, int total) {
+        chefe.setSomaNotas(soma);
+        chefe.setTotalAvaliacoes(total);
+        return chefeRepository.save(chefe);
+    }
+
     // ---------------------------------------------------------------------
 
     Agendamento novoAgendamento(UserModel cliente, LocalDateTime inicio, ChefeModel... chefes) {

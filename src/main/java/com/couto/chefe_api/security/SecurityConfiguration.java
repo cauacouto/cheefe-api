@@ -75,6 +75,7 @@ public class SecurityConfiguration  {
                         .requestMatchers(HttpMethod.PATCH, "/agendamentos/*/confirmar").hasRole(CHEFE)
                         .requestMatchers(HttpMethod.PATCH, "/agendamentos/*/cancelar").hasRole(CLIENTE)
                         .requestMatchers(HttpMethod.GET, "/agendamentos/*/historico").hasAnyRole(CLIENTE, CHEFE)
+                        .requestMatchers(HttpMethod.GET, "/clientes/*/reputacao").hasRole(CHEFE)
                         .requestMatchers("/agendamentos/*/avaliacoes", "/agendamentos/*/avaliacoes/pendentes")
                                 .hasAnyRole(CLIENTE, CHEFE)
                         .requestMatchers(HttpMethod.PATCH, "/agendamentos/*/recusar", "/agendamentos/*/desistir",

@@ -286,6 +286,125 @@ class AvaliacaoIntegrationTest {
         assertThat(unica().getComentarioOriginal()).isEqualTo("um palavrao");
     }
 
+
+    // --- Task 3: reputação e lista pública ---------------------------------
+
+    @Test
+    void listaPublicaSemIdDeAutorOrdenadaPelaPublicacao() throws Exception {
+        ChefeModel bia = novoChefe("Bia");
+        UserModel ana = novoCliente("Ana Souza");
+        UserModel edu = novoCliente("Edu");
+        UserModel gil = novoCliente("Gil");
+        Agendamento a = concluido(novoAgendamento(ana, BASE, bia), LocalDateTime.now().minusDays(1));
+        LocalDateTime outubro = LocalDateTime.of(2026, 10, 5, 12, 0);
+        // criada antes, publicada depois: a ordem é a da publicação
+        Avaliacao comNome = avaliacaoSalva(a, ana, bia, 5, "Ótima", false, outubro.plusDays(2), "PONTUAL");
+        comNome.setCriadaEm(outubro.minusDays(5));
+        avaliacaoRepository.save(comNome);
+        avaliacaoSalva(a, edu, bia, 4, "Boa", true, outubro.plusDays(1), "SIMPATICO", "COMIDA_EXCELENTE");
+        Avaliacao removida = avaliacaoSalva(a, gil, bia, 1, "***", true, outubro);
+        removida.setComentarioRemovido(true);
+        avaliacaoRepository.save(removida);
+        // comentário com nome ainda esperando: fora da lista
+        avaliacaoSalva(a, novoCliente("Ivo"), bia, 3, "Espera", false, null);
+
+        mockMvc.perform(get("/chefe/" + bia.getId() + "/avaliacoes").param("size", "1000").param("sort", "nota,asc")
+                        .cookie(cookieDe(novoCliente("Leo"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page.size").value(50))
+                .andExpect(jsonPath("$.content.length()").value(3))
+                .andExpect(jsonPath("$.content[0].autor").value("Ana"))
+                .andExpect(jsonPath("$.content[0].comentario").value("Ótima"))
+                .andExpect(jsonPath("$.content[0].quando").value("outubro de 2026"))
+                .andExpect(jsonPath("$.content[0].tags[0].codigo").value("PONTUAL"))
+                .andExpect(jsonPath("$.content[0].tags[0].rotulo").value("Pontual"))
+                .andExpect(jsonPath("$.content[0].id").value(comNome.getId()))
+                .andExpect(jsonPath("$.content[0].autorId").doesNotExist())
+                .andExpect(jsonPath("$.content[0].agendamentoId").doesNotExist())
+                .andExpect(jsonPath("$.content[1].autor").value("Cliente verificado"))
+                .andExpect(jsonPath("$.content[1].tags.length()").value(2))
+                .andExpect(jsonPath("$.content[1].tags[0].codigo").value("COMIDA_EXCELENTE"))
+                .andExpect(jsonPath("$.content[2].comentario").value("Comentário removido pela moderação"))
+                .andExpect(jsonPath("$.content[2].nota").value(1));
+    }
+
+    @Test
+    void comentarioSobreClienteNuncaApareceEmRotaPublica() throws Exception {
+        ChefeModel bia = novoChefe("Bia");
+        UserModel ana = novoCliente("Ana");
+        Agendamento a = concluido(novoAgendamento(ana, BASE, bia), LocalDateTime.now().minusDays(1));
+        Avaliacao sobreAna = avaliacaoSalva(a, ana, bia, 2, "Cliente difícil", true, LocalDateTime.now());
+        sobreAna.setAutorId(bia.getId());
+        sobreAna.setAutorTipo(TipoUsuario.CHEFE);
+        sobreAna.setAvaliadoId(ana.getId());
+        sobreAna.setAvaliadoTipo(TipoUsuario.CLIENTE);
+        avaliacaoRepository.save(sobreAna);
+
+        mockMvc.perform(get("/chefe/" + ana.getId() + "/avaliacoes").cookie(cookieDe(bia)))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/chefe/" + bia.getId() + "/avaliacoes").cookie(cookieDe(ana)))
+                .andExpect(jsonPath("$.content.length()").value(0));
+        mockMvc.perform(get("/clientes/" + ana.getId() + "/reputacao").cookie(cookieDe(bia)))
+                .andExpect(jsonPath("$.comentarios").doesNotExist())
+                .andExpect(jsonPath("$.totalAvaliacoes").value(0));
+    }
+
+    @Test
+    void reputacaoDoChefComMediaNulaAbaixoDe5EContagemDeTags() throws Exception {
+        ChefeModel bia = novoChefe("Bia");
+        UserModel ana = novoCliente("Ana");
+        Agendamento a = concluido(novoAgendamento(ana, BASE, bia), LocalDateTime.now().minusDays(1));
+        int[] notas = {5, 5, 4, 4, 4};
+        for (int i = 0; i < notas.length; i++) {
+            avaliacaoSalva(a, i == 0 ? ana : novoCliente("C" + i), bia, notas[i], null, true, LocalDateTime.now(),
+                    i < 3 ? new String[]{"PONTUAL", "SIMPATICO"} : new String[]{"PONTUAL"});
+        }
+        bia.setSomaNotas(18);
+        bia.setTotalAvaliacoes(4);
+        chefeRepository.save(bia);
+        Cookie leo = cookieDe(novoCliente("Leo"));
+
+        mockMvc.perform(get("/chefe/" + bia.getId() + "/reputacao").cookie(leo))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notaMedia").doesNotExist())
+                .andExpect(jsonPath("$.totalAvaliacoes").value(4));
+
+        bia.setSomaNotas(22);
+        bia.setTotalAvaliacoes(5);
+        chefeRepository.save(bia);
+        mockMvc.perform(get("/chefe/" + bia.getId() + "/reputacao").cookie(leo))
+                .andExpect(jsonPath("$.notaMedia").value(4.4))
+                .andExpect(jsonPath("$.totalAvaliacoes").value(5))
+                .andExpect(jsonPath("$.tags.length()").value(2))
+                .andExpect(jsonPath("$.tags[0].codigo").value("PONTUAL"))
+                .andExpect(jsonPath("$.tags[0].rotulo").value("Pontual"))
+                .andExpect(jsonPath("$.tags[0].total").value(5))
+                .andExpect(jsonPath("$.tags[1].codigo").value("SIMPATICO"))
+                .andExpect(jsonPath("$.tags[1].total").value(3));
+        mockMvc.perform(get("/chefe/" + UUID.randomUUID() + "/reputacao").cookie(leo))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void reputacaoDoClienteSoParaChefComAgendamentoComEle() throws Exception {
+        ChefeModel bia = novoChefe("Bia");
+        ChefeModel caio = novoChefe("Caio");
+        UserModel ana = novoCliente("Ana");
+        ana.setSomaNotas(23);
+        ana.setTotalAvaliacoes(5);
+        usuarioRepository.save(ana);
+        novoAgendamento(ana, BASE, bia);
+
+        mockMvc.perform(get("/clientes/" + ana.getId() + "/reputacao").cookie(cookieDe(bia)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notaMedia").value(4.6))
+                .andExpect(jsonPath("$.totalAvaliacoes").value(5));
+        mockMvc.perform(get("/clientes/" + ana.getId() + "/reputacao").cookie(cookieDe(caio)))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/clientes/" + ana.getId() + "/reputacao").cookie(cookieDe(novoCliente("Edu"))))
+                .andExpect(status().isForbidden());
+    }
+
     // ---------------------------------------------------------------------
 
     private ResultActions avaliar(Cookie quem, Agendamento agendamento, String corpo) throws Exception {
@@ -297,6 +416,23 @@ class AvaliacaoIntegrationTest {
         agendamento.setStatus(StatusAgendamento.CONCLUIDO);
         agendamento.setConcluidoEm(concluidoEm);
         return agendamentoRepository.save(agendamento);
+    }
+
+    /** Cliente avaliando chef, gravada direto (o fluxo de criação já tem testes acima). */
+    private Avaliacao avaliacaoSalva(Agendamento agendamento, UserModel autor, ChefeModel chef, int nota,
+                                     String comentario, boolean anonimo, LocalDateTime publicadoEm, String... tags) {
+        Avaliacao avaliacao = new Avaliacao();
+        avaliacao.setAgendamento(agendamento);
+        avaliacao.setAutorId(autor.getId());
+        avaliacao.setAutorTipo(TipoUsuario.CLIENTE);
+        avaliacao.setAvaliadoId(chef.getId());
+        avaliacao.setAvaliadoTipo(TipoUsuario.CHEFE);
+        avaliacao.setNota(nota);
+        avaliacao.setComentario(comentario);
+        avaliacao.setAnonimo(anonimo);
+        avaliacao.setPublicadoEm(publicadoEm);
+        avaliacao.setTags(new java.util.HashSet<>(List.of(tags)));
+        return avaliacaoRepository.save(avaliacao);
     }
 
     private Avaliacao unica() {

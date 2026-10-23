@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
@@ -84,6 +85,7 @@ public class Avaliacao {
     @CollectionTable(name = "avaliacao_tag", joinColumns = @JoinColumn(name = "avaliacao_id"))
     @Column(name = "tag", nullable = false)
     @OnDelete(action = OnDeleteAction.CASCADE)
+    @BatchSize(size = 50) // a página pública carrega as tags de todas de uma vez
     private Set<String> tags = new HashSet<>();
 
     @PrePersist
