@@ -122,8 +122,9 @@ public class ChatService {
 
     @Transactional
     public MensagemDto enviar(Long conversaId, UsuarioAutenticado usuario, String texto) {
-        // antes de qualquer trava: o bloqueio do autor roda numa transação própria (ver ModeracaoConteudoService)
         String normalizado = normalizar(texto);
+        doParticipante(conversaId, usuario); // quem não participa recebe 404 antes do filtro, como no editar
+        // antes de qualquer trava: o bloqueio do autor roda numa transação própria (ver ModeracaoConteudoService)
         String exibido = moderacaoConteudo.verificar(normalizado, usuario);
         Conversa conversa = conversaRepository.travarPorId(conversaId)
                 .filter(c -> participa(c, usuario))

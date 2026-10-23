@@ -317,6 +317,29 @@ class ConversaIntegrationTest {
     }
 
     @Test
+    void edicaoLimpaApagaOOriginalGuardado() throws Exception {
+        long conversa = abrir(ana, bia).andReturnId();
+        long mensagem = new Resposta(enviar(bia, conversa, "oi palavrao")).andReturnId();
+
+        mockMvc.perform(patch("/conversas/" + conversa + "/mensagens/" + mensagem).cookie(cookie(bia))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"texto\":\"oi\"}"))
+                .andExpect(status().isOk());
+
+        assertThat(mensagemRepository.findById(mensagem).orElseThrow().getTextoOriginal()).isNull();
+    }
+
+    @Test
+    void quemNaoParticipaRecebe404AntesDoFiltro() throws Exception {
+        long conversa = abrir(ana, bia).andReturnId();
+        UserModel intruso = novoCliente("Edu");
+
+        enviar(intruso, conversa, "seu odiento").andExpect(status().isNotFound());
+
+        assertThat(usuarioRepository.findById(intruso.getId()).orElseThrow().getBloqueadoEm()).isNull();
+        assertThat(bloqueioContaRepository.findAll()).isEmpty();
+    }
+
+    @Test
     void moderacaoRemoveMensagemParaOsDois() throws Exception {
         long conversa = abrir(ana, bia).andReturnId();
         long mensagem = new Resposta(enviar(ana, conversa, "golpe pix")).andReturnId();
