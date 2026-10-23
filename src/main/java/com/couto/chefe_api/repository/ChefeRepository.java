@@ -10,6 +10,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
@@ -36,6 +37,11 @@ public interface ChefeRepository extends JpaRepository<ChefeModel, UUID>, JpaSpe
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT c FROM ChefeModel c WHERE c.id IN :ids ORDER BY c.id")
     List<ChefeModel> travar(@Param("ids") Collection<UUID> ids);
+
+    /** Soma atômica no banco: avaliações simultâneas da mesma pessoa não perdem contagem. */
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE ChefeModel c SET c.somaNotas = c.somaNotas + :nota, c.totalAvaliacoes = c.totalAvaliacoes + 1 WHERE c.id = :id")
+    int somarAvaliacao(@Param("id") UUID id, @Param("nota") int nota);
 
     @Query(value = "SELECT c FROM ChefeModel c LEFT JOIN c.agendamentos a WHERE " + VISIVEL +
             " GROUP BY c ORDER BY COUNT(a) DESC",

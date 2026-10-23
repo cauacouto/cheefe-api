@@ -10,11 +10,16 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface AvaliacaoRepository extends JpaRepository<Avaliacao, Long> {
 
     boolean existsByAgendamento_IdAndAutorIdAndAvaliadoId(Long agendamentoId, UUID autorId, UUID avaliadoId);
+
+    /** O comentário com nome do cliente sobre o chef, ainda esperando o chef avaliá-lo. */
+    Optional<Avaliacao> findByAgendamento_IdAndAutorIdAndAvaliadoIdAndPublicadoEmIsNull(Long agendamentoId, UUID autorId,
+                                                                                       UUID avaliadoId);
 
     Page<Avaliacao> findByAvaliadoIdAndAvaliadoTipoAndPublicadoEmIsNotNullOrderByPublicadoEmDescIdDesc(
             UUID avaliadoId, TipoUsuario avaliadoTipo, Pageable pageable);
