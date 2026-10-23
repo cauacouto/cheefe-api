@@ -240,6 +240,17 @@ class AgendamentoServiceTest {
     }
 
     @Test
+    void agendarChefBloqueadoDa409() {
+        chefeA.setBloqueadoEm(LocalDateTime.now());
+        chefesExistentes(chefeA);
+
+        assertThatThrownBy(() -> service.criarAgendamento(
+                dto(DIA.withHour(18), DIA.withHour(21), 1L, ids(chefeA), 2), USUARIO_ID))
+                .isInstanceOf(ChefeIndisponivelException.class);
+        verify(agendamentoRepository, never()).save(any());
+    }
+
+    @Test
     void agendarChefOcultoPorDenunciasDa409() {
         chefesExistentes(chefeA);
         when(denunciaRepository.countDistinctClienteByChefeIdAndStatus(chefeA.getId(), StatusDenuncia.ABERTA)).thenReturn(3L);

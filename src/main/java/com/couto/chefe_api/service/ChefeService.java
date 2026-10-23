@@ -29,7 +29,8 @@ import java.util.UUID;
 public class ChefeService {
 
     static final int TAMANHO_MAXIMO_PAGINA = 50;
-    static final Set<String> ORDENAVEIS = Set.of("nome", "valorHora", "anosDeExperiencia");
+    static final String NOTA_MEDIA = "notaMedia";
+    static final Set<String> ORDENAVEIS = Set.of("nome", "valorHora", "anosDeExperiencia", NOTA_MEDIA);
 
     private final ChefeRepository chefeRepository;
     private final ChefeMapper chefeMapper;
@@ -56,11 +57,19 @@ public class ChefeService {
                 .and(ChefeSpecification.disponivel())
                 .and(ChefeSpecification.perfilCompleto())
                 .and(ChefeSpecification.naoSuspenso())
+                .and(ChefeSpecification.naoBloqueado())
                 .and(ChefeSpecification.semDenunciasEmExcesso())
                 .and(ChefeSpecification.valorMinimoMaior(valorMinimo))
                 .and(ChefeSpecification.valorMaximoMenor(valorMaximo));
 
-        return chefeRepository.findAll(spec, paginaDaBusca(pageable))
+        PageRequest pagina = paginaDaBusca(pageable);
+        if (pagina.getSort().getOrderFor(NOTA_MEDIA) != null) {
+            // a média não é coluna: a ordem inteira vai para a Specification (sempre desc, "Novo" por último)
+            Sort demais = Sort.by(pagina.getSort().stream().filter(o -> !NOTA_MEDIA.equals(o.getProperty())).toList());
+            spec = spec.and(ChefeSpecification.ordenadoPorNotaMedia(demais));
+            pagina = PageRequest.of(pagina.getPageNumber(), pagina.getPageSize());
+        }
+        return chefeRepository.findAll(spec, pagina)
                 .map(chefeMapper::toDto);
     }
 

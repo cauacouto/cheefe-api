@@ -34,6 +34,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -51,8 +52,15 @@ class ModeracaoServiceTest {
     private final AcaoModeracaoRepository acaoRepository = mock(AcaoModeracaoRepository.class);
     private final DenunciaMensagemRepository denunciaMensagemRepository = mock(DenunciaMensagemRepository.class);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
+    private final com.couto.chefe_api.repository.BloqueioContaRepository bloqueioRepository =
+            mock(com.couto.chefe_api.repository.BloqueioContaRepository.class);
+    private final com.couto.chefe_api.repository.DenunciaAvaliacaoRepository denunciaAvaliacaoRepository =
+            mock(com.couto.chefe_api.repository.DenunciaAvaliacaoRepository.class);
+    private final com.couto.chefe_api.repository.UsuarioRepository usuarioRepository =
+            mock(com.couto.chefe_api.repository.UsuarioRepository.class);
     private final ModeracaoService service = new ModeracaoService(denunciaRepository, chefeRepository, notificacaoService,
-            acaoRepository, denunciaMensagemRepository, eventPublisher, RELOGIO);
+            acaoRepository, denunciaMensagemRepository, bloqueioRepository, usuarioRepository,
+            mock(com.couto.chefe_api.repository.AvaliacaoRepository.class), denunciaAvaliacaoRepository, eventPublisher, RELOGIO);
 
     private final ChefeModel chefe = new ChefeModel();
     private final Denuncia aberta = new Denuncia();
@@ -220,5 +228,142 @@ class ModeracaoServiceTest {
         denuncia.setId(id);
         denuncia.setMensagem(mensagem);
         return denuncia;
+    }
+
+    private com.couto.chefe_api.domain.BloqueioConta bloqueioAberto(UUID contaId, TipoUsuario tipo) {
+        com.couto.chefe_api.domain.BloqueioConta b = new com.couto.chefe_api.domain.BloqueioConta();
+        b.setId(9L);
+        b.setContaId(contaId);
+        b.setContaTipo(tipo);
+        b.setCategoria(com.couto.chefe_api.enums.CategoriaConteudo.AMEACA);
+        b.setTermo("x");
+        b.setTexto("texto");
+        when(bloqueioRepository.travarPorId(9L)).thenReturn(Optional.of(b));
+        return b;
+    }
+
+    @Test
+    void confirmarBloqueioDeChefInativaAContaEAudita() {
+        chefe.setBloqueadoEm(LocalDateTime.now());
+        var b = bloqueioAberto(chefe.getId(), TipoUsuario.CHEFE);
+
+        service.confirmarBloqueio(9L, MODERADOR);
+
+        assertThat(chefe.getAtivo()).isFalse();
+        assertThat(b.getStatus()).isEqualTo(com.couto.chefe_api.enums.StatusBloqueio.CONFIRMADO);
+        assertThat(b.getResolvidoPor()).isEqualTo(MODERADOR);
+        assertThat(b.getResolvidoEm()).isNotNull();
+        ArgumentCaptor<AcaoModeracao> captor = ArgumentCaptor.forClass(AcaoModeracao.class);
+        verify(acaoRepository).save(captor.capture());
+        assertThat(captor.getValue().getAcao()).isEqualTo(TipoAcaoModeracao.CONFIRMAR_BLOQUEIO);
+        assertThat(captor.getValue().getChefeId()).isEqualTo(chefe.getId());
+        assertThat(captor.getValue().getDenunciaId()).isEqualTo(9L);
+    }
+
+    @Test
+    void confirmarBloqueioDeClienteMantemABloqueioEAuditaSemChef() {
+        UserModel cliente = new UserModel();
+        cliente.setId(UUID.randomUUID());
+        cliente.setBloqueadoEm(LocalDateTime.now());
+        bloqueioAberto(cliente.getId(), TipoUsuario.CLIENTE);
+
+        service.confirmarBloqueio(9L, MODERADOR);
+
+        assertThat(cliente.getBloqueadoEm()).isNotNull();
+        ArgumentCaptor<AcaoModeracao> captor = ArgumentCaptor.forClass(AcaoModeracao.class);
+        verify(acaoRepository).save(captor.capture());
+        assertThat(captor.getValue().getChefeId()).isNull();
+        assertThat(captor.getValue().getDenunciaId()).isEqualTo(9L);
+    }
+
+    @Test
+    void reverterBloqueioDesbloqueiaEAudita() {
+        chefe.setBloqueadoEm(LocalDateTime.now());
+        chefe.setBloqueioMotivo("AMEACA");
+        var b = bloqueioAberto(chefe.getId(), TipoUsuario.CHEFE);
+
+        service.reverterBloqueio(9L, MODERADOR);
+
+        assertThat(chefe.getBloqueadoEm()).isNull();
+        assertThat(chefe.getBloqueioMotivo()).isNull();
+        assertThat(chefe.getAtivo()).isTrue();
+        assertThat(b.getStatus()).isEqualTo(com.couto.chefe_api.enums.StatusBloqueio.REVERTIDO);
+        ArgumentCaptor<AcaoModeracao> captor = ArgumentCaptor.forClass(AcaoModeracao.class);
+        verify(acaoRepository).save(captor.capture());
+        assertThat(captor.getValue().getAcao()).isEqualTo(TipoAcaoModeracao.REVERTER_BLOQUEIO);
+    }
+
+    @Test
+    void reverterBloqueioDeClienteDesbloqueia() {
+        UserModel cliente = new UserModel();
+        cliente.setId(UUID.randomUUID());
+        cliente.setBloqueadoEm(LocalDateTime.now());
+        cliente.setBloqueioMotivo("ODIO");
+        bloqueioAberto(cliente.getId(), TipoUsuario.CLIENTE);
+        when(usuarioRepository.findById(cliente.getId())).thenReturn(Optional.of(cliente));
+
+        service.reverterBloqueio(9L, MODERADOR);
+
+        assertThat(cliente.getBloqueadoEm()).isNull();
+        assertThat(cliente.getBloqueioMotivo()).isNull();
+    }
+
+    @Test
+    void confirmarReaplicaOBloqueioSeOutraDecisaoJaTinhaLimpado() {
+        UserModel cliente = new UserModel();
+        cliente.setId(UUID.randomUUID());
+        bloqueioAberto(cliente.getId(), TipoUsuario.CLIENTE);
+        when(usuarioRepository.findById(cliente.getId())).thenReturn(Optional.of(cliente));
+
+        service.confirmarBloqueio(9L, MODERADOR);
+
+        assertThat(cliente.getBloqueadoEm()).isEqualTo(LocalDateTime.now(RELOGIO));
+        assertThat(cliente.getBloqueioMotivo()).isEqualTo("AMEACA");
+    }
+
+    @Test
+    void confirmarBloqueioDeChefFechaDenunciasAbertasComoProcedentes() {
+        chefe.setBloqueadoEm(LocalDateTime.now());
+        bloqueioAberto(chefe.getId(), TipoUsuario.CHEFE);
+
+        service.confirmarBloqueio(9L, MODERADOR);
+
+        assertThat(aberta.getStatus()).isEqualTo(StatusDenuncia.PROCEDENTE);
+        assertThat(aberta.getResolvidaPor()).isEqualTo(MODERADOR);
+    }
+
+    @Test
+    void reverterMantemBloqueadaQuandoHaOutroBloqueioAbertoOuConfirmado() {
+        LocalDateTime antes = LocalDateTime.now();
+        chefe.setBloqueadoEm(antes);
+        chefe.setBloqueioMotivo("AMEACA");
+        var b = bloqueioAberto(chefe.getId(), TipoUsuario.CHEFE);
+        when(bloqueioRepository.existsByContaIdAndIdNotAndStatusIn(eq(chefe.getId()), eq(9L), any())).thenReturn(true);
+
+        service.reverterBloqueio(9L, MODERADOR);
+
+        assertThat(chefe.getBloqueadoEm()).isEqualTo(antes);
+        assertThat(chefe.getBloqueioMotivo()).isEqualTo("AMEACA");
+        assertThat(b.getStatus()).isEqualTo(com.couto.chefe_api.enums.StatusBloqueio.REVERTIDO);
+    }
+
+    @Test
+    void decisoesTravamOBloqueioParaSerializarModeradores() {
+        bloqueioAberto(chefe.getId(), TipoUsuario.CHEFE);
+
+        service.reverterBloqueio(9L, MODERADOR);
+
+        verify(bloqueioRepository).travarPorId(9L);
+        verify(bloqueioRepository, never()).findById(any());
+    }
+
+    @Test
+    void bloqueioJaResolvidoDa409SemAuditoria() {
+        var b = bloqueioAberto(chefe.getId(), TipoUsuario.CHEFE);
+        b.setStatus(com.couto.chefe_api.enums.StatusBloqueio.REVERTIDO);
+
+        assertThatThrownBy(() -> service.confirmarBloqueio(9L, MODERADOR)).isInstanceOf(ConflitoException.class);
+        assertThatThrownBy(() -> service.reverterBloqueio(9L, MODERADOR)).isInstanceOf(ConflitoException.class);
+        verify(acaoRepository, never()).save(any());
     }
 }

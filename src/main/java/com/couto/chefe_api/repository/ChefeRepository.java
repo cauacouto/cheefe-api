@@ -10,6 +10,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
@@ -21,12 +22,14 @@ public interface ChefeRepository extends JpaRepository<ChefeModel, UUID>, JpaSpe
 
     Optional<ChefeModel> findByEmailIgnoreCase(String email);
 
-    // visível = ativo, disponível, perfil completo, não suspenso e < 3 denunciantes com denúncia aberta
+    boolean existsByIdAndBloqueadoEmIsNotNull(UUID id);
+
+    // visível = ativo, disponível, perfil completo, não suspenso, não bloqueado e < 3 denunciantes com denúncia aberta
     String VISIVEL = "c.ativo = true AND c.disponivel = true " +
             "AND TRIM(COALESCE(c.nacionalidade, '')) <> '' AND c.especialidade IS NOT NULL " +
             "AND c.senioridade IS NOT NULL AND c.anosDeExperiencia IS NOT NULL " +
             "AND TRIM(COALESCE(c.idiomas, '')) <> '' AND c.valorHora IS NOT NULL " +
-            "AND c.suspenso = false " +
+            "AND c.suspenso = false AND c.bloqueadoEm IS NULL " +
             "AND (SELECT COUNT(DISTINCT d.cliente.id) FROM Denuncia d WHERE d.chefe = c " +
             "AND d.status = com.couto.chefe_api.enums.StatusDenuncia.ABERTA) < 3";
 
@@ -34,6 +37,16 @@ public interface ChefeRepository extends JpaRepository<ChefeModel, UUID>, JpaSpe
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT c FROM ChefeModel c WHERE c.id IN :ids ORDER BY c.id")
     List<ChefeModel> travar(@Param("ids") Collection<UUID> ids);
+
+    /** Soma atômica no banco: avaliações simultâneas da mesma pessoa não perdem contagem. */
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE ChefeModel c SET c.somaNotas = c.somaNotas + :nota, c.totalAvaliacoes = c.totalAvaliacoes + 1 WHERE c.id = :id")
+    int somarAvaliacao(@Param("id") UUID id, @Param("nota") int nota);
+
+    /** O inverso de {@link #somarAvaliacao}: a nota de uma conta apagada sai da média. */
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE ChefeModel c SET c.somaNotas = c.somaNotas - :nota, c.totalAvaliacoes = c.totalAvaliacoes - 1 WHERE c.id = :id")
+    int descontarAvaliacao(@Param("id") UUID id, @Param("nota") int nota);
 
     @Query(value = "SELECT c FROM ChefeModel c LEFT JOIN c.agendamentos a WHERE " + VISIVEL +
             " GROUP BY c ORDER BY COUNT(a) DESC",

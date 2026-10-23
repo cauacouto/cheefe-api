@@ -22,6 +22,9 @@ public interface AgendamentoRepository extends JpaRepository<Agendamento,Long> {
 
     Optional<Agendamento> findByIdAndUsuario_Id(Long id, UUID usuarioId);
 
+    /** O chef tem (ou teve) algum agendamento com o cliente: pode ver a reputação dele. */
+    boolean existsByUsuario_IdAndChefes_Id(UUID clienteId, UUID chefeId);
+
     @Query("SELECT a.id FROM Agendamento a WHERE a.usuario.id = :clienteId")
     List<Long> idsDoCliente(@Param("clienteId") UUID clienteId);
 

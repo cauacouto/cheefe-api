@@ -2,6 +2,7 @@ package com.couto.chefe_api.service;
 
 import com.couto.chefe_api.dto.ConversaDto;
 import com.couto.chefe_api.dto.MensagemDto;
+import com.couto.chefe_api.exception.ChefeIndisponivelException;
 import com.couto.chefe_api.exception.ChefeNaoEncontradoException;
 import com.couto.chefe_api.exception.ConflitoException;
 import com.couto.chefe_api.exception.RecursoNaoEncontradoException;
@@ -125,6 +126,9 @@ public class ChatService {
                 .orElseThrow(() -> new RecursoNaoEncontradoException("conversa não encontrada"));
         // chef apagado/banido: ninguém escreve mais nessa conversa (o histórico continua visível)
         conversa.getChefe().exigirAtivo();
+        if (conversa.getChefe().getBloqueadoEm() != null) {
+            throw new ChefeIndisponivelException();
+        }
         String normalizado = normalizar(texto);
 
         LocalDateTime agora = LocalDateTime.now(clock);

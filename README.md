@@ -175,19 +175,25 @@ Listas paginadas respondem `{ "content": [...], "page": { "size", "number", "tot
 | Sessão | `GET /auth/me` | qualquer logado |
 | Notificações | `GET /notificacoes?somenteNaoLidas=`, `GET /notificacoes/nao-lidas/contagem`, `PATCH /notificacoes/{id}/lida`, `PATCH /notificacoes/lidas` (sempre só as próprias) | qualquer logado |
 | Tempo real | `GET /eventos` (SSE, `text/event-stream`; eventos `mensagem`, `mensagem_editada`, `mensagem_apagada`, `mensagens_lidas` e `notificacao`) | qualquer logado |
-| Usuário | `GET` · `PUT` · `DELETE /usuario/me` (o e-mail não é editável; o DELETE encerra a sessão e apaga também as conversas, mensagens e denúncias de mensagens do cliente); `PUT /usuario/me/foto` (multipart `foto`) | CLIENTE |
+| Usuário | `GET` · `PUT` · `DELETE /usuario/me` (o e-mail não é editável; o DELETE encerra a sessão e apaga também as conversas, mensagens e denúncias de mensagens do cliente, e as avaliações dos agendamentos dele, com as notas que ele deu saindo da média dos chefs); `PUT /usuario/me/foto` (multipart `foto`) | CLIENTE |
 | Endereços | `GET` · `POST /usuario/enderecos` | CLIENTE |
-| Chefs | `GET /chefe?page=&size=&sort=` (ordenação só por `nome`, `valorHora` ou `anosDeExperiencia`), `GET /chefe/destaque` (mais agendados primeiro); os dois paginados até 50 e só com chefs visíveis (ativos, disponíveis, perfil completo, não suspensos e não ocultados por denúncias) | qualquer logado |
+| Chefs | `GET /chefe?page=&size=&sort=` (ordenação só por `nome`, `valorHora`, `anosDeExperiencia` ou `notaMedia` — esta sempre da maior para a menor, com os "Novo" por último), `GET /chefe/destaque` (mais agendados primeiro); os dois paginados até 50, só com chefs visíveis (ativos, disponíveis, perfil completo, não suspensos e não ocultados por denúncias) e com `notaMedia` e `totalAvaliacoes` | qualquer logado |
+| Avaliações de um chef | `GET /chefe/{id}/avaliacoes?page=&size=` (publicadas, mais recentes primeiro, até 50) e `GET /chefe/{id}/reputacao` (veja "Avaliações"); chef bloqueado ou inativo → 404 | qualquer logado |
 | Perfil do chef | `GET /chefe/me` (inclui `perfilCompleto` e `camposPendentes`); `PATCH /chefe/me`; `PUT /chefe/me/foto` (multipart `foto`); `PATCH /chefe/me/inativar` (pausa: some da busca e não recebe agendamentos novos) e `PATCH /chefe/me/ativar` (volta); `DELETE /chefe/me` (apaga a conta: não loga nem opera mais) | CHEFE |
 | Pratos | `GET /pratos?page=&size=` (paginado, até 50) e `GET /pratos/chefe/{chefeId}`: só pratos de chefs visíveis na busca (chef pausado, suspenso, banido ou ocultado por denúncias não aparece) | qualquer logado |
 | Meus pratos | `POST /pratos` (multipart `dados` + `foto`), `PUT /pratos/{id}`, `GET /pratos/meus` (todos os do chef, mesmo pausado) | CHEFE |
 | Agendamentos do cliente | `POST /agendamentos` (endereço precisa ser do cliente; **409** se algum chef escolhido já tiver um agendamento confirmado que se sobreponha — pedidos pendentes podem se sobrepor, e encostar, como 18h–20h e 20h–22h, não conflita), `GET /agendamentos/meus?page=&size=` (paginado, até 50, data mais distante primeiro), `PUT /agendamentos/{id}` (só `PENDENTE`), `PATCH /agendamentos/{id}/cancelar` (veja "Ciclo do agendamento") | CLIENTE |
 | Agendamentos do chef | `GET /agendamentos/recebidos?page=&size=` (paginado como `/agendamentos/meus`), `PATCH /agendamentos/{id}/confirmar` (só chef do agendamento, só `PENDENTE`; **409** se algum chef do agendamento já tiver outro confirmado no mesmo horário), `PATCH /agendamentos/{id}/recusar`·`desistir`·`concluir` | CHEFE |
 | Linha do tempo | `GET /agendamentos/{id}/historico` (cliente dono ou chef que ainda está no agendamento) | CLIENTE, CHEFE |
+| Avaliar | `POST /agendamentos/{id}/avaliacoes`, `GET /agendamentos/{id}/avaliacoes/pendentes` (cliente dono ou chef que ainda está no agendamento; veja "Avaliações") | CLIENTE, CHEFE |
+| Responder e denunciar avaliação | `PUT /avaliacoes/{id}/resposta` `{texto}` → 200 `{resposta}` (o texto como ficou, depois do filtro), `POST /avaliacoes/{id}/denuncias` `{motivo, descricao?}` → 201 `{id, status}` (só o chef avaliado) | CHEFE |
+| Reputação do cliente | `GET /clientes/{id}/reputacao` (só chef que tem ou teve agendamento com o cliente; para os demais, 404) | CHEFE |
 | Denúncias | `POST /denuncias` (só de chef com quem teve agendamento confirmado e já ocorrido) | CLIENTE |
 | Abrir conversa | `POST /conversas` `{chefeId}` (201 nova, 200 se já existe; só o cliente inicia) | CLIENTE |
 | Chat | `GET /conversas?page=&size=` (paginado como `/notificacoes`, mais recente primeiro, até 50 por página); `GET /conversas/{id}/mensagens?antesDe=&size=` (mais novas primeiro, até 100); `POST /conversas/{id}/mensagens`; `PATCH /conversas/{id}/lidas` ("visto"); `PATCH /conversas/{id}/mensagens/{mid}` (só o autor, até 15 min); `DELETE /conversas/{id}/mensagens/{mid}` (só o autor); `POST /conversas/{id}/mensagens/{mid}/denuncias` `{motivo, descricao}` (só quem recebeu; motivos `OFENSIVA`, `ASSEDIO`, `SPAM`, `GOLPE`, `CONTEUDO_IMPROPRIO`, `OUTRO`). Com o chef apagado ou banido, o histórico continua visível, mas ninguém envia mais (403) | CLIENTE, CHEFE (participantes) |
-| Moderação | `GET /moderacao/denuncias?status=`, `PATCH /moderacao/denuncias/{id}/arquivar`, `PATCH /moderacao/chefes/{id}/suspender`·`reativar`·`banir`, `GET /moderacao/denuncias-mensagens?status=` (com o texto do momento da denúncia), `PATCH /moderacao/denuncias-mensagens/{id}/arquivar`·`remover-mensagem`, `GET /moderacao/acoes` (histórico: quem fez cada ação; no banco a API só insere nessa tabela, nunca altera nem apaga) (para quem não modera, a área responde 404) | MODERADOR |
+| Moderação | `GET /moderacao/denuncias?status=`, `PATCH /moderacao/denuncias/{id}/arquivar`, `PATCH /moderacao/chefes/{id}/suspender`·`reativar`·`banir`, `GET /moderacao/denuncias-mensagens?status=` (com o texto do momento da denúncia), `PATCH /moderacao/denuncias-mensagens/{id}/arquivar`·`remover-mensagem`, `GET /moderacao/bloqueios?status=ABERTO` (fila de contas bloqueadas automaticamente, com o texto que disparou), `PATCH /moderacao/bloqueios/{id}/confirmar`·`reverter`, `GET /moderacao/denuncias-avaliacoes?status=` (com o texto original e o autor), `PATCH /moderacao/denuncias-avaliacoes/{id}/arquivar`·`remover-comentario`, `GET /moderacao/comentarios-de-clientes?page=` (o que os chefs escreveram sobre clientes), `GET /moderacao/acoes` (histórico: quem fez cada ação; no banco a API só insere nessa tabela, nunca altera nem apaga) (para quem não modera, a área responde 404) | MODERADOR |
+
+**Bloqueio automático.** Texto de comentários e respostas de avaliações (o chat fica para uma etapa seguinte) com ódio ou ameaça (palavrões comuns só são mascarados) suspende a conta do autor na hora: as sessões abertas caem, inclusive as conexões em tempo real, e o login é recusado. O caso entra na fila `GET /moderacao/bloqueios`, e a moderação confirma (chef fica inativo) ou reverte (a conta volta a logar e operar com o mesmo cookie). Toda decisão fica no histórico `GET /moderacao/acoes`. A lista de termos, revisável, fica em `src/main/resources/moderacao/termos.yml`.
 
 ### 📅 Ciclo do agendamento
 
@@ -210,6 +216,28 @@ Listas paginadas respondem `{ "content": [...], "page": { "size", "number", "tot
 - O outro lado é notificado (cancelamento, recusa, desistência, expiração), com o motivo.
 - Uma rotina roda a cada 15 minutos para concluir e expirar; os prazos usam o relógio do servidor, então o fuso de produção precisa ser o dos horários informados pelos clientes.
 - O app é intermediador: registra e avisa, sem multa nem reembolso; para quem não comparece existe a denúncia, que vale para agendamento confirmado ou concluído que já aconteceu.
+
+### ⭐ Avaliações
+
+Depois de um agendamento `CONCLUIDO`, o cliente avalia cada chef e cada chef avalia o cliente, até **7 dias** depois da conclusão (fora do prazo, ou sem conclusão → **409**; quem não está no agendamento → **404**). Uma avaliação por pessoa avaliada, sem edição (repetida → **409**).
+
+```json
+POST /agendamentos/{id}/avaliacoes
+{ "chefeId": "<só o cliente manda>", "nota": 5, "tags": ["PONTUAL"], "comentario": "opcional, até 1000", "anonimo": true }
+```
+
+- `GET /agendamentos/{id}/avaliacoes/pendentes` → `[{ "id", "nome", "tipo", "prazo" }]`: quem ainda posso avaliar (vazio fora do status ou do prazo).
+- Tags (até 5, só da lista do lado certo, senão **400**):
+  - cliente sobre o chef: `PONTUAL`, `COMIDA_EXCELENTE`, `SIMPATICO`, `COZINHA_LIMPA`, `APRESENTACAO_CAPRICHADA`, `ATRASOU`, `COMIDA_ABAIXO_DO_ESPERADO`, `DEIXOU_SUJEIRA`, `NAO_CUMPRIU_O_COMBINADO`;
+  - chef sobre o cliente: `EDUCADO`, `RECEPTIVO`, `COZINHA_ORGANIZADA`, `PAGOU_COMO_COMBINADO`, `MUDOU_EM_CIMA_DA_HORA`, `DEMOROU_PARA_RECEBER`, `COZINHA_SEM_CONDICOES`, `FALTA_DE_EDUCACAO`.
+- **Média:** `notaMedia` = soma ÷ total com uma casa, **nula com menos de 5 avaliações** (o front mostra "Novo"). A nota conta na hora em que a avaliação é criada.
+- **Anonimato:** nenhuma resposta liga nota ou tag ao autor. A lista pública (`GET /chefe/{id}/avaliacoes`) traz `{ id, nota, tags[{codigo, rotulo}], comentario, autor, quando, resposta }`, sem id de autor nem de agendamento, ordenada pela publicação; `quando` é só mês e ano (`"outubro de 2026"`). O `id` é o da avaliação (para responder ou denunciar).
+- **Comentário com nome** (`anonimo: false`): aparece com o primeiro nome do cliente, mas só depois que o chef avalia o cliente daquele agendamento ou, se ele não avaliar, quando acaba o prazo de 7 dias (uma rotina de 15 em 15 minutos publica). Anônimo é o padrão e sai na hora como "Cliente verificado"; avaliação sem comentário é sempre anônima.
+- **Sobre o cliente:** o que o chef escreve nunca é público, só a moderação lê. A reputação do cliente (média, total e tags) aparece só para chefs que têm ou tiveram agendamento com ele, e nos recebidos (`clienteNotaMedia`, `clienteTotalAvaliacoes`).
+- **Resposta do chef:** uma por avaliação publicada com comentário (responder de novo substitui); o cliente é avisado na primeira.
+- **Filtro:** comentários e respostas passam pelo filtro de conteúdo: palavrão vira `***` (o original fica para a moderação), ódio ou ameaça → **403**, nada é gravado e a conta é bloqueada (veja "Bloqueio automático").
+- **Denúncia:** o chef denuncia comentário publicado sobre ele (`OFENSIVA`, `DADOS_PESSOAIS`, `FALSA`, `SPAM`, `OUTRO`; repetida → **409**). A moderação arquiva ou remove o comentário: no lugar do texto fica "Comentário removido pela moderação" (e o nome do autor some), mas nota e tags continuam.
+- **Conta apagada:** as avaliações dos agendamentos do cliente vão junto, e as notas que ele deu saem da média dos chefs.
 
 ### 💬 Chat em tempo real (SSE)
 

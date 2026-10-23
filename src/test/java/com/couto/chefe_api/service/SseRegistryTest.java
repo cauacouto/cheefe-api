@@ -108,4 +108,24 @@ class SseRegistryTest {
             assertThat(registry.conexoes(usuario)).as("rodada %d", rodada).isEqualTo(1);
         }
     }
+
+    @Test
+    void encerrarFechaEremoveTodasAsAbasDoUsuarioSemMexerNosOutros() {
+        UUID bia = UUID.randomUUID();
+        SseEmitter aba1 = mock(SseEmitter.class);
+        SseEmitter aba2 = mock(SseEmitter.class);
+        SseEmitter deBia = mock(SseEmitter.class);
+        registry.registrar(ana, aba1);
+        registry.registrar(ana, aba2);
+        registry.registrar(bia, deBia);
+
+        registry.encerrar(ana);
+
+        verify(aba1).complete();
+        verify(aba2).complete();
+        assertThat(registry.conexoes(ana)).isZero();
+        assertThat(registry.conexoes(bia)).isEqualTo(1);
+        verify(deBia, org.mockito.Mockito.never()).complete();
+        assertThatCode(() -> registry.encerrar(UUID.randomUUID())).doesNotThrowAnyException();
+    }
 }

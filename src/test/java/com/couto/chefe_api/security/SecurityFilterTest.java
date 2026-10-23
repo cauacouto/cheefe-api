@@ -1,6 +1,8 @@
 package com.couto.chefe_api.security;
 
 import com.couto.chefe_api.enums.TipoUsuario;
+import com.couto.chefe_api.repository.ChefeRepository;
+import com.couto.chefe_api.repository.UsuarioRepository;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -17,11 +19,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 class SecurityFilterTest {
 
     private final TokenService tokenService = new TokenService("teste");
-    private final SecurityFilter filter = new SecurityFilter(tokenService, new AuthCookies(false), new ModeracaoRegistry(""));
+    private final ContaBloqueioVerificador bloqueio = mock(ContaBloqueioVerificador.class);
+    private final SecurityFilter filter = new SecurityFilter(tokenService, new AuthCookies(false), new ModeracaoRegistry(""), bloqueio);
 
     @AfterEach
     void limparContexto() {
@@ -63,5 +69,43 @@ class SecurityFilterTest {
 
         assertNull(SecurityContextHolder.getContext().getAuthentication());
         assertNotNull(chain.getRequest());
+    }
+
+    @Test
+    void contaBloqueadaNaoAutentica() throws Exception {
+        UsuarioAutenticado usuario = new UsuarioAutenticado(UUID.randomUUID(), "ana@gmail.com", TipoUsuario.CLIENTE);
+        when(bloqueio.bloqueada(usuario)).thenReturn(true);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setCookies(new Cookie(AuthCookies.ACCESS_TOKEN, tokenService.gerarToken(usuario)));
+        MockFilterChain chain = new MockFilterChain();
+
+        filter.doFilter(request, new MockHttpServletResponse(), chain);
+
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+        assertNotNull(chain.getRequest());
+    }
+
+    @Test
+    void semCookieNaoConsultaBloqueio() throws Exception {
+        filter.doFilter(new MockHttpServletRequest(), new MockHttpServletResponse(), new MockFilterChain());
+
+        verifyNoInteractions(bloqueio);
+    }
+
+    @Test
+    void moderadorNaoConsultaOBanco() throws Exception {
+        ModeracaoRegistry registry = new ModeracaoRegistry("mod@x.com");
+        UsuarioAutenticado mod = new UsuarioAutenticado(registry.idDe("mod@x.com"), "mod@x.com", TipoUsuario.MODERADOR);
+        UsuarioRepository usuarioRepository = mock(UsuarioRepository.class);
+        ChefeRepository chefeRepository = mock(ChefeRepository.class);
+        SecurityFilter real = new SecurityFilter(tokenService, new AuthCookies(false),
+                registry, new ContaBloqueioVerificador(usuarioRepository, chefeRepository));
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setCookies(new Cookie(AuthCookies.ACCESS_TOKEN, tokenService.gerarToken(mod)));
+
+        real.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
+        assertNotNull(SecurityContextHolder.getContext().getAuthentication());
+        verifyNoInteractions(usuarioRepository, chefeRepository);
     }
 }

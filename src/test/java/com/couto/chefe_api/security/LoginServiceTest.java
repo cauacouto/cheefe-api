@@ -6,6 +6,7 @@ import com.couto.chefe_api.dto.RegisterRequestDto;
 import com.couto.chefe_api.dto.RegisterResult;
 import com.couto.chefe_api.dto.RegistroPendenteDto;
 import com.couto.chefe_api.dto.UserResponseDto;
+import com.couto.chefe_api.exception.ContaBloqueadaException;
 import com.couto.chefe_api.exception.ContaInativaException;
 import com.couto.chefe_api.exception.EmailJaCadastradoException;
 import com.couto.chefe_api.exception.RegistroTokenInvalidoException;
@@ -57,7 +58,8 @@ class LoginServiceTest {
                 tokenService,
                 Mappers.getMapper(ChefeMapper.class),
                 chefeRepository,
-                new ModeracaoRegistry("moderacao@chefhome.test")
+                new ModeracaoRegistry("moderacao@chefhome.test"),
+                new ContaBloqueioVerificador(usuarioRepository, chefeRepository)
         );
         when(usuarioRepository.findByEmailIgnoreCase(any())).thenReturn(Optional.empty());
         when(chefeRepository.findByEmailIgnoreCase(any())).thenReturn(Optional.empty());
@@ -100,6 +102,29 @@ class LoginServiceTest {
         UsuarioAutenticado autenticado = tokenService.validarToken(result.accessToken()).orElseThrow();
         assertEquals(TipoUsuario.CHEFE, autenticado.tipo());
         assertEquals(chefe.getId(), autenticado.id());
+    }
+
+    @Test
+    void contaBloqueadaNaoLoga() {
+        UserModel usuario = new UserModel();
+        usuario.setId(UUID.randomUUID());
+        usuario.setEmail(EMAIL);
+        when(usuarioRepository.findByEmailIgnoreCase(EMAIL)).thenReturn(Optional.of(usuario));
+        when(usuarioRepository.existsByIdAndBloqueadoEmIsNotNull(usuario.getId())).thenReturn(true);
+
+        assertThrows(ContaBloqueadaException.class, () -> loginService.loginGoogle(googleUser));
+    }
+
+    @Test
+    void chefBloqueadoNaoLoga() {
+        ChefeModel chefe = new ChefeModel();
+        chefe.setId(UUID.randomUUID());
+        chefe.setEmail(EMAIL);
+        chefe.setAtivo(true);
+        when(chefeRepository.findByEmailIgnoreCase(EMAIL)).thenReturn(Optional.of(chefe));
+        when(chefeRepository.existsByIdAndBloqueadoEmIsNotNull(chefe.getId())).thenReturn(true);
+
+        assertThrows(ContaBloqueadaException.class, () -> loginService.loginGoogle(googleUser));
     }
 
     @Test

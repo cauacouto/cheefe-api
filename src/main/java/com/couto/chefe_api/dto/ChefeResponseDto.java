@@ -17,7 +17,10 @@ public record ChefeResponseDto(
     boolean disponivel,
     String idiomas,
         BigDecimal valorHora,
-        String imageUrl
+        String imageUrl,
+        /** Nula com menos de 5 avaliações ("Novo"). */
+        BigDecimal notaMedia,
+        int totalAvaliacoes
 
 
 ) {
