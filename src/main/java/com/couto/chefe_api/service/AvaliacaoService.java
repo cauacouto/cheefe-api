@@ -122,6 +122,12 @@ public class AvaliacaoService {
         return salva.getId();
     }
 
+    /** Chamado pela {@link AvaliacaoRotina}, uma transação por avaliação. */
+    @Transactional
+    public void publicarComNome(Long avaliacaoId, LocalDateTime agora) {
+        avaliacaoRepository.publicarSeEsperando(avaliacaoId, agora);
+    }
+
     /** Quem eu ainda posso avaliar neste agendamento; vazio fora do status ou do prazo. */
     @Transactional(readOnly = true)
     public List<AvaliacaoPendenteDto> pendentes(Long agendamentoId, UsuarioAutenticado usuario) {

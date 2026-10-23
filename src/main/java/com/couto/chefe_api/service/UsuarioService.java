@@ -10,7 +10,11 @@ import com.couto.chefe_api.domain.EnderecoModel;
 import com.couto.chefe_api.domain.Conversa;
 import com.couto.chefe_api.service.NotificacaoService;
 import com.couto.chefe_api.enums.EventoNotificacao;
+import com.couto.chefe_api.enums.TipoUsuario;
 import com.couto.chefe_api.repository.AgendamentoRepository;
+import com.couto.chefe_api.repository.AvaliacaoRepository;
+import com.couto.chefe_api.repository.ChefeRepository;
+import com.couto.chefe_api.repository.DenunciaAvaliacaoRepository;
 import com.couto.chefe_api.repository.ConversaRepository;
 import com.couto.chefe_api.repository.DenunciaMensagemRepository;
 import com.couto.chefe_api.repository.DenunciaRepository;
@@ -40,6 +44,9 @@ public class UsuarioService {
     private final NotificacaoService notificacaoService;
     private final com.couto.chefe_api.repository.BloqueioContaRepository bloqueioContaRepository;
     private final AgendamentoRepository agendamentoRepository;
+    private final AvaliacaoRepository avaliacaoRepository;
+    private final DenunciaAvaliacaoRepository denunciaAvaliacaoRepository;
+    private final ChefeRepository chefeRepository;
 
     /**
      * Substitui os dados e a lista de endereços do usuário.
@@ -89,6 +96,9 @@ public class UsuarioService {
         List<Long> conversas = conversaRepository.travarDoCliente(usuarioId).stream().map(Conversa::getId).toList();
         // apagar a conta apaga os dados do cliente, inclusive as denúncias que ele fez (LGPD)
         apagarNotificacoes(usuarioId, conversas);
+        // as notas que ele deu saem da média dos chefs; as avaliações vão na cascata dos agendamentos
+        avaliacaoRepository.findByAutorIdAndAvaliadoTipo(usuarioId, TipoUsuario.CHEFE)
+                .forEach(a -> chefeRepository.descontarAvaliacao(a.getAvaliadoId(), a.getNota()));
         bloqueioContaRepository.deleteByContaId(usuarioId);
         denunciaRepository.deleteByCliente_Id(usuarioId);
         // o chat do cliente vai junto (ordem das FKs): denúncias de mensagens, mensagens e conversas
@@ -111,6 +121,10 @@ public class UsuarioService {
         apagarDasReferencias(EnumSet.of(EventoNotificacao.MENSAGEM_DENUNCIADA),
                 denunciaMensagemRepository.idsDasDenunciasNasConversasDoCliente(clienteId));
         apagarDasReferencias(EnumSet.of(EventoNotificacao.DENUNCIA_CRIADA), denunciaRepository.idsDoCliente(clienteId));
+        apagarDasReferencias(EnumSet.of(EventoNotificacao.AVALIACAO_RESPONDIDA),
+                avaliacaoRepository.idsDosAgendamentosDoCliente(clienteId));
+        apagarDasReferencias(EnumSet.of(EventoNotificacao.AVALIACAO_DENUNCIADA),
+                denunciaAvaliacaoRepository.idsDosAgendamentosDoCliente(clienteId));
     }
 
     private void apagarDasReferencias(Set<EventoNotificacao> eventos, List<Long> ids) {

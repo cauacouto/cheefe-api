@@ -43,6 +43,11 @@ public interface ChefeRepository extends JpaRepository<ChefeModel, UUID>, JpaSpe
     @Query("UPDATE ChefeModel c SET c.somaNotas = c.somaNotas + :nota, c.totalAvaliacoes = c.totalAvaliacoes + 1 WHERE c.id = :id")
     int somarAvaliacao(@Param("id") UUID id, @Param("nota") int nota);
 
+    /** O inverso de {@link #somarAvaliacao}: a nota de uma conta apagada sai da média. */
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE ChefeModel c SET c.somaNotas = c.somaNotas - :nota, c.totalAvaliacoes = c.totalAvaliacoes - 1 WHERE c.id = :id")
+    int descontarAvaliacao(@Param("id") UUID id, @Param("nota") int nota);
+
     @Query(value = "SELECT c FROM ChefeModel c LEFT JOIN c.agendamentos a WHERE " + VISIVEL +
             " GROUP BY c ORDER BY COUNT(a) DESC",
             countQuery = "SELECT COUNT(c) FROM ChefeModel c WHERE " + VISIVEL)

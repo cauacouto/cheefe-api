@@ -54,6 +54,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -601,6 +602,56 @@ class AvaliacaoIntegrationTest {
 
         mockMvc.perform(get("/chefe/" + bia.getId() + "/avaliacoes").cookie(ana)).andExpect(status().isNotFound());
         mockMvc.perform(get("/chefe/" + bia.getId() + "/reputacao").cookie(ana)).andExpect(status().isNotFound());
+    }
+
+    // --- Task 5: conta apagada ------------------------------------------------
+
+    @Test
+    void contaApagadaDescontaOsContadoresDoChef() throws Exception {
+        ChefeModel bia = novoChefe("Bia");
+        UserModel ana = novoCliente("Ana");
+        Agendamento daAna = concluido(novoAgendamento(ana, BASE, bia), LocalDateTime.now().minusDays(1));
+        Avaliacao daAnaSobreBia = avaliacaoSalva(daAna, ana, bia, 5, "Ótima", true, LocalDateTime.now());
+        int[] outras = {4, 4, 4, 5};
+        for (int nota : outras) {
+            UserModel outro = novoCliente("C" + nota);
+            avaliacaoSalva(concluido(novoAgendamento(outro, BASE, bia), LocalDateTime.now().minusDays(1)),
+                    outro, bia, nota, null, true, LocalDateTime.now());
+        }
+        bia.setSomaNotas(22);
+        bia.setTotalAvaliacoes(5);
+        chefeRepository.save(bia);
+        // a avaliação do chef sobre a Ana vai junto, e não mexe nos contadores do chef
+        Avaliacao sobreAna = new Avaliacao();
+        sobreAna.setAgendamento(daAna);
+        sobreAna.setAutorId(bia.getId());
+        sobreAna.setAutorTipo(TipoUsuario.CHEFE);
+        sobreAna.setAvaliadoId(ana.getId());
+        sobreAna.setAvaliadoTipo(TipoUsuario.CLIENTE);
+        sobreAna.setNota(1);
+        sobreAna.setComentario("Cliente difícil");
+        sobreAna.setPublicadoEm(LocalDateTime.now());
+        avaliacaoRepository.save(sobreAna);
+        denunciaCriada(cookieDe(bia), daAnaSobreBia, "FALSA");
+        mockMvc.perform(get("/chefe/" + bia.getId() + "/reputacao").cookie(cookieDe(bia)))
+                .andExpect(jsonPath("$.notaMedia").value(4.4));
+
+        mockMvc.perform(delete("/usuario/me").cookie(cookieDe(ana))).andExpect(status().is2xxSuccessful());
+
+        ChefeModel depois = chefeRepository.findById(bia.getId()).orElseThrow();
+        assertThat(depois.getTotalAvaliacoes()).isEqualTo(4);
+        assertThat(depois.getSomaNotas()).isEqualTo(17);
+        mockMvc.perform(get("/chefe/" + bia.getId() + "/reputacao").cookie(cookieDe(bia)))
+                .andExpect(jsonPath("$.notaMedia").doesNotExist())
+                .andExpect(jsonPath("$.totalAvaliacoes").value(4));
+        mockMvc.perform(get("/clientes/" + ana.getId() + "/reputacao").cookie(cookieDe(bia)))
+                .andExpect(status().isNotFound());
+        assertThat(avaliacaoRepository.findAll()).hasSize(4).noneMatch(a -> a.getAutorId().equals(ana.getId())
+                || a.getAvaliadoId().equals(ana.getId()));
+        assertThat(denunciaAvaliacaoRepository.findAll()).isEmpty();
+        // a fila da moderação não fica apontando para uma denúncia que não existe mais
+        assertThat(notificacaoRepository.findAll())
+                .noneMatch(n -> n.getEvento().name().equals("AVALIACAO_DENUNCIADA"));
     }
 
     // ---------------------------------------------------------------------
