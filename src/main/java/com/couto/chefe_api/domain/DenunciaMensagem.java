@@ -46,6 +46,10 @@ public class DenunciaMensagem {
     @Column(nullable = false, length = 2000)
     private String textoDenunciado;
 
+    /** O original (antes do ***) no momento da denúncia; nulo se nada tinha sido mascarado. */
+    @Column(length = 2000)
+    private String textoOriginal;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private MotivoDenunciaMensagem motivo;

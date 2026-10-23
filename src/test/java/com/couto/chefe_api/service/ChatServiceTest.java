@@ -54,8 +54,9 @@ class ChatServiceTest {
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
     private final UsuarioRepository usuarioRepository = mock(UsuarioRepository.class);
     private final ChefeRepository chefeRepository = mock(ChefeRepository.class);
+    private final ModeracaoConteudoService moderacao = mock(ModeracaoConteudoService.class);
     private final ChatService service = new ChatService(conversaRepository, mensagemRepository,
-            usuarioRepository, chefeRepository, mock(NotificacaoService.class), eventPublisher, RELOGIO,
+            usuarioRepository, chefeRepository, mock(NotificacaoService.class), moderacao, eventPublisher, RELOGIO,
             new TransactionTemplate(mock(PlatformTransactionManager.class)));
 
     private final UserModel cliente = new UserModel();
@@ -86,6 +87,30 @@ class ChatServiceTest {
         when(conversaRepository.findById(1L)).thenReturn(Optional.of(conversa));
         when(conversaRepository.travarPorId(1L)).thenReturn(Optional.of(conversa));
         when(mensagemRepository.findByIdAndConversa_Id(10L, 1L)).thenReturn(Optional.of(mensagem));
+        when(moderacao.verificar(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(inv -> inv.getArgument(0));
+    }
+
+    @Test
+    void verificaOTextoAntesDeTravarAConversa() {
+        when(mensagemRepository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.enviar(1L, ana, " oi ");
+
+        // o bloqueio do autor roda numa transação própria e não pode esperar uma trava desta
+        org.mockito.InOrder ordem = org.mockito.Mockito.inOrder(moderacao, conversaRepository);
+        ordem.verify(moderacao).verificar("oi", ana);
+        ordem.verify(conversaRepository).travarPorId(1L);
+    }
+
+    @Test
+    void conteudoBloqueadoNaoGravaNemTrava() {
+        when(moderacao.verificar("seu odiento", ana)).thenThrow(new com.couto.chefe_api.exception.ConteudoBloqueadoException());
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.enviar(1L, ana, "seu odiento"))
+                .isInstanceOf(com.couto.chefe_api.exception.ConteudoBloqueadoException.class);
+        verify(conversaRepository, never()).travarPorId(1L);
+        verify(mensagemRepository, never()).save(org.mockito.ArgumentMatchers.any());
     }
 
     @Test

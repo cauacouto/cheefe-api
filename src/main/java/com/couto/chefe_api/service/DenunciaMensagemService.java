@@ -57,6 +57,7 @@ public class DenunciaMensagemService {
         denuncia.setAutorId(mensagem.getRemetenteId());
         denuncia.setAutorTipo(mensagem.getRemetenteTipo());
         denuncia.setTextoDenunciado(mensagem.getTexto());
+        denuncia.setTextoOriginal(mensagem.getTextoOriginal());
         denuncia.setMotivo(dto.motivo());
         denuncia.setCriadaEm(LocalDateTime.now(clock));
         denuncia.setDescricao(dto.descricao() == null || dto.descricao().isBlank() ? null : dto.descricao().strip());

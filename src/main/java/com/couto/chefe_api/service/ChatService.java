@@ -57,6 +57,7 @@ public class ChatService {
     private final UsuarioRepository usuarioRepository;
     private final ChefeRepository chefeRepository;
     private final NotificacaoService notificacaoService;
+    private final ModeracaoConteudoService moderacaoConteudo;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
     private final TransactionTemplate transacao;
@@ -121,6 +122,10 @@ public class ChatService {
 
     @Transactional
     public MensagemDto enviar(Long conversaId, UsuarioAutenticado usuario, String texto) {
+        String normalizado = normalizar(texto);
+        doParticipante(conversaId, usuario); // quem não participa recebe 404 antes do filtro, como no editar
+        // antes de qualquer trava: o bloqueio do autor roda numa transação própria (ver ModeracaoConteudoService)
+        String exibido = moderacaoConteudo.verificar(normalizado, usuario);
         Conversa conversa = conversaRepository.travarPorId(conversaId)
                 .filter(c -> participa(c, usuario))
                 .orElseThrow(() -> new RecursoNaoEncontradoException("conversa não encontrada"));
@@ -129,14 +134,13 @@ public class ChatService {
         if (conversa.getChefe().getBloqueadoEm() != null) {
             throw new ChefeIndisponivelException();
         }
-        String normalizado = normalizar(texto);
 
         LocalDateTime agora = LocalDateTime.now(clock);
         Mensagem mensagem = new Mensagem();
         mensagem.setConversa(conversa);
         mensagem.setRemetenteId(usuario.id());
         mensagem.setRemetenteTipo(usuario.tipo());
-        mensagem.setTexto(normalizado);
+        definirTexto(mensagem, normalizado, exibido);
         mensagem.setEnviadaEm(agora);
         Mensagem salva = mensagemRepository.save(mensagem);
         conversa.setUltimaMensagemEm(agora);
@@ -159,7 +163,8 @@ public class ChatService {
         if (agora.isAfter(mensagem.getEnviadaEm().plus(PRAZO_EDICAO))) {
             throw new ConflitoException("O prazo para editar a mensagem (15 minutos) já passou");
         }
-        mensagem.setTexto(normalizar(texto));
+        String normalizado = normalizar(texto);
+        definirTexto(mensagem, normalizado, moderacaoConteudo.verificar(normalizado, usuario));
         mensagem.setEditadaEm(agora);
         MensagemDto dto = MensagemDto.de(mensagem, usuario.id());
         UUID outro = outroParticipante(mensagem.getConversa(), usuario);
@@ -239,6 +244,12 @@ public class ChatService {
         return mensagemRepository.findByIdAndConversa_Id(mensagemId, conversa.getId())
                 .filter(m -> m.getRemetenteId().equals(usuario.id()))
                 .orElseThrow(() -> new RecursoNaoEncontradoException("mensagem não encontrada"));
+    }
+
+    /** O texto exibido (com ***) e, só quando o filtro mascarou algo, o original para a moderação. */
+    private static void definirTexto(Mensagem mensagem, String original, String exibido) {
+        mensagem.setTexto(exibido);
+        mensagem.setTextoOriginal(exibido.equals(original) ? null : original);
     }
 
     private static String normalizar(String texto) {
