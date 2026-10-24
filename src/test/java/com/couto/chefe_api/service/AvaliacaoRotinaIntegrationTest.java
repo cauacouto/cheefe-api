@@ -40,6 +40,7 @@ class AvaliacaoRotinaIntegrationTest {
     @Autowired AgendamentoRepository agendamentoRepository;
     @Autowired AvaliacaoRepository avaliacaoRepository;
     @Autowired AvaliacaoRotina rotina;
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean AvaliacaoService avaliacaoService;
     @Autowired List<org.springframework.scheduling.config.ScheduledTaskHolder> agendadores;
 
     @AfterEach
@@ -72,6 +73,41 @@ class AvaliacaoRotinaIntegrationTest {
         rotina.publicar();
 
         assertThat(avaliacaoRepository.findById(venceu.getId()).orElseThrow().getPublicadoEm()).isEqualTo(publicadaEm);
+    }
+
+    @Test
+    void umaQueFalhaNaoImpedeAsDemais() {
+        ChefeModel bia = novoChefe();
+        LocalDateTime vencido = LocalDateTime.now().minusDays(8);
+        Avaliacao quebra = comNome(bia, vencido);
+        Avaliacao outra = comNome(bia, vencido);
+        Avaliacao terceira = comNome(bia, vencido);
+        org.mockito.Mockito.doThrow(new IllegalStateException("falha de teste"))
+                .when(avaliacaoService).publicarComNome(org.mockito.ArgumentMatchers.eq(quebra.getId()), org.mockito.ArgumentMatchers.any());
+
+        rotina.publicar();
+
+        assertThat(avaliacaoRepository.findById(quebra.getId()).orElseThrow().getPublicadoEm()).isNull();
+        assertThat(avaliacaoRepository.findById(outra.getId()).orElseThrow().getPublicadoEm()).isNotNull();
+        assertThat(avaliacaoRepository.findById(terceira.getId()).orElseThrow().getPublicadoEm()).isNotNull();
+    }
+
+    @Test
+    void jaPublicadaMantemOHorarioEAnonimaNaoEhTocada() {
+        ChefeModel bia = novoChefe();
+        LocalDateTime vencido = LocalDateTime.now().minusDays(8);
+        LocalDateTime horarioOriginal = LocalDateTime.now().minusDays(1).withNano(0);
+        Avaliacao publicada = comNome(bia, vencido);
+        publicada.setPublicadoEm(horarioOriginal); // o chef avaliou o cliente e liberou antes dos 7 dias
+        avaliacaoRepository.save(publicada);
+        Avaliacao anonima = comNome(bia, vencido);
+        anonima.setAnonimo(true);
+        avaliacaoRepository.save(anonima);
+
+        rotina.publicar();
+
+        assertThat(avaliacaoRepository.findById(publicada.getId()).orElseThrow().getPublicadoEm()).isEqualTo(horarioOriginal);
+        assertThat(avaliacaoRepository.findById(anonima.getId()).orElseThrow().getPublicadoEm()).isNull();
     }
 
     private Avaliacao comNome(ChefeModel chef, LocalDateTime concluidoEm) {
