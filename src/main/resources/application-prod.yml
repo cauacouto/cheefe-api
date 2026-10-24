@@ -8,6 +8,10 @@ spring:
     url: ${DATABASE_URL}
     username: ${DATABASE_USERNAME}
     password: ${DATABASE_PASSWORD}
+    hikari:
+      data-source-properties:
+        # o detalhe do erro do Postgres repete os valores da linha (ex.: telefone no índice único): fora do log
+        logServerErrorDetail: false
 
   jpa:
     hibernate:

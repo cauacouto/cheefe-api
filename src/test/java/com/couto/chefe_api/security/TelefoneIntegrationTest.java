@@ -140,7 +140,7 @@ class TelefoneIntegrationTest {
         String numero = TelefoneDeTeste.novoNumero();
         TelefoneBanido banido = new TelefoneBanido();
         banido.setHash(hashTelefone.de(numero));
-        banido.setBanidoEm(LocalDateTime.now());
+        banido.setBanidoEm(java.time.LocalDate.now());
         telefoneBanidoRepository.save(banido);
 
         pedir(cookie(ana), numero).andExpect(status().isForbidden())
@@ -158,7 +158,18 @@ class TelefoneIntegrationTest {
     }
 
     @Test
-    void pedidoRecusadoNaoContaParaOIntervalo() throws Exception {
+    void naoDaParaSondarNumerosBanidosOuEmUso() throws Exception {
+        String emUso = verificarDireto(novoCliente("Caio"));
+
+        // número de outra conta também conta para o intervalo: um pedido por minuto, como os aceitos
+        pedir(cookie(ana), emUso).andExpect(status().isConflict());
+        pedir(cookie(ana), TelefoneDeTeste.novoNumero()).andExpect(status().isTooManyRequests());
+        // sem o código certo, verificar não revela se o número é de outra conta
+        verificar(cookie(bia), emUso, "123456").andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
+    void formatoInvalidoNaoContaParaOIntervalo() throws Exception {
         pedir(cookie(ana), "123").andExpect(status().isBadRequest());
         pedir(cookie(ana), TelefoneDeTeste.novoNumero()).andExpect(status().isAccepted());
     }

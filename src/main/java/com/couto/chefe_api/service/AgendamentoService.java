@@ -192,9 +192,8 @@ public class AgendamentoService {
         chefeRepository.travar(agendamento.getChefes().stream().map(ChefeModel::getId).toList());
         agendamento.confirmar(agora());
         exigirHorarioLivre(agendamento);
-        // só a agenda de quem confirma; depois da trava, para não confirmar dentro de um bloqueio recém-criado
-        agendaService.exigirDisponivel(
-                agendamento.getChefes().stream().filter(chefe -> chefe.getId().equals(chefeId)).toList(),
+        // a agenda de todos (como o horário livre); depois da trava, para não confirmar dentro de um bloqueio recém-criado
+        agendaService.exigirDisponivel(agendamento.getChefes(),
                 agendamento.getDataHoraInicial(), agendamento.getDataHoraFinal());
         agendamentoRepository.save(agendamento);
         historico.registrar(agendamento, AcaoAgendamento.CONFIRMADO, chefeId, TipoUsuario.CHEFE, null, null);

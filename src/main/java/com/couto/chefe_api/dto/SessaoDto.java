@@ -7,6 +7,8 @@ import java.util.UUID;
 public record SessaoDto(
         UUID id,
         String email,
-        TipoUsuario tipo
+        TipoUsuario tipo,
+        /** Falso: o front abre a tela do SMS antes de agendar, conversar ou avaliar. Nulo para a moderação. */
+        Boolean telefoneVerificado
 ) {
 }

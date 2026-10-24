@@ -45,7 +45,8 @@ public class AuthController {
             authCookies.adicionar(response, authCookies.expirar(AuthCookies.ACCESS_TOKEN, AuthCookies.PATH_RAIZ));
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        return ResponseEntity.ok(new SessaoDto(usuario.id(), usuario.email(), usuario.tipo()));
+        return ResponseEntity.ok(new SessaoDto(usuario.id(), usuario.email(), usuario.tipo(),
+                loginService.telefoneVerificado(usuario)));
     }
 
     @PostMapping("/logout")

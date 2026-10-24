@@ -147,7 +147,8 @@ class TelefoneBanimentoIntegrationTest {
 
         assertThat(telefoneBanidoRepository.count()).isZero();
         // o número continua na conta do chef: para outra conta ele agora é só "de outra conta"
-        pedir(nova, numero).andExpect(status().isConflict());
+        // (outra conta nova: a primeira já pediu há menos de 60 s, e pedido recusado também conta para o intervalo)
+        pedir(usuarioRepository.save(cliente("Outra")), numero).andExpect(status().isConflict());
     }
 
     @Test

@@ -8,7 +8,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 /**
  * Telefone de conta banida, só como hash (SHA-256 de pepper + E.164): sem número e sem id da conta, fica
@@ -25,6 +25,7 @@ public class TelefoneBanido {
     @Column(length = 64)
     private String hash;
 
+    /** Só o dia: com a hora exata daria para ligar o hash à ação da moderação pelo horário. */
     @Column(nullable = false)
-    private LocalDateTime banidoEm;
+    private LocalDate banidoEm;
 }

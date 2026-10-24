@@ -59,9 +59,10 @@ O `src/main/resources/application.yml` não é versionado. Use o modelo [`applic
 | `FLYWAY_URL` / `FLYWAY_USER` / `FLYWAY_PASSWORD` | **só no passo de migração**, nunca no ambiente da API: usuário `chefhome_migracao` |
 | `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_PUBLIC_URL` | bucket de fotos dos pratos (Cloudflare R2 ou outro compatível com S3, com leitura pública) |
 | `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_VERIFY_SERVICE_SID` | Twilio Verify, para o SMS de verificação do telefone (veja "Telefone verificado") |
-| `CHEFHOME_PEPPER_TELEFONE` | segredo aleatório longo (`openssl rand -base64 32`) do hash dos telefones banidos; trocar depois esvazia a lista de banidos |
+| `CHEFHOME_PEPPER_TELEFONE` | segredo aleatório longo (`openssl rand -base64 32`; em `prod`, pelo menos 32 caracteres) do hash dos telefones banidos; trocar depois esvazia a lista de banidos |
+| `CHEFHOME_TELEFONE_FALSO` | só em desenvolvimento: `true` liga a verificação falsa (código `000000`, nenhum SMS sai) quando não há `TWILIO_*`; em `prod` a API não sobe com ela |
 
-A aplicação **não sobe** sem o registro do Google e sem `FRONT_URL`. No perfil `prod`, também não sobe sem as três `TWILIO_*` e sem `CHEFHOME_PEPPER_TELEFONE`. Fora de `prod`, sem nenhuma `TWILIO_*`, nenhum SMS sai: o código é sempre `000000` e o log mostra só o número mascarado.
+A aplicação **não sobe** sem o registro do Google e sem `FRONT_URL`. No perfil `prod`, também não sobe sem as três `TWILIO_*` e sem `CHEFHOME_PEPPER_TELEFONE`. Fora de `prod`, sem as `TWILIO_*` ela só sobe com `CHEFHOME_TELEFONE_FALSO=true`: nenhum SMS sai, o código é sempre `000000` e o log mostra só o número mascarado.
 
 ### 🗄️ Banco de dados (privilégio mínimo)
 
@@ -211,15 +212,15 @@ Cada conta (cliente ou chef) precisa de um celular verificado por SMS **antes de
 |---|---|
 | telefone fora do formato | **400** "Telefone inválido" |
 | código errado, expirado ou com tentativas esgotadas | **422** "Código inválido ou expirado" |
-| telefone já verificado por outra conta (cliente ou chef) | **409** "Telefone já usado por outra conta" |
-| telefone de conta banida | **403** "Telefone não pode ser usado" |
-| novo pedido de SMS da mesma conta em menos de 60 s | **429** |
+| telefone já verificado por outra conta (cliente ou chef) | **409** "Telefone já usado por outra conta" (no `/verificar`, só depois do código certo) |
+| telefone de conta banida | **403** "Telefone não pode ser usado" (no `/verificar`, só depois do código certo) |
+| novo pedido de SMS da mesma conta em menos de 60 s (inclusive depois de um 403 ou 409, para não dar para sondar números) | **429** |
 | Twilio fora do ar | **503** |
 | moderador; chef apagado ou banido | **403** |
 
 **Onde é exigido:** `POST /agendamentos`, `POST /conversas`, `POST /conversas/{id}/mensagens` e `POST /agendamentos/{id}/avaliacoes`. O resto (ler, editar o que já existe, cancelar, recusar, confirmar, responder avaliação, denunciar) não exige, para ninguém ficar preso com agendamento em andamento. Chef sem telefone verificado não aparece na busca, no destaque nem nos pratos públicos, e não pode ser agendado.
 
-**Contrato para o front:** a ação sem telefone verificado responde **403** com a propriedade `codigo`; é por ela (não pelo texto) que o front reconhece o caso e abre a verificação:
+**Contrato para o front:** `GET /auth/me` traz `telefoneVerificado` (`false` → mostrar a verificação antes de agendar, conversar ou avaliar; nulo para a moderação), e `GET /chefe/me` também, com `telefoneVerificado` em `camposPendentes` (e `perfilCompleto: false`) enquanto o chef não verifica. Se mesmo assim uma ação sem telefone verificado chegar à API, ela responde **403** com a propriedade `codigo`; é por ela (não pelo texto) que o front reconhece o caso e abre a verificação:
 
 ```json
 { "status": 403, "detail": "Verifique seu telefone para continuar", "codigo": "TELEFONE_NAO_VERIFICADO" }
@@ -227,7 +228,11 @@ Cada conta (cliente ou chef) precisa de um celular verificado por SMS **antes de
 
 O telefone de contato do cliente (`telefone` em `PUT /usuario/me`) continua separado e livre.
 
-**Banimento e LGPD:** quando a moderação confirma um bloqueio automático ou bane um chef, a API grava em `telefone_banido` só um **hash** (`SHA-256` do segredo `CHEFHOME_PEPPER_TELEFONE` + o número): nem o número, nem a conta. Esse hash fica mesmo depois de a conta ser apagada, com base no **legítimo interesse** de prevenção de fraude (impedir que quem foi banido volte com outra conta Google e o mesmo celular); sem o segredo, a tabela não revela números. Reverter um bloqueio não grava nada, e reativar o chef apaga o hash dele. O telefone verificado em si é dado da conta e some com ela (`DELETE /usuario/me` e `DELETE /chefe/me`), liberando o número, a menos que ele tenha sido banido. O número nunca vai inteiro para o log (só `+55*******4321`).
+**Banimento e LGPD:** quando a moderação confirma um bloqueio automático ou bane um chef, a API grava em `telefone_banido` só um **hash** (`SHA-256` do segredo `CHEFHOME_PEPPER_TELEFONE` + o número): nem o número, nem a conta. Esse hash fica mesmo depois de a conta ser apagada, com base no **legítimo interesse** de prevenção de fraude (impedir que quem foi banido volte com outra conta Google e o mesmo celular); sem o segredo, a tabela não revela números. Reverter um bloqueio não grava nada, e reativar o chef apaga o hash dele. O telefone verificado em si é dado da conta e some com ela (`DELETE /usuario/me` e `DELETE /chefe/me`), liberando o número, a menos que ele tenha sido banido. Enquanto a conta banida existe (ela não loga, então não se apaga sozinha), o número continua na linha dela; o hash é o que fica depois que ela some. `banido_em` guarda só o dia, para o hash não ser ligado pelo horário à ação da moderação. O número nunca vai inteiro para o log (só `+55*******4321`), nem no detalhe de erro do Postgres (`logServerErrorDetail=false` no perfil `prod`).
+
+**No Twilio**, além das chaves: ative o *Fraud Guard* do Verify, deixe nas *Geo Permissions* só o Brasil e defina um limite diário de envio. O limite de 60 s da API é por conta e por instância, então é o Twilio que segura abuso em volume.
+
+**Ao publicar esta versão:** todo chef e cliente que já existe fica sem telefone verificado. Os chefs **somem da busca, do destaque e dos pratos públicos** e não podem ser agendados até verificar; os clientes não agendam, conversam nem avaliam até verificar. Avise os usuários antes (o `GET /auth/me` com `telefoneVerificado: false` permite ao front pedir a verificação logo no próximo acesso).
 
 ### 📅 Ciclo do agendamento
 
@@ -261,7 +266,7 @@ O chef diz quando não atende, e o cliente não consegue agendar nesses horário
 - `DELETE /chefe/me/agenda/bloqueios/{id}` → **204**; de outro chef → **404**.
 - `PUT /chefe/me/agenda/dias-fixos` `{ "dias": ["MONDAY", ...] }` (sem repetição; lista vazia limpa) → **200** com a lista.
 - **Confirmados não são derrubados:** um bloqueio ou dia novo que pegue agendamento `CONFIRMADO` (que ainda não terminou) responde **409** "Você tem agendamento confirmado nesse período", com o id e o horário dos que conflitam; o chef desiste antes (`PATCH /agendamentos/{id}/desistir`) e o cliente é avisado pelo fluxo normal. Pedidos `PENDENTE` no período continuam: o chef recusa um por um.
-- **Conflito de horário:** o agendamento `[início, fim)` conflita com um bloqueio que se sobreponha (encostar, como 18h–20h e 20h–22h, não conflita) ou com um dia fixo em que caia qualquer parte dele (no fuso do servidor, como os demais prazos). Vale em `POST /agendamentos` (todos os chefs escolhidos), `PUT /agendamentos/{id}` (novo horário) e `PATCH /agendamentos/{id}/confirmar` (o chef que confirma) → **409** "Chef indisponível nesse horário" (com vários chefs, cita o nome).
+- **Conflito de horário:** o agendamento `[início, fim)` conflita com um bloqueio que se sobreponha (encostar, como 18h–20h e 20h–22h, não conflita) ou com um dia fixo em que caia qualquer parte dele (no fuso do servidor, como os demais prazos). Vale em `POST /agendamentos` (todos os chefs escolhidos), `PUT /agendamentos/{id}` (novo horário) e `PATCH /agendamentos/{id}/confirmar` (todos os chefs do agendamento) → **409** "Chef indisponível nesse horário" (com vários chefs, cita o nome).
 - **Consulta pública** `GET /chefe/{id}/agenda?de=&ate=` (qualquer logado; `dd-MM-yyyy`; padrão hoje até hoje + 30 dias; janela máxima de 90 dias, senão **400**) → `[{ "inicio", "fim" }]`: bloqueios, dias fixos (dias inteiros) e agendamentos confirmados dentro da janela, ordenados e mesclados (o que se sobrepõe ou encosta vira um só), sem motivo nem id. Chef não visível na busca → **404**.
 - Criar ou mexer na agenda e confirmar agendamento usam a mesma trava do chef, então uma confirmação e um bloqueio simultâneos nunca deixam um confirmado dentro de um bloqueio.
 - Fora do escopo: horário de atendimento por dia, feriados, fuso por chef e sincronização com Google Agenda.

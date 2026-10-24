@@ -15,7 +15,8 @@ CREATE UNIQUE INDEX uk_chefe_telefone_verificado ON chefe (telefone_verificado)
 -- SHA-256(pepper + telefone E.164) em hex: nem o número nem a conta, para ficar depois que a conta some
 CREATE TABLE telefone_banido (
     hash      varchar(64)  NOT NULL,
-    banido_em timestamp(6) NOT NULL,
+    -- só o dia: com hora exata daria para ligar o hash à ação da moderação (acao_moderacao) pelo horário
+    banido_em date         NOT NULL,
     PRIMARY KEY (hash)
 );
 

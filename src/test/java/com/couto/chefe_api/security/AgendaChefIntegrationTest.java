@@ -396,15 +396,17 @@ class AgendaChefIntegrationTest {
     }
 
     @Test
-    void confirmarSoOlhaAAgendaDoChefQueConfirma() throws Exception {
+    void confirmarConfereAAgendaDeTodosOsChefsDoAgendamento() throws Exception {
         ChefeModel bia = novoChefe("Bia");
         ChefeModel caio = novoChefe("Caio");
         gravarBloqueio(caio, BASE, BASE.plusHours(3));
         Agendamento pedido = novoAgendamento(novoCliente("Ana"), BASE.plusHours(1), StatusAgendamento.PENDENTE, bia, caio);
 
-        // a agenda de Caio não vale para a confirmação de Bia
+        // confirmar vale para os dois chefs: Caio bloqueou depois do pedido, então Bia não confirma por ele
         mockMvc.perform(patch("/agendamentos/" + pedido.getId() + "/confirmar").cookie(cookieDe(bia)))
-                .andExpect(status().isOk());
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(containsString("Caio")));
+        assertThat(agendamentoRepository.findById(pedido.getId()).orElseThrow().getStatus()).isEqualTo(StatusAgendamento.PENDENTE);
     }
 
     // ─── consulta pública ────────────────────────────────────────────────

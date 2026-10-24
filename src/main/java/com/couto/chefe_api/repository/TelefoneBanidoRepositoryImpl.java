@@ -4,7 +4,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.hibernate.Session;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 class TelefoneBanidoRepositoryImpl implements TelefoneBanidoRepositoryCustom {
 
@@ -17,7 +17,7 @@ class TelefoneBanidoRepositoryImpl implements TelefoneBanidoRepositoryCustom {
      * API nunca precisa de UPDATE na tabela (V12 revoga).
      */
     @Override
-    public void banirSeAusente(String hash, LocalDateTime banidoEm) {
+    public void banirSeAusente(String hash, LocalDate banidoEm) {
         entityManager.unwrap(Session.class).createMutationQuery(
                         "insert into TelefoneBanido (hash, banidoEm) values (:hash, :banidoEm) on conflict do nothing")
                 .setParameter("hash", hash)

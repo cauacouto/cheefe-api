@@ -19,9 +19,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Verificação de telefone: Twilio com as três chaves; sem nenhuma, fora de prod, o verificador falso (código
- * 000000). Em prod faltar qualquer chave ou o pepper derruba a inicialização: SMS de mentira ou hash previsível
- * em produção seria pior que não subir. As mensagens citam só o nome das variáveis, nunca valores.
+ * Verificação de telefone: Twilio com as três chaves; o verificador falso (código 000000) só quando pedido
+ * explicitamente (CHEFHOME_TELEFONE_FALSO=true, desenvolvimento e testes) e nunca em prod. Em prod faltar
+ * qualquer chave ou um pepper forte derruba a inicialização: SMS de mentira ou hash previsível em produção seria
+ * pior que não subir. As mensagens citam só o nome das variáveis, nunca valores.
  */
 @Slf4j
 @Configuration
@@ -32,12 +33,20 @@ public class TelefoneConfig {
 
     private static final Profiles PROD = Profiles.of("prod");
 
+    /** O pepper protege os hashes de telefone banido (o espaço de celulares é pequeno): curto demais é adivinhável. */
+    static final int PEPPER_MINIMO = 32;
+
     @Bean
     public VerificadorTelefone verificadorTelefone(
             Environment ambiente,
             @Value("${twilio.account-sid:${TWILIO_ACCOUNT_SID:}}") String contaSid,
             @Value("${twilio.auth-token:${TWILIO_AUTH_TOKEN:}}") String token,
-            @Value("${twilio.verify-service-sid:${TWILIO_VERIFY_SERVICE_SID:}}") String servicoSid) {
+            @Value("${twilio.verify-service-sid:${TWILIO_VERIFY_SERVICE_SID:}}") String servicoSid,
+            @Value("${chefhome.telefone.verificador-falso:${CHEFHOME_TELEFONE_FALSO:false}}") boolean falsoPedido) {
+        boolean prod = ambiente.acceptsProfiles(PROD);
+        if (prod && falsoPedido) {
+            throw new IllegalStateException("CHEFHOME_TELEFONE_FALSO não vale em produção: remova a variável");
+        }
         Map<String, String> chaves = new LinkedHashMap<>();
         chaves.put("TWILIO_ACCOUNT_SID", contaSid);
         chaves.put("TWILIO_AUTH_TOKEN", token);
@@ -52,9 +61,13 @@ public class TelefoneConfig {
         if (faltando.isEmpty()) {
             return new TwilioVerificadorTelefone(clienteHttp(), contaSid, token, servicoSid);
         }
-        if (ambiente.acceptsProfiles(PROD) || faltando.size() < chaves.size()) {
+        if (prod || faltando.size() < chaves.size()) {
             throw new IllegalStateException("Verificação de telefone sem configuração: defina " + String.join(", ", faltando)
                     + (faltando.size() < chaves.size() ? " (o Twilio precisa das três variáveis)" : ""));
+        }
+        if (!falsoPedido) {
+            throw new IllegalStateException("Verificação de telefone sem configuração: defina as variáveis TWILIO_* "
+                    + "ou, só em desenvolvimento, CHEFHOME_TELEFONE_FALSO=true");
         }
         log.warn("Twilio não configurado: verificação de telefone FALSA (código 000000). Nunca use assim em produção.");
         return new VerificadorTelefoneFalso();
@@ -63,11 +76,15 @@ public class TelefoneConfig {
     @Bean
     public HashTelefone hashTelefone(Environment ambiente,
                                      @Value("${chefhome.telefone.pepper:${CHEFHOME_PEPPER_TELEFONE:}}") String pepper) {
-        if (StringUtils.hasText(pepper)) {
+        if (ambiente.acceptsProfiles(PROD)) {
+            if (!StringUtils.hasText(pepper) || pepper.length() < PEPPER_MINIMO) {
+                throw new IllegalStateException("Hash de telefone banido sem configuração: defina CHEFHOME_PEPPER_TELEFONE "
+                        + "com pelo menos " + PEPPER_MINIMO + " caracteres (openssl rand -base64 32)");
+            }
             return new HashTelefone(pepper);
         }
-        if (ambiente.acceptsProfiles(PROD)) {
-            throw new IllegalStateException("Hash de telefone banido sem configuração: defina CHEFHOME_PEPPER_TELEFONE");
+        if (StringUtils.hasText(pepper)) {
+            return new HashTelefone(pepper);
         }
         return new HashTelefone(PEPPER_DESENVOLVIMENTO);
     }

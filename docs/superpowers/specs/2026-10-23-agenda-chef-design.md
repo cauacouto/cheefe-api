@@ -28,7 +28,7 @@ O chef diz quando não atende, e o cliente não consegue agendar nesses horário
 - Um horário `[inicio, fim)` de agendamento conflita com:
   - bloqueio `[b.inicio, b.fim)` que se sobrepõe (encostar não conflita);
   - dia fixo: qualquer parte do agendamento cai nesse dia da semana (no fuso do servidor, como os demais prazos).
-- Validado em `POST /agendamentos` (todos os chefs escolhidos), `PUT /agendamentos/{id}` (novo horário) e `PATCH /agendamentos/{id}/confirmar` (o chef que confirma) → **409** "Chef indisponível nesse horário" (cita o nome do chef quando são vários).
+- Validado em `POST /agendamentos` (todos os chefs escolhidos), `PUT /agendamentos/{id}` (novo horário) e `PATCH /agendamentos/{id}/confirmar` (todos os chefs do agendamento, como a checagem de horário livre — ajuste da revisão final) → **409** "Chef indisponível nesse horário" (cita o nome do chef quando são vários).
 - A rotina não expira nem recusa nada por causa da agenda.
 
 ### Consulta pública

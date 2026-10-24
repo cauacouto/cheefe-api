@@ -181,6 +181,28 @@ class TelefoneExigidoIntegrationTest {
     }
 
     @Test
+    void oFrontSabeQuandoPedirOTelefone() throws Exception {
+        mockMvc.perform(get("/auth/me").cookie(cookie(caio))).andExpect(jsonPath("$.telefoneVerificado").value(false));
+        mockMvc.perform(get("/auth/me").cookie(cookie(ana))).andExpect(jsonPath("$.telefoneVerificado").value(true));
+        mockMvc.perform(get("/auth/me").cookie(cookie(duda))).andExpect(jsonPath("$.telefoneVerificado").value(false));
+        // o chef sem telefone não aparece na busca: o perfil diz isso, em vez de "completo"
+        mockMvc.perform(get("/chefe/me").cookie(cookie(duda)))
+                .andExpect(jsonPath("$.telefoneVerificado").value(false))
+                .andExpect(jsonPath("$.perfilCompleto").value(false))
+                .andExpect(jsonPath("$.camposPendentes", contains("telefoneVerificado")));
+        mockMvc.perform(get("/chefe/me").cookie(cookie(bia)))
+                .andExpect(jsonPath("$.telefoneVerificado").value(true))
+                .andExpect(jsonPath("$.perfilCompleto").value(true))
+                .andExpect(jsonPath("$.camposPendentes").isEmpty());
+    }
+
+    @Test
+    void agendaPublicaDeChefSemTelefoneDa404ComoABusca() throws Exception {
+        mockMvc.perform(get("/chefe/" + duda.getId() + "/agenda").cookie(cookie(ana))).andExpect(status().isNotFound());
+        mockMvc.perform(get("/chefe/" + bia.getId() + "/agenda").cookie(cookie(ana))).andExpect(status().isOk());
+    }
+
+    @Test
     void chefSemTelefoneNaoPodeSerAgendado() throws Exception {
         agendar(ana, endereco(ana), duda).andExpect(status().isConflict());
         agendar(ana, endereco(ana), bia, duda).andExpect(status().isConflict());

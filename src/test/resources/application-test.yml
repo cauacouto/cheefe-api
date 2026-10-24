@@ -47,3 +47,11 @@ auth:
 chefhome:
   rotina:
     cron: "-"
+  # SMS falso pedido explicitamente; as chaves vazias valem mais que TWILIO_* exportadas no shell (nunca manda SMS de verdade)
+  telefone:
+    verificador-falso: true
+
+twilio:
+  account-sid: ""
+  auth-token: ""
+  verify-service-sid: ""

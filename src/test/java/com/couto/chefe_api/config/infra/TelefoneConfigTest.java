@@ -18,14 +18,38 @@ class TelefoneConfigTest {
     private final ApplicationContextRunner contexto = new ApplicationContextRunner()
             .withUserConfiguration(TelefoneConfig.class)
             .withPropertyValues("twilio.account-sid=", "twilio.auth-token=", "twilio.verify-service-sid=",
-                    "chefhome.telefone.pepper=");
+                    "chefhome.telefone.pepper=", "chefhome.telefone.verificador-falso=false");
 
     private final ApplicationContextRunner prod = contexto
             .withInitializer(ctx -> ctx.getEnvironment().setActiveProfiles("prod"));
 
     @Test
-    void semChavesForaDeProducaoUsaOFalso() {
-        contexto.run(ctx -> {
+    void semChavesESemOptInNaoSobe() {
+        // o falso nunca entra por omissão: só quem pede (desenvolvimento e testes)
+        contexto.run(ctx -> assertThat(ctx).hasFailed()
+                .getFailure().rootCause().hasMessageContaining("CHEFHOME_TELEFONE_FALSO"));
+    }
+
+    @Test
+    void producaoNaoAceitaOFalsoMesmoPedindo() {
+        prod.withPropertyValues("chefhome.telefone.verificador-falso=true", "twilio.account-sid=AC1",
+                        "twilio.auth-token=t", "twilio.verify-service-sid=VA1", "chefhome.telefone.pepper=pepper-de-producao-com-32-caracteres!")
+                .run(ctx -> assertThat(ctx).hasFailed()
+                        .getFailure().rootCause().hasMessageContaining("CHEFHOME_TELEFONE_FALSO"));
+    }
+
+    @Test
+    void producaoComPepperCurtoNaoSobe() {
+        prod.withPropertyValues("twilio.account-sid=AC1", "twilio.auth-token=t", "twilio.verify-service-sid=VA1",
+                        "chefhome.telefone.pepper=curto")
+                .run(ctx -> assertThat(ctx).hasFailed()
+                        .getFailure().rootCause().hasMessageContaining("CHEFHOME_PEPPER_TELEFONE")
+                        .hasMessageNotContaining("curto"));
+    }
+
+    @Test
+    void comOptInForaDeProducaoUsaOFalso() {
+        contexto.withPropertyValues("chefhome.telefone.verificador-falso=true").run(ctx -> {
             assertThat(ctx).hasNotFailed();
             assertThat(ctx.getBean(VerificadorTelefone.class)).isInstanceOf(VerificadorTelefoneFalso.class);
             assertThat(ctx.getBean(HashTelefone.class).de("+5511987654321")).hasSize(64).matches("[0-9a-f]{64}");
@@ -46,7 +70,7 @@ class TelefoneConfigTest {
 
     @Test
     void producaoSemAsChavesDoTwilioNaoSobe() {
-        prod.withPropertyValues("chefhome.telefone.pepper=pepper-de-producao").run(ctx -> assertThat(ctx).hasFailed()
+        prod.withPropertyValues("chefhome.telefone.pepper=pepper-de-producao-com-32-caracteres!").run(ctx -> assertThat(ctx).hasFailed()
                 .getFailure().rootCause().hasMessageContaining("TWILIO_ACCOUNT_SID")
                 .hasMessageContaining("TWILIO_AUTH_TOKEN").hasMessageContaining("TWILIO_VERIFY_SERVICE_SID"));
     }
@@ -61,7 +85,7 @@ class TelefoneConfigTest {
     @Test
     void producaoComTudoUsaOTwilio() {
         prod.withPropertyValues("twilio.account-sid=AC1", "twilio.auth-token=t", "twilio.verify-service-sid=VA1",
-                        "chefhome.telefone.pepper=pepper-de-producao")
+                        "chefhome.telefone.pepper=pepper-de-producao-com-32-caracteres!")
                 .run(ctx -> assertThat(ctx.getBean(VerificadorTelefone.class)).isInstanceOf(TwilioVerificadorTelefone.class));
     }
 

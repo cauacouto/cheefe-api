@@ -128,6 +128,7 @@ class OnboardingIntegrationTest {
                 .andExpect(jsonPath("$.perfilCompleto").value(false))
                 .andExpect(jsonPath("$.camposPendentes").value(contains(
                         "nacionalidade", "especialidade", "senioridade", "anosDeExperiencia", "idiomas", "valorHora")));
+        // o telefone já vem verificado nos dados de teste (TelefoneDeTeste); sem ele, entraria por último na lista
     }
 
     @Test

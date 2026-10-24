@@ -216,7 +216,7 @@ public class ModeracaoService {
      */
     private void banirTelefone(String telefoneVerificado) {
         if (telefoneVerificado != null) {
-            telefoneBanidoRepository.banirSeAusente(hashTelefone.de(telefoneVerificado), LocalDateTime.now(clock));
+            telefoneBanidoRepository.banirSeAusente(hashTelefone.de(telefoneVerificado), java.time.LocalDate.now(clock));
         }
     }
 

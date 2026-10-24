@@ -52,12 +52,15 @@ public class TelefoneService {
     /** Último SMS pedido por conta: limite simples em memória, por instância (o Twilio também limita). */
     private final Map<UUID, Instant> ultimoPedido = new ConcurrentHashMap<>();
 
-    /** Pede o SMS. Só um pedido aceito conta para o intervalo: formato, banido ou telefone de outra conta não. */
+    /**
+     * Pede o SMS. Banido ou de outra conta também conta para o intervalo (senão daria para sondar números à
+     * vontade); só o formato inválido e o SMS que não saiu não contam.
+     */
     public void pedirCodigo(UsuarioAutenticado conta, String telefone) {
         String e164 = TelefoneBrasil.normalizar(telefone);
         exigirContaAtiva(conta);
-        exigirDisponivel(conta, e164);
         Instant reservado = reservarPedido(conta.id());
+        exigirDisponivel(conta, e164);
         try {
             verificador.enviarCodigo(e164);
         } catch (RuntimeException e) {
@@ -68,13 +71,12 @@ public class TelefoneService {
     }
 
     /**
-     * Confere o código e grava o telefone na conta (substitui o anterior). As checagens de banido e de outra
-     * conta rodam de novo na gravação: entre o pedido e a verificação outra conta pode ter ficado com o número.
+     * Confere o código e grava o telefone na conta (substitui o anterior). Banido e outra conta só são checados
+     * depois do código certo (na gravação): antes disso a resposta não diz nada sobre o número.
      */
     public TelefoneVerificadoDto verificar(UsuarioAutenticado conta, String telefone, String codigo) {
         String e164 = TelefoneBrasil.normalizar(telefone);
         exigirContaAtiva(conta);
-        exigirDisponivel(conta, e164);
         if (codigo == null || !FORMATO_CODIGO.matcher(codigo).matches() || !verificador.conferir(e164, codigo)) {
             throw new CodigoInvalidoException();
         }

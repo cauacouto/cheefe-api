@@ -279,8 +279,8 @@ class MigracoesPostgresTest {
 
             // ON CONFLICT DO NOTHING do Hibernate no Postgres: o mesmo hash duas vezes não é erro
             String hash = "a".repeat(64);
-            transacao.executeWithoutResult(t -> telefoneBanidoRepository.banirSeAusente(hash, java.time.LocalDateTime.now()));
-            transacao.executeWithoutResult(t -> telefoneBanidoRepository.banirSeAusente(hash, java.time.LocalDateTime.now()));
+            transacao.executeWithoutResult(t -> telefoneBanidoRepository.banirSeAusente(hash, java.time.LocalDate.now()));
+            transacao.executeWithoutResult(t -> telefoneBanidoRepository.banirSeAusente(hash, java.time.LocalDate.now()));
             assertThat(coluna(st, "SELECT count(*)::text FROM chefhome.telefone_banido WHERE hash = '" + hash + "'"))
                     .containsExactly("1");
             assertSemPermissao(app, "UPDATE chefhome.telefone_banido SET banido_em = now()");
