@@ -79,6 +79,8 @@ class AgendamentoServiceTest {
     private DenunciaRepository denunciaRepository;
     @Mock
     private HistoricoAgendamentoService historico;
+    @Mock
+    private AgendaService agendaService;
     @Spy
     private Clock clock = Clock.systemDefaultZone();
 

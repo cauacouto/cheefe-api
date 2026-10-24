@@ -179,6 +179,8 @@ Listas paginadas respondem `{ "content": [...], "page": { "size", "number", "tot
 | Endereços | `GET` · `POST /usuario/enderecos` | CLIENTE |
 | Chefs | `GET /chefe?page=&size=&sort=` (ordenação só por `nome`, `valorHora`, `anosDeExperiencia` ou `notaMedia` — esta sempre da maior para a menor, com os "Novo" por último), `GET /chefe/destaque` (mais agendados primeiro); os dois paginados até 50, só com chefs visíveis (ativos, disponíveis, perfil completo, não suspensos e não ocultados por denúncias) e com `notaMedia` e `totalAvaliacoes` | qualquer logado |
 | Avaliações de um chef | `GET /chefe/{id}/avaliacoes?page=&size=` (publicadas, mais recentes primeiro, até 50) e `GET /chefe/{id}/reputacao` (veja "Avaliações"); chef bloqueado ou inativo → 404 | qualquer logado |
+| Agenda do chef | `GET /chefe/me/agenda`, `POST /chefe/me/agenda/bloqueios` `{inicio, fim}`, `DELETE /chefe/me/agenda/bloqueios/{id}`, `PUT /chefe/me/agenda/dias-fixos` `{dias}` (veja "Agenda do chef") | CHEFE |
+| Agenda de um chef | `GET /chefe/{id}/agenda?de=&ate=` (datas `dd-MM-yyyy`, janela de até 90 dias): quando o chef não atende, sem motivo; chef não visível → 404 | qualquer logado |
 | Perfil do chef | `GET /chefe/me` (inclui `perfilCompleto` e `camposPendentes`); `PATCH /chefe/me`; `PUT /chefe/me/foto` (multipart `foto`); `PATCH /chefe/me/inativar` (pausa: some da busca e não recebe agendamentos novos) e `PATCH /chefe/me/ativar` (volta); `DELETE /chefe/me` (apaga a conta: não loga nem opera mais) | CHEFE |
 | Pratos | `GET /pratos?page=&size=` (paginado, até 50) e `GET /pratos/chefe/{chefeId}`: só pratos de chefs visíveis na busca (chef pausado, suspenso, banido ou ocultado por denúncias não aparece) | qualquer logado |
 | Meus pratos | `POST /pratos` (multipart `dados` + `foto`), `PUT /pratos/{id}`, `GET /pratos/meus` (todos os do chef, mesmo pausado) | CHEFE |
@@ -208,6 +210,7 @@ Listas paginadas respondem `{ "content": [...], "page": { "size", "number", "tot
 | `CONFIRMADO` | (rotina) | sistema | depois do fim | `CONCLUIDO` |
 | `PENDENTE` | (rotina) | sistema | depois do início | `EXPIRADO` |
 
+- Criar, editar o horário e confirmar também dão **409** ("Chef indisponível nesse horário") quando o horário cai num bloqueio ou dia fixo da agenda do chef (veja "Agenda do chef"). A rotina nunca expira nem recusa nada por causa da agenda.
 - `CANCELADO`, `RECUSADO`, `CONCLUIDO` e `EXPIRADO` são finais. Fora do status ou do prazo → **409** com o motivo; agendamento de outra pessoa → **404**.
 - Cancelar, recusar e desistir aceitam um corpo opcional `{ "motivo": "<código>", "descricao": "<até 300 caracteres>" }`:
   - cliente (`/cancelar`): `MUDANCA_DE_PLANOS`, `DATA_OU_HORARIO`, `ENCONTREI_OUTRA_OPCAO`, `VALOR`, `OUTRO`;
@@ -216,6 +219,20 @@ Listas paginadas respondem `{ "content": [...], "page": { "size", "number", "tot
 - O outro lado é notificado (cancelamento, recusa, desistência, expiração), com o motivo.
 - Uma rotina roda a cada 15 minutos para concluir e expirar; os prazos usam o relógio do servidor, então o fuso de produção precisa ser o dos horários informados pelos clientes.
 - O app é intermediador: registra e avisa, sem multa nem reembolso; para quem não comparece existe a denúncia, que vale para agendamento confirmado ou concluído que já aconteceu.
+
+### 🗓️ Agenda do chef
+
+O chef diz quando não atende, e o cliente não consegue agendar nesses horários. Dois jeitos: **períodos avulsos** (um dia, férias, uma tarde) e **dias fixos da semana** (ex.: toda segunda). Todas as rotas do chef exigem conta ativa.
+
+- `GET /chefe/me/agenda` → `{ "bloqueios": [{ "id", "inicio", "fim" }], "diasFixos": ["MONDAY", ...] }` (só os bloqueios que ainda não terminaram, por início).
+- `POST /chefe/me/agenda/bloqueios` `{ "inicio": "dd-MM-yyyy HH:mm", "fim": "dd-MM-yyyy HH:mm" }` → **201** `{ id, inicio, fim }`. `fim` depois do início, no futuro e a até 365 dias do início, senão **400**. Bloqueios podem se sobrepor entre si. Até 100 bloqueios futuros por chef (**409** além disso).
+- `DELETE /chefe/me/agenda/bloqueios/{id}` → **204**; de outro chef → **404**.
+- `PUT /chefe/me/agenda/dias-fixos` `{ "dias": ["MONDAY", ...] }` (sem repetição; lista vazia limpa) → **200** com a lista.
+- **Confirmados não são derrubados:** um bloqueio ou dia novo que pegue agendamento `CONFIRMADO` (que ainda não terminou) responde **409** "Você tem agendamento confirmado nesse período", com o id e o horário dos que conflitam; o chef desiste antes (`PATCH /agendamentos/{id}/desistir`) e o cliente é avisado pelo fluxo normal. Pedidos `PENDENTE` no período continuam: o chef recusa um por um.
+- **Conflito de horário:** o agendamento `[início, fim)` conflita com um bloqueio que se sobreponha (encostar, como 18h–20h e 20h–22h, não conflita) ou com um dia fixo em que caia qualquer parte dele (no fuso do servidor, como os demais prazos). Vale em `POST /agendamentos` (todos os chefs escolhidos), `PUT /agendamentos/{id}` (novo horário) e `PATCH /agendamentos/{id}/confirmar` (o chef que confirma) → **409** "Chef indisponível nesse horário" (com vários chefs, cita o nome).
+- **Consulta pública** `GET /chefe/{id}/agenda?de=&ate=` (qualquer logado; `dd-MM-yyyy`; padrão hoje até hoje + 30 dias; janela máxima de 90 dias, senão **400**) → `[{ "inicio", "fim" }]`: bloqueios, dias fixos (dias inteiros) e agendamentos confirmados dentro da janela, ordenados e mesclados (o que se sobrepõe ou encosta vira um só), sem motivo nem id. Chef não visível na busca → **404**.
+- Criar ou mexer na agenda e confirmar agendamento usam a mesma trava do chef, então uma confirmação e um bloqueio simultâneos nunca deixam um confirmado dentro de um bloqueio.
+- Fora do escopo: horário de atendimento por dia, feriados, fuso por chef e sincronização com Google Agenda.
 
 ### ⭐ Avaliações
 
