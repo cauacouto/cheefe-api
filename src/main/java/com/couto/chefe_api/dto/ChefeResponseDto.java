@@ -20,7 +20,10 @@ public record ChefeResponseDto(
         String imageUrl,
         /** Nula com menos de 5 avaliações ("Novo"). */
         BigDecimal notaMedia,
-        int totalAvaliacoes
+        int totalAvaliacoes,
+        /** Cidade de origem: o chef só atende nela. */
+        String cidade,
+        String estado
 
 
 ) {

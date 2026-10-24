@@ -1,5 +1,11 @@
 package com.couto.chefe_api.service;
 
+import com.couto.chefe_api.exception.RegraDeNegocioException;
+
+import com.couto.chefe_api.enums.Especialidades;
+
+import com.couto.chefe_api.domain.Cidade;
+
 import java.util.Set;
 import java.util.List;
 import org.springframework.data.domain.Sort;
@@ -52,7 +58,13 @@ public class ChefeService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ChefeResponseDto> mostrarChefes(Pageable pageable, BigDecimal valorMinimo, BigDecimal valorMaximo) {
+    public Page<ChefeResponseDto> mostrarChefes(Pageable pageable, BigDecimal valorMinimo, BigDecimal valorMaximo,
+                                                String cidade, String estado, Especialidades especialidade) {
+        String cidadeBusca = Cidade.normalizar(cidade);
+        if (cidadeBusca != null && Cidade.uf(estado) == null) {
+            // há cidades com o mesmo nome em estados diferentes
+            throw new RegraDeNegocioException("Informe o estado (UF) junto com a cidade");
+        }
         Specification<ChefeModel> spec = ChefeSpecification.ativo()
                 .and(ChefeSpecification.disponivel())
                 .and(ChefeSpecification.perfilCompleto())
@@ -60,7 +72,10 @@ public class ChefeService {
                 .and(ChefeSpecification.naoBloqueado())
                 .and(ChefeSpecification.semDenunciasEmExcesso())
                 .and(ChefeSpecification.valorMinimoMaior(valorMinimo))
-                .and(ChefeSpecification.valorMaximoMenor(valorMaximo));
+                .and(ChefeSpecification.valorMaximoMenor(valorMaximo))
+                .and(ChefeSpecification.naCidade(cidadeBusca))
+                .and(ChefeSpecification.noEstado(Cidade.uf(estado)))
+                .and(ChefeSpecification.daEspecialidade(especialidade));
 
         PageRequest pagina = paginaDaBusca(pageable);
         if (pagina.getSort().getOrderFor(NOTA_MEDIA) != null) {

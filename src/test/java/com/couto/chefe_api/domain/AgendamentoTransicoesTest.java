@@ -200,6 +200,8 @@ class AgendamentoTransicoesTest {
         chefe.setId(UUID.randomUUID());
         chefe.setNome(nome);
         chefe.setValorHora(new BigDecimal(valorHora));
+        chefe.setCidade("São Paulo");
+        chefe.setEstado("SP");
         return chefe;
     }
 }

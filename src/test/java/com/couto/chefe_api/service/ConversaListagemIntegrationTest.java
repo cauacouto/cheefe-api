@@ -143,6 +143,8 @@ class ConversaListagemIntegrationTest {
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
         chefe.setValorHora(new BigDecimal("100"));
+        chefe.setCidade("São Paulo");
+        chefe.setEstado("SP");
         chefe.setEspecialidade(Especialidades.BRASILEIRA);
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);

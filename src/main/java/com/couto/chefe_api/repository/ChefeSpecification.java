@@ -5,6 +5,7 @@ import com.couto.chefe_api.domain.ChefeModel;
 import com.couto.chefe_api.domain.Denuncia;
 import com.couto.chefe_api.enums.StatusDenuncia;
 import com.couto.chefe_api.domain.Reputacao;
+import com.couto.chefe_api.enums.Especialidades;
 import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Nulls;
 import jakarta.persistence.criteria.Order;
@@ -59,7 +60,23 @@ public final class ChefeSpecification {
                 cb.isNotNull(root.get("senioridade")),
                 cb.isNotNull(root.get("anosDeExperiencia")),
                 cb.notEqual(cb.trim(cb.coalesce(root.get("idiomas"), "")), ""),
-                cb.isNotNull(root.get("valorHora")));
+                cb.isNotNull(root.get("valorHora")),
+                cb.isNotNull(root.get("cidade")),
+                cb.isNotNull(root.get("estado")));
+    }
+
+    /** Pela cidade de origem já normalizada ({@link com.couto.chefe_api.domain.Cidade#normalizar}); nula = sem filtro. */
+    public static Specification<ChefeModel> naCidade(String cidadeBusca) {
+        return (root, query, cb) -> cidadeBusca == null ? null : cb.equal(root.get("cidadeBusca"), cidadeBusca);
+    }
+
+    /** UF em maiúsculas; nula = sem filtro. */
+    public static Specification<ChefeModel> noEstado(String uf) {
+        return (root, query, cb) -> uf == null ? null : cb.equal(root.get("estado"), uf);
+    }
+
+    public static Specification<ChefeModel> daEspecialidade(Especialidades especialidade) {
+        return (root, query, cb) -> especialidade == null ? null : cb.equal(root.get("especialidade"), especialidade);
     }
 
     /**

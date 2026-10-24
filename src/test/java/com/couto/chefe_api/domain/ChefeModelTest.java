@@ -59,7 +59,8 @@ class ChefeModelTest {
     @Test
     void pendentesNaOrdemDoContrato() {
         assertThat(new ChefeModel().camposPendentes()).isEqualTo(List.of(
-                "nacionalidade", "especialidade", "senioridade", "anosDeExperiencia", "idiomas", "valorHora"));
+                "nacionalidade", "especialidade", "senioridade", "anosDeExperiencia", "idiomas", "valorHora",
+                "cidade", "estado"));
     }
 
     private static ChefeModel completo() {
@@ -71,6 +72,8 @@ class ChefeModelTest {
         chefe.setAnosDeExperiencia(5);
         chefe.setIdiomas("pt");
         chefe.setValorHora(new BigDecimal("150"));
+        chefe.setCidade("São Paulo");
+        chefe.setEstado("SP");
         return chefe;
     }
 }

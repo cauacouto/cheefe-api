@@ -27,7 +27,9 @@ public record ChefePerfilDto(
         boolean ocultoPorDenuncias,
         BigDecimal notaMedia,
         int totalAvaliacoes,
-        boolean telefoneVerificado
+        boolean telefoneVerificado,
+        String cidade,
+        String estado
 ) {
 
     public static ChefePerfilDto de(ChefeModel chefe, boolean ocultoPorDenuncias) {
@@ -37,6 +39,7 @@ public record ChefePerfilDto(
                 chefe.getAnosDeExperiencia(), chefe.getSenioridade(), chefe.isDisponivel(), chefe.getIdiomas(),
                 chefe.getValorHora(), chefe.getImageUrl(), chefe.isPerfilCompleto(), chefe.camposPendentes(),
                 chefe.isSuspenso(), ocultoPorDenuncias,
-                Reputacao.media(chefe.getSomaNotas(), chefe.getTotalAvaliacoes()), chefe.getTotalAvaliacoes(), telefone);
+                Reputacao.media(chefe.getSomaNotas(), chefe.getTotalAvaliacoes()), chefe.getTotalAvaliacoes(), telefone,
+                chefe.getCidade(), chefe.getEstado());
     }
 }

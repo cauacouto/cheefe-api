@@ -62,6 +62,8 @@ class ChatConcorrenciaIntegrationTest {
         bia.setNacionalidade("Brasileira");
         bia.setIdiomas("pt");
         bia.setValorHora(new BigDecimal("100"));
+        bia.setCidade("São Paulo");
+        bia.setEstado("SP");
         bia.setEspecialidade(Especialidades.BRASILEIRA);
         bia.setSenioridade(Senioridade.HEAD_CHEF);
         bia.setAnosDeExperiencia(5);

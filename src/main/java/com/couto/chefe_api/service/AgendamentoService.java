@@ -1,5 +1,7 @@
 package com.couto.chefe_api.service;
 
+import com.couto.chefe_api.exception.ForaDaCidadeException;
+
 import com.couto.chefe_api.service.eventos.AgendamentoExpiradoEvent;
 import java.util.stream.Collectors;
 import java.util.Map;
@@ -98,6 +100,7 @@ public class AgendamentoService {
         agendamento.setQuantidadePessoas(dto.getQuantidadePessoas());
         agendamento.setCriadoEm(agora());
         agendamento.setValorTotal(Agendamento.calcularValor(chefes, dto.getDataHoraInicial(), dto.getDataHoraFinal()));
+        exigirMesmaCidade(chefes, endereco);
         exigirHorarioLivre(agendamento);
         agendaService.exigirDisponivel(chefes, dto.getDataHoraInicial(), dto.getDataHoraFinal());
         Agendamento salvo = agendamentoRepository.save(agendamento);
@@ -162,6 +165,10 @@ public class AgendamentoService {
             agenda.setQuantidadePessoas(dto.quantidadePessoas());
         }
 
+        if (dto.enderecoId() != null || (dto.chefeIds() != null && !dto.chefeIds().isEmpty())) {
+            exigirMesmaCidade(agenda.getChefes(), agenda.getEndereco());
+        }
+
         if (recalcular) {
             agenda.setValorTotal(Agendamento.calcularValor(agenda.getChefes(), agenda.getDataHoraInicial(), agenda.getDataHoraFinal()));
             exigirHorarioLivre(agenda);
@@ -189,6 +196,8 @@ public class AgendamentoService {
         // confirmar vale para todos os chefs do agendamento: trava todos e confere a agenda de cada um
         chefeRepository.travar(agendamento.getChefes().stream().map(ChefeModel::getId).toList());
         agendamento.confirmar(agora());
+        // o chef pode ter mudado de cidade depois do pedido
+        exigirMesmaCidade(agendamento.getChefes(), agendamento.getEndereco());
         exigirHorarioLivre(agendamento);
         // a agenda de todos (como o horário livre); depois da trava, para não confirmar dentro de um bloqueio recém-criado
         agendaService.exigirDisponivel(agendamento.getChefes(),
@@ -340,6 +349,16 @@ public class AgendamentoService {
                 .findFirst()
                 .ifPresent(chefe -> {
                     throw new HorarioIndisponivelException(chefe.getNome());
+                });
+    }
+
+    /** O chef só atende na cidade de origem dele: cada chef do agendamento, contra a cidade e a UF do endereço. */
+    private static void exigirMesmaCidade(List<ChefeModel> chefes, EnderecoModel endereco) {
+        chefes.stream()
+                .filter(chefe -> !chefe.atendeEm(endereco.getCidade(), endereco.getEstado()))
+                .findFirst()
+                .ifPresent(chefe -> {
+                    throw new ForaDaCidadeException(chefe.getNome(), endereco.getCidade());
                 });
     }
 

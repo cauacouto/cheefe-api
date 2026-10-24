@@ -201,6 +201,8 @@ class ListagensIntegrationTest {
         ChefeModel barato = novoChefe("Bia");
         ChefeModel caro = novoChefe("Caio");
         caro.setValorHora(new BigDecimal("300"));
+        caro.setCidade("São Paulo");
+        caro.setEstado("SP");
         chefeRepository.save(caro);
         Cookie ana = cookieDe(novoCliente("Ana"));
 
@@ -319,6 +321,8 @@ class ListagensIntegrationTest {
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
         chefe.setValorHora(new BigDecimal("100"));
+        chefe.setCidade("São Paulo");
+        chefe.setEstado("SP");
         chefe.setEspecialidade(Especialidades.BRASILEIRA);
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);

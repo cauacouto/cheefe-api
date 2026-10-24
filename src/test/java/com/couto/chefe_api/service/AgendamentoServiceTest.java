@@ -96,6 +96,9 @@ class AgendamentoServiceTest {
     void setUp() {
         usuario.setId(USUARIO_ID);
         endereco.setId(1L);
+        // a mesma cidade dos chefs de teste: o chef só atende na cidade de origem
+        endereco.setCidade("São Paulo");
+        endereco.setEstado("SP");
         when(usuarioRepository.findById(USUARIO_ID)).thenReturn(Optional.of(usuario));
         when(enderecoRepository.findByIdAndUsuario_Id(1L, USUARIO_ID)).thenReturn(Optional.of(endereco));
         when(agendamentoRepository.save(any(Agendamento.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -388,6 +391,7 @@ class AgendamentoServiceTest {
             agenda = new Agendamento();
             agenda.setId(9L);
             agenda.setChefes(new ArrayList<>(List.of(chefeA, chefeB)));
+            agenda.setEndereco(endereco);
             when(agendamentoRepository.travarPorId(9L)).thenReturn(Optional.of(agenda));
         }
 
@@ -424,6 +428,8 @@ class AgendamentoServiceTest {
         chefe.setId(UUID.randomUUID());
         chefe.setNome("chefe " + valorHora);
         chefe.setValorHora(new BigDecimal(valorHora));
+        chefe.setCidade("São Paulo");
+        chefe.setEstado("SP");
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
         chefe.setEspecialidade(Especialidades.BRASILEIRA);

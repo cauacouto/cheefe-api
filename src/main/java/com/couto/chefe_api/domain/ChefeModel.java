@@ -7,6 +7,7 @@ import jakarta.persistence.*;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.DynamicUpdate;
 import jakarta.validation.constraints.NotBlank;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -25,7 +26,7 @@ import java.util.*;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "chefe")
+@Table(name = "chefe", indexes = @Index(name = "idx_chefe_cidade", columnList = "estado, cidade_busca"))
 public class ChefeModel implements Serializable {
 
 
@@ -83,6 +84,19 @@ private Boolean ativo = true;
 
     private BigDecimal valorHora;
 
+    /** Cidade de origem: o chef atende só nela (o endereço do agendamento precisa ser da mesma cidade e UF). */
+    @Column(length = 100)
+    private String cidade;
+
+    /** UF da cidade de origem, em maiúsculas. */
+    @Column(length = 2)
+    private String estado;
+
+    /** A cidade sem acento, em minúsculas e com espaços únicos: o que a busca e o agendamento comparam. */
+    @Column(name = "cidade_busca", length = 100)
+    @Setter(AccessLevel.NONE)
+    private String cidadeBusca;
+
     @OneToMany(mappedBy = "chefeModel")
     private List<Pratos> pratos = new ArrayList<>();
 
@@ -102,6 +116,8 @@ private Boolean ativo = true;
         if (anosDeExperiencia == null) pendentes.add("anosDeExperiencia");
         if (emBranco(idiomas)) pendentes.add("idiomas");
         if (valorHora == null) pendentes.add("valorHora");
+        if (cidade == null) pendentes.add("cidade");
+        if (estado == null) pendentes.add("estado");
         return pendentes;
     }
 
@@ -122,6 +138,24 @@ private Boolean ativo = true;
     void normalizarTextos() {
         nacionalidade = semEspacosOuNulo(nacionalidade);
         idiomas = semEspacosOuNulo(idiomas);
+    }
+
+    /**
+     * A cidade de busca acompanha a cidade no próprio setter (e não num @PreUpdate): com @DynamicUpdate, um campo
+     * mudado só no callback poderia ficar fora do UPDATE.
+     */
+    public void setCidade(String cidade) {
+        this.cidade = semEspacosOuNulo(cidade);
+        this.cidadeBusca = Cidade.normalizar(this.cidade);
+    }
+
+    public void setEstado(String estado) {
+        this.estado = Cidade.uf(estado);
+    }
+
+    /** O chef atende nesta cidade (a de origem dele). */
+    public boolean atendeEm(String cidade, String estado) {
+        return Cidade.mesma(this.cidade, this.estado, cidade, estado);
     }
 
     private static String semEspacosOuNulo(String valor) {
