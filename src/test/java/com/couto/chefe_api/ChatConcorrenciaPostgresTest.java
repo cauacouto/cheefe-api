@@ -52,6 +52,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  */
 @SpringBootTest
 @ActiveProfiles("test")
+@org.springframework.context.annotation.Import(FiltroDeTeste.class)
 @Testcontainers(disabledWithoutDocker = true)
 class ChatConcorrenciaPostgresTest {
 
@@ -71,6 +72,7 @@ class ChatConcorrenciaPostgresTest {
     @Autowired MensagemRepository mensagemRepository;
     @Autowired NotificacaoRepository notificacaoRepository;
     @Autowired TransactionTemplate transacao;
+    @Autowired com.couto.chefe_api.repository.BloqueioContaRepository bloqueioContaRepository;
 
     MockMvc mockMvc;
     UserModel ana;
@@ -101,6 +103,9 @@ class ChatConcorrenciaPostgresTest {
     void limparBanco() {
         transacao.executeWithoutResult(status -> {
             notificacaoRepository.apagarDoDestinatario(bia.getId());
+            notificacaoRepository.deleteAll(notificacaoRepository.findAll().stream()
+                    .filter(n -> n.getEvento() == com.couto.chefe_api.enums.EventoNotificacao.CONTA_BLOQUEADA).toList());
+            bloqueioContaRepository.deleteByContaId(ana.getId());
             mensagemRepository.deleteByConversa_Cliente_Id(ana.getId());
             conversaRepository.deleteByCliente_Id(ana.getId());
             usuarioRepository.deleteById(ana.getId());
@@ -130,6 +135,47 @@ class ChatConcorrenciaPostgresTest {
         assertThat(respostas).extracting(MockHttpServletResponse::getStatus).containsOnly(201);
         assertThat(mensagemRepository.count()).isEqualTo(PEDIDOS);
         assertThat(notificacaoRepository.countByDestinatarioIdAndLidaFalse(bia.getId())).isEqualTo(1);
+    }
+
+    /**
+     * O bloqueio do autor roda numa transação própria (REQUIRES_NEW): o filtro tem que rodar antes da
+     * trava da conversa. Com a trava de outra transação em aberto, o ódio ainda recebe 403 na hora.
+     */
+    @Test
+    void odioNoChatBloqueiaSemEsperarATravaDaConversa() throws Exception {
+        long conversa = id(mockMvc.perform(post("/conversas").cookie(cookieAna()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"chefeId\":\"" + bia.getId() + "\"}")).andReturn().getResponse());
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch travada = new CountDownLatch(1);
+        CountDownLatch soltar = new CountDownLatch(1);
+        try {
+            Future<?> quemTrava = pool.submit(() -> transacao.executeWithoutResult(status -> {
+                conversaRepository.travarPorId(conversa); // SELECT ... FOR UPDATE, segurada até soltar
+                travada.countDown();
+                try {
+                    soltar.await(60, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }));
+            assertThat(travada.await(30, TimeUnit.SECONDS)).isTrue();
+
+            Future<MockHttpServletResponse> envio = pool.submit(() -> mockMvc.perform(post("/conversas/" + conversa + "/mensagens")
+                    .cookie(cookieAna()).contentType(MediaType.APPLICATION_JSON).content("{\"texto\":\"seu odiento\"}"))
+                    .andReturn().getResponse());
+
+            // sem esperar a trava: se o filtro rodasse depois dela, isto estouraria o tempo
+            MockHttpServletResponse resposta = envio.get(15, TimeUnit.SECONDS);
+            assertThat(resposta.getStatus()).isEqualTo(403);
+            assertThat(usuarioRepository.findById(ana.getId()).orElseThrow().getBloqueadoEm()).isNotNull();
+            assertThat(mensagemRepository.count()).isZero();
+
+            soltar.countDown();
+            quemTrava.get(30, TimeUnit.SECONDS);
+        } finally {
+            soltar.countDown();
+            pool.shutdownNow();
+        }
     }
 
     private long id(MockHttpServletResponse resposta) {
