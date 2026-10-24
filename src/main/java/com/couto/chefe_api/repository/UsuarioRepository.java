@@ -18,7 +18,6 @@ public interface UsuarioRepository extends JpaRepository<UserModel, UUID> {
 
     boolean existsByIdAndBloqueadoEmIsNotNull(UUID id);
 
-    boolean existsByIdAndTelefoneVerificadoIsNotNull(UUID id);
 
     /** O telefone já está verificado em outra conta desta tabela (a própria conta não conta). */
     boolean existsByTelefoneVerificadoAndIdNot(String telefoneVerificado, UUID id);

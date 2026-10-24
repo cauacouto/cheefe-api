@@ -67,7 +67,7 @@ private Boolean ativo = true;
 
     private String bloqueioMotivo;
 
-    /** Celular verificado por SMS (E.164): sem ele o chef não age nem aparece; um por conta (V12). */
+    /** Celular verificado (E.164), um por conta (V12). Hoje não é exigido: a verificação está parada (README). */
     @Column(length = 20, unique = true)
     private String telefoneVerificado;
 

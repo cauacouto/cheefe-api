@@ -53,11 +53,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** Sem telefone verificado: as ações listadas no spec dão 403 TELEFONE_NAO_VERIFICADO e o chef some. */
+/**
+ * Verificação de telefone parada (sem provedor; ver README "Telefone verificado"): sem telefone verificado tudo
+ * funciona como antes da V12, e o chef aparece normalmente.
+ */
 @SpringBootTest
 @ActiveProfiles("test")
 @Import(com.couto.chefe_api.FiltroDeTeste.class)
-class TelefoneExigidoIntegrationTest {
+class TelefoneParadoIntegrationTest {
 
     static final LocalDateTime FUTURO = LocalDateTime.now().plusDays(10).withHour(18).withMinute(0).withSecond(0).withNano(0);
     static final DateTimeFormatter FORMATO = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
@@ -106,129 +109,69 @@ class TelefoneExigidoIntegrationTest {
     }
 
     @Test
-    void clienteSemTelefoneNaoAgenda() throws Exception {
-        exigeTelefone(agendar(caio, endereco(caio), bia));
-        assertThat(agendamentoRepository.count()).isZero();
-
-        agendar(ana, endereco(ana), bia).andExpect(status().isCreated());
+    void clienteSemTelefoneAgendaEChefSemTelefonePodeSerAgendado() throws Exception {
+        agendar(caio, endereco(caio), bia).andExpect(status().isCreated());
+        agendar(ana, endereco(ana), duda).andExpect(status().isCreated());
+        agendar(ana, endereco(ana), bia, duda).andExpect(status().isCreated());
     }
 
     @Test
-    void clienteSemTelefoneNaoAbreConversa() throws Exception {
-        exigeTelefone(mockMvc.perform(post("/conversas").cookie(cookie(caio)).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"chefeId\":\"" + bia.getId() + "\"}")));
-        assertThat(conversaRepository.count()).isZero();
-    }
-
-    @Test
-    void semTelefoneNinguemEnviaMensagem() throws Exception {
-        Conversa doCaio = conversa(caio, bia);
+    void semTelefoneAbreConversaEEnviaMensagem() throws Exception {
+        mockMvc.perform(post("/conversas").cookie(cookie(caio)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"chefeId\":\"" + bia.getId() + "\"}")).andExpect(status().isCreated());
         Conversa daDuda = conversa(ana, duda);
 
-        exigeTelefone(enviar(cookie(caio), doCaio, "oi"));
-        exigeTelefone(enviar(cookie(duda), daDuda, "oi"));
-        assertThat(mensagemRepository.count()).isZero();
-
-        enviar(cookie(bia), doCaio, "oi").andExpect(status().isCreated());
-        enviar(cookie(ana), daDuda, "oi").andExpect(status().isCreated());
+        enviar(cookie(duda), daDuda, "oi").andExpect(status().isCreated());
     }
 
     @Test
-    void quemNaoParticipaContinuaRecebendo404AntesDaExigencia() throws Exception {
+    void quemNaoParticipaContinuaRecebendo404() throws Exception {
         Conversa alheia = conversa(ana, bia);
 
         enviar(cookie(caio), alheia, "oi").andExpect(status().isNotFound());
     }
 
     @Test
-    void odioDeContaSemTelefoneNaoChegaAoFiltroNemBloqueiaAConta() throws Exception {
+    void odioDeContaSemTelefoneContinuaBloqueandoAConta() throws Exception {
         Conversa doCaio = conversa(caio, bia);
 
-        exigeTelefone(enviar(cookie(caio), doCaio, "seu odiento"));
+        enviar(cookie(caio), doCaio, "seu odiento").andExpect(status().isForbidden());
 
-        assertThat(bloqueioContaRepository.count()).isZero();
-        assertThat(usuarioRepository.findById(caio.getId()).orElseThrow().getBloqueadoEm()).isNull();
+        assertThat(usuarioRepository.findById(caio.getId()).orElseThrow().getBloqueadoEm()).isNotNull();
     }
 
     @Test
-    void semTelefoneNinguemAvalia() throws Exception {
+    void semTelefoneAvalia() throws Exception {
         Agendamento doCaio = concluido(agendamento(caio, bia));
         Agendamento daDuda = concluido(agendamento(ana, duda));
 
-        exigeTelefone(avaliar(cookie(caio), doCaio, "{\"chefeId\":\"" + bia.getId() + "\",\"nota\":5}"));
-        exigeTelefone(avaliar(cookie(duda), daDuda, "{\"nota\":5}"));
-        assertThat(avaliacaoRepository.count()).isZero();
-
-        avaliar(cookie(bia), doCaio, "{\"nota\":4}").andExpect(status().isCreated());
+        avaliar(cookie(caio), doCaio, "{\"chefeId\":\"" + bia.getId() + "\",\"nota\":5}").andExpect(status().isCreated());
+        avaliar(cookie(duda), daDuda, "{\"nota\":5}").andExpect(status().isCreated());
     }
 
     @Test
-    void chefSemTelefoneSomeDaBuscaDoDestaqueEDosPratos() throws Exception {
+    void chefSemTelefoneApareceNaBuscaNoDestaqueNosPratosENaAgenda() throws Exception {
         prato(bia, "Moqueca");
         prato(duda, "Feijoada");
 
         mockMvc.perform(get("/chefe").cookie(cookie(ana)))
-                .andExpect(jsonPath("$.content[*].id", contains(bia.getId().toString())));
+                .andExpect(jsonPath("$.content[*].id", containsInAnyOrder(bia.getId().toString(), duda.getId().toString())));
         mockMvc.perform(get("/chefe/destaque").cookie(cookie(ana)))
-                .andExpect(jsonPath("$.content[*].id", contains(bia.getId().toString())));
+                .andExpect(jsonPath("$.content[*].id", containsInAnyOrder(bia.getId().toString(), duda.getId().toString())));
         mockMvc.perform(get("/pratos").cookie(cookie(ana)))
-                .andExpect(jsonPath("$.content[*].nomePrato", contains("Moqueca")));
-        mockMvc.perform(get("/pratos/chefe/" + duda.getId()).cookie(cookie(ana)))
-                .andExpect(jsonPath("$.length()").value(0));
-        // o próprio chef continua vendo os pratos dele
-        mockMvc.perform(get("/pratos/meus").cookie(cookie(duda)))
-                .andExpect(jsonPath("$[*].nomePrato", containsInAnyOrder("Feijoada")));
+                .andExpect(jsonPath("$.content[*].nomePrato", containsInAnyOrder("Moqueca", "Feijoada")));
+        mockMvc.perform(get("/chefe/" + duda.getId() + "/agenda").cookie(cookie(ana))).andExpect(status().isOk());
     }
 
     @Test
-    void oFrontSabeQuandoPedirOTelefone() throws Exception {
+    void telefoneVerificadoEhSoInformacao() throws Exception {
         mockMvc.perform(get("/auth/me").cookie(cookie(caio))).andExpect(jsonPath("$.telefoneVerificado").value(false));
         mockMvc.perform(get("/auth/me").cookie(cookie(ana))).andExpect(jsonPath("$.telefoneVerificado").value(true));
-        mockMvc.perform(get("/auth/me").cookie(cookie(duda))).andExpect(jsonPath("$.telefoneVerificado").value(false));
-        // o chef sem telefone não aparece na busca: o perfil diz isso, em vez de "completo"
+        // sem exigência, o telefone não é pendência do perfil
         mockMvc.perform(get("/chefe/me").cookie(cookie(duda)))
                 .andExpect(jsonPath("$.telefoneVerificado").value(false))
-                .andExpect(jsonPath("$.perfilCompleto").value(false))
-                .andExpect(jsonPath("$.camposPendentes", contains("telefoneVerificado")));
-        mockMvc.perform(get("/chefe/me").cookie(cookie(bia)))
-                .andExpect(jsonPath("$.telefoneVerificado").value(true))
                 .andExpect(jsonPath("$.perfilCompleto").value(true))
                 .andExpect(jsonPath("$.camposPendentes").isEmpty());
-    }
-
-    @Test
-    void agendaPublicaDeChefSemTelefoneDa404ComoABusca() throws Exception {
-        mockMvc.perform(get("/chefe/" + duda.getId() + "/agenda").cookie(cookie(ana))).andExpect(status().isNotFound());
-        mockMvc.perform(get("/chefe/" + bia.getId() + "/agenda").cookie(cookie(ana))).andExpect(status().isOk());
-    }
-
-    @Test
-    void chefSemTelefoneNaoPodeSerAgendado() throws Exception {
-        agendar(ana, endereco(ana), duda).andExpect(status().isConflict());
-        agendar(ana, endereco(ana), bia, duda).andExpect(status().isConflict());
-        assertThat(agendamentoRepository.count()).isZero();
-    }
-
-    @Test
-    void oQueJaExisteContinuaSemExigir() throws Exception {
-        Agendamento pendente = agendamento(caio, duda);
-        Conversa conversa = conversa(caio, duda);
-
-        mockMvc.perform(get("/agendamentos/meus").cookie(cookie(caio))).andExpect(status().isOk());
-        mockMvc.perform(get("/agendamentos/recebidos").cookie(cookie(duda))).andExpect(status().isOk());
-        mockMvc.perform(get("/conversas/" + conversa.getId() + "/mensagens").cookie(cookie(caio))).andExpect(status().isOk());
-        mockMvc.perform(patch("/conversas/" + conversa.getId() + "/lidas").cookie(cookie(duda))).andExpect(status().isNoContent());
-        mockMvc.perform(patch("/agendamentos/" + pendente.getId() + "/confirmar").cookie(cookie(duda))).andExpect(status().isOk());
-        mockMvc.perform(patch("/agendamentos/" + pendente.getId() + "/cancelar").cookie(cookie(caio))).andExpect(status().isOk());
-
-        assertThat(agendamentoRepository.findById(pendente.getId()).orElseThrow().getStatus())
-                .isEqualTo(StatusAgendamento.CANCELADO);
-    }
-
-    void exigeTelefone(ResultActions resposta) throws Exception {
-        resposta.andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.codigo").value("TELEFONE_NAO_VERIFICADO"))
-                .andExpect(jsonPath("$.detail").value("Verifique seu telefone para continuar"));
     }
 
     ResultActions agendar(UserModel cliente, EnderecoModel endereco, ChefeModel... chefes) throws Exception {

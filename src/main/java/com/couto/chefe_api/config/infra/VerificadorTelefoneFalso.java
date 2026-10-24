@@ -5,7 +5,7 @@ import com.couto.chefe_api.service.VerificadorTelefone;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Desenvolvimento e testes, sem as chaves do Twilio (nunca em prod, ver TelefoneConfig): não manda SMS e o
+ * Desenvolvimento e testes, com CHEFHOME_TELEFONE_FALSO=true (nunca em prod, ver TelefoneConfig): não manda nada e o
  * código é sempre {@value #CODIGO}.
  */
 @Slf4j

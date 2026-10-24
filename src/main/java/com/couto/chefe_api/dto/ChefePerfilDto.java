@@ -6,7 +6,6 @@ import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.enums.Senioridade;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -31,18 +30,12 @@ public record ChefePerfilDto(
         boolean telefoneVerificado
 ) {
 
-    /** Pendência que não é campo do PATCH: sem telefone verificado o chef também não aparece na busca. */
-    static final String TELEFONE_PENDENTE = "telefoneVerificado";
-
     public static ChefePerfilDto de(ChefeModel chefe, boolean ocultoPorDenuncias) {
+        // só informação: a verificação de telefone está parada e não é exigida (ver README)
         boolean telefone = chefe.getTelefoneVerificadoEm() != null;
-        List<String> pendentes = new ArrayList<>(chefe.camposPendentes());
-        if (!telefone) {
-            pendentes.add(TELEFONE_PENDENTE);
-        }
         return new ChefePerfilDto(chefe.getId(), chefe.getNome(), chefe.getNacionalidade(), chefe.getEspecialidade(),
                 chefe.getAnosDeExperiencia(), chefe.getSenioridade(), chefe.isDisponivel(), chefe.getIdiomas(),
-                chefe.getValorHora(), chefe.getImageUrl(), pendentes.isEmpty(), pendentes,
+                chefe.getValorHora(), chefe.getImageUrl(), chefe.isPerfilCompleto(), chefe.camposPendentes(),
                 chefe.isSuspenso(), ocultoPorDenuncias,
                 Reputacao.media(chefe.getSomaNotas(), chefe.getTotalAvaliacoes()), chefe.getTotalAvaliacoes(), telefone);
     }

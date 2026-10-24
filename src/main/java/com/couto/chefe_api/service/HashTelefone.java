@@ -18,7 +18,11 @@ public class HashTelefone {
         this.pepper = pepper;
     }
 
+    /** Sem pepper (prod sem provedor de telefone ligado): recusa, em vez de gerar um hash previsível. */
     public String de(String e164) {
+        if (pepper == null) {
+            throw new IllegalStateException("Hash de telefone banido sem configuração: defina CHEFHOME_PEPPER_TELEFONE");
+        }
         try {
             MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
             return HexFormat.of().formatHex(sha256.digest((pepper + e164).getBytes(StandardCharsets.UTF_8)));

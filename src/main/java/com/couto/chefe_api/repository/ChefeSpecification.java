@@ -39,11 +39,6 @@ public final class ChefeSpecification {
         return (root, query, cb) -> cb.isNull(root.get("bloqueadoEm"));
     }
 
-    /** Sem telefone verificado o chef não aparece (mesma regra de {@link ChefeRepository#VISIVEL}). */
-    public static Specification<ChefeModel> telefoneVerificado() {
-        return (root, query, cb) -> cb.isNotNull(root.get("telefoneVerificado"));
-    }
-
     /** Menos de {@link DenunciaService#LIMITE_OCULTACAO} clientes distintos com denúncia aberta. */
     public static Specification<ChefeModel> semDenunciasEmExcesso() {
         return (root, query, cb) -> {

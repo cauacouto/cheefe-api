@@ -3,7 +3,7 @@ package com.couto.chefe_api.exception;
 import org.springframework.http.HttpStatus;
 
 /**
- * O Twilio falhou ou não respondeu a tempo (503). Sem causa de propósito: a resposta do Twilio (que pode citar
+ * O provedor falhou, não respondeu a tempo ou não existe ainda (503). Sem causa de propósito: a resposta do provedor (que pode citar
  * o número) não chega ao cliente nem ao log de erro; quem lança já registrou o status, sem dados pessoais.
  */
 public class SmsIndisponivelException extends NegocioException {

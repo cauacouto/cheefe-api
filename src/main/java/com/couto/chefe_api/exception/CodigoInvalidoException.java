@@ -2,7 +2,7 @@ package com.couto.chefe_api.exception;
 
 import org.springframework.http.HttpStatus;
 
-/** O Twilio não aprovou o código (errado, expirado ou tentativas esgotadas): a pessoa pede outro. */
+/** O provedor não aprovou o código (errado, expirado ou tentativas esgotadas): a pessoa pede outro. */
 public class CodigoInvalidoException extends NegocioException {
 
     public CodigoInvalidoException() {
