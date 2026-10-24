@@ -60,7 +60,8 @@ class ModeracaoServiceTest {
             mock(com.couto.chefe_api.repository.UsuarioRepository.class);
     private final ModeracaoService service = new ModeracaoService(denunciaRepository, chefeRepository, notificacaoService,
             acaoRepository, denunciaMensagemRepository, bloqueioRepository, usuarioRepository,
-            mock(com.couto.chefe_api.repository.AvaliacaoRepository.class), denunciaAvaliacaoRepository, eventPublisher, RELOGIO);
+            mock(com.couto.chefe_api.repository.AvaliacaoRepository.class), denunciaAvaliacaoRepository,
+            mock(com.couto.chefe_api.repository.TelefoneBanidoRepository.class), new HashTelefone("teste"), eventPublisher, RELOGIO);
 
     private final ChefeModel chefe = new ChefeModel();
     private final Denuncia aberta = new Denuncia();

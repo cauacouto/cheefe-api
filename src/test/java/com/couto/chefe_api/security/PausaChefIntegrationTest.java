@@ -1,5 +1,6 @@
 package com.couto.chefe_api.security;
 
+import com.couto.chefe_api.TelefoneDeTeste;
 import com.couto.chefe_api.enums.Senioridade;
 import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.domain.UserModel;
@@ -84,7 +85,7 @@ class PausaChefIntegrationTest {
         cliente.setNome("Cliente");
         cliente.setEmail("cliente-" + UUID.randomUUID() + "@x.com");
         cliente.setEndereco(new ArrayList<>());
-        cliente = usuarioRepository.save(cliente);
+        cliente = usuarioRepository.save(TelefoneDeTeste.verificado(cliente));
 
         mockMvc.perform(patch("/chefe/me/ativar").cookie(cookie(new UsuarioAutenticado(cliente.getId(), cliente.getEmail(), TipoUsuario.CLIENTE))))
                 .andExpect(status().isForbidden());
@@ -102,7 +103,7 @@ class PausaChefIntegrationTest {
         chefe.setAnosDeExperiencia(5);
         chefe.setDisponivel(true);
         chefe.setAtivo(true);
-        return chefeRepository.save(chefe);
+        return chefeRepository.save(TelefoneDeTeste.verificado(chefe));
     }
 
     private Cookie cookieDe(ChefeModel chefe) {

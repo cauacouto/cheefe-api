@@ -1,5 +1,6 @@
 package com.couto.chefe_api.service;
 
+import com.couto.chefe_api.TelefoneDeTeste;
 import com.couto.chefe_api.dto.ConversaDto;
 import com.couto.chefe_api.security.UsuarioAutenticado;
 import com.couto.chefe_api.domain.UserModel;
@@ -52,7 +53,7 @@ class ConversaListagemIntegrationTest {
         ana.setNome("Ana");
         ana.setEmail("ana-" + UUID.randomUUID() + "@x.com");
         ana.setEndereco(new ArrayList<>());
-        ana = usuarioRepository.save(ana);
+        ana = usuarioRepository.save(TelefoneDeTeste.verificado(ana));
         anaLogada = new UsuarioAutenticado(ana.getId(), ana.getEmail(), TipoUsuario.CLIENTE);
     }
 
@@ -145,6 +146,6 @@ class ConversaListagemIntegrationTest {
         chefe.setEspecialidade(Especialidades.BRASILEIRA);
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
-        return chefeRepository.save(chefe);
+        return chefeRepository.save(TelefoneDeTeste.verificado(chefe));
     }
 }

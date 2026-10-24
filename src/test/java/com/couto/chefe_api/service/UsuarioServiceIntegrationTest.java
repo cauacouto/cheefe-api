@@ -1,6 +1,23 @@
 package com.couto.chefe_api.service;
 
+import com.couto.chefe_api.domain.Agendamento;
+import com.couto.chefe_api.domain.Avaliacao;
+import com.couto.chefe_api.domain.BloqueioConta;
+import com.couto.chefe_api.domain.ChefeModel;
 import com.couto.chefe_api.domain.UserModel;
+import com.couto.chefe_api.enums.CategoriaConteudo;
+import com.couto.chefe_api.enums.Especialidades;
+import com.couto.chefe_api.enums.EventoNotificacao;
+import com.couto.chefe_api.enums.Senioridade;
+import com.couto.chefe_api.enums.StatusAgendamento;
+import com.couto.chefe_api.enums.TipoUsuario;
+import com.couto.chefe_api.repository.AgendamentoRepository;
+import com.couto.chefe_api.repository.AvaliacaoRepository;
+import com.couto.chefe_api.repository.BloqueioContaRepository;
+import com.couto.chefe_api.repository.ChefeRepository;
+import com.couto.chefe_api.repository.NotificacaoRepository;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import com.couto.chefe_api.repository.UsuarioRepository;
 import com.couto.chefe_api.dto.EnderecoRequestDto;
 import com.couto.chefe_api.dto.UserRequestDto;
@@ -40,6 +57,18 @@ class UsuarioServiceIntegrationTest {
     private EnderecoRepository enderecoRepository;
     @Autowired
     private TransactionTemplate transactionTemplate;
+    @Autowired
+    private AgendamentoRepository agendamentoRepository;
+    @Autowired
+    private AvaliacaoRepository avaliacaoRepository;
+    @Autowired
+    private BloqueioContaRepository bloqueioContaRepository;
+    @Autowired
+    private ChefeRepository chefeRepository;
+    @Autowired
+    private NotificacaoRepository notificacaoRepository;
+    @Autowired
+    private NotificacaoService notificacaoService;
 
     private UUID usuarioId;
 
@@ -63,6 +92,10 @@ class UsuarioServiceIntegrationTest {
 
     @AfterEach
     void limpar() {
+        notificacaoRepository.deleteAll();
+        bloqueioContaRepository.deleteAll();
+        agendamentoRepository.deleteAll();
+        chefeRepository.deleteAll();
         enderecoRepository.deleteAll();
         usuarioRepository.deleteAll();
     }
@@ -126,5 +159,96 @@ class UsuarioServiceIntegrationTest {
 
         assertThat(resposta.getEmail()).isEqualTo(emailOriginal);
         assertThat(usuarioRepository.findById(usuarioId).orElseThrow().getEmail()).isEqualTo(emailOriginal);
+    }
+
+    @Test
+    void apagarContaApagaNotificacaoDeBloqueioDosModeradores() {
+        BloqueioConta doCliente = bloqueio(usuarioId);
+        BloqueioConta deOutraConta = bloqueio(UUID.randomUUID());
+        UUID moderador1 = UUID.randomUUID();
+        UUID moderador2 = UUID.randomUUID();
+        for (UUID moderador : List.of(moderador1, moderador2)) {
+            notificacaoService.notificar(moderador, TipoUsuario.MODERADOR, EventoNotificacao.CONTA_BLOQUEADA,
+                    "bloqueada", String.valueOf(doCliente.getId()));
+        }
+        notificacaoService.notificar(moderador1, TipoUsuario.MODERADOR, EventoNotificacao.CONTA_BLOQUEADA,
+                "outra", String.valueOf(deOutraConta.getId()));
+
+        usuarioService.deletar(usuarioId);
+
+        assertThat(notificacaoRepository.findAll()).extracting(n -> n.getReferenciaId())
+                .containsExactly(String.valueOf(deOutraConta.getId()));
+    }
+
+    @Test
+    void apagarContaDeQuemAvaliouDoisChefsDescontaOsDoisEApagaAsNotificacoes() {
+        ChefeModel bia = novoChefe("Bia");
+        ChefeModel caio = novoChefe("Caio");
+        UserModel cliente = usuarioRepository.findById(usuarioId).orElseThrow();
+        Agendamento ag = new Agendamento();
+        ag.setUsuario(cliente);
+        ag.setChefes(new ArrayList<>(List.of(bia, caio)));
+        ag.setDataHoraInicial(LocalDateTime.now().minusDays(2));
+        ag.setDataHoraFinal(LocalDateTime.now().minusDays(2).plusHours(2));
+        ag.setQuantidadePessoas(2);
+        ag.setValorTotal(new BigDecimal("200.00"));
+        ag.setStatus(StatusAgendamento.CONCLUIDO);
+        ag.setConcluidoEm(LocalDateTime.now().minusDays(1));
+        ag = agendamentoRepository.save(ag);
+        // outra pessoa também avaliou a Bia: só a nota do cliente apagado sai
+        transactionTemplate.executeWithoutResult(t -> chefeRepository.somarAvaliacao(bia.getId(), 2));
+        for (ChefeModel chefe : List.of(bia, caio)) {
+            transactionTemplate.executeWithoutResult(t -> chefeRepository.somarAvaliacao(chefe.getId(), 5));
+            Avaliacao a = new Avaliacao();
+            a.setAgendamento(ag);
+            a.setAutorId(usuarioId);
+            a.setAutorTipo(TipoUsuario.CLIENTE);
+            a.setAvaliadoId(chefe.getId());
+            a.setAvaliadoTipo(TipoUsuario.CHEFE);
+            a.setNota(5);
+            a.setComentario("ótimo");
+            a.setPublicadoEm(LocalDateTime.now());
+            a = avaliacaoRepository.save(a);
+            notificacaoService.notificar(usuarioId, TipoUsuario.CLIENTE, EventoNotificacao.AVALIACAO_RESPONDIDA,
+                    "respondeu", String.valueOf(a.getId()));
+        }
+        assertThat(notificacaoRepository.count()).isEqualTo(2);
+
+        usuarioService.deletar(usuarioId);
+
+        ChefeModel biaDepois = chefeRepository.findById(bia.getId()).orElseThrow();
+        ChefeModel caioDepois = chefeRepository.findById(caio.getId()).orElseThrow();
+        assertThat(biaDepois.getTotalAvaliacoes()).isEqualTo(1);
+        assertThat(biaDepois.getSomaNotas()).isEqualTo(2);
+        assertThat(caioDepois.getTotalAvaliacoes()).isZero();
+        assertThat(caioDepois.getSomaNotas()).isZero();
+        assertThat(avaliacaoRepository.count()).isZero();
+        assertThat(notificacaoRepository.findAll()).isEmpty();
+    }
+
+    private BloqueioConta bloqueio(UUID contaId) {
+        BloqueioConta b = new BloqueioConta();
+        b.setContaId(contaId);
+        b.setContaTipo(TipoUsuario.CLIENTE);
+        b.setCategoria(CategoriaConteudo.ODIO);
+        b.setTermo("odiento");
+        b.setTexto("texto");
+        b.setCriadoEm(LocalDateTime.now());
+        return bloqueioContaRepository.save(b);
+    }
+
+    private ChefeModel novoChefe(String nome) {
+        ChefeModel chefe = new ChefeModel();
+        chefe.setNome(nome);
+        chefe.setEmail(nome.toLowerCase() + "-" + UUID.randomUUID() + "@x.com");
+        chefe.setNacionalidade("Brasileira");
+        chefe.setIdiomas("pt");
+        chefe.setValorHora(new BigDecimal("100"));
+        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setSenioridade(Senioridade.HEAD_CHEF);
+        chefe.setAnosDeExperiencia(5);
+        chefe.setDisponivel(true);
+        chefe.setAtivo(true);
+        return chefeRepository.save(chefe);
     }
 }

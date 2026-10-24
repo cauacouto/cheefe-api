@@ -27,7 +27,10 @@ import java.util.UUID;
 @Table(name = "avaliacao",
         uniqueConstraints = @UniqueConstraint(name = "uk_avaliacao_agendamento_autor_avaliado",
                 columnNames = {"agendamento_id", "autor_id", "avaliado_id"}),
-        indexes = @Index(name = "idx_avaliacao_avaliado_publicado", columnList = "avaliado_id, publicado_em"))
+        // idx_avaliacao_a_publicar (parcial, só na V10) não cabe no JPA; avaliacao_tag tem PK (avaliacao_id, tag) pela V10
+        indexes = {
+                @Index(name = "idx_avaliacao_avaliado_publicado", columnList = "avaliado_id, publicado_em"),
+                @Index(name = "idx_avaliacao_autor", columnList = "autor_id")})
 @Getter
 @Setter
 @NoArgsConstructor

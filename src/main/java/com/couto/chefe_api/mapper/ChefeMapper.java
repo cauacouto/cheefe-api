@@ -29,6 +29,9 @@ public interface ChefeMapper {
     @Mapping(target = "bloqueioMotivo", ignore = true)
     @Mapping(target = "somaNotas", ignore = true)
     @Mapping(target = "totalAvaliacoes", ignore = true)
+    // telefone verificado só pelo fluxo de SMS (TelefoneService), nunca pelo corpo
+    @Mapping(target = "telefoneVerificado", ignore = true)
+    @Mapping(target = "telefoneVerificadoEm", ignore = true)
     ChefeModel toModel(RegisterRequestDto dto);
 
 @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
@@ -45,6 +48,9 @@ public interface ChefeMapper {
     @Mapping(target = "bloqueioMotivo", ignore = true)
     @Mapping(target = "somaNotas", ignore = true)
     @Mapping(target = "totalAvaliacoes", ignore = true)
+    // telefone verificado só pelo fluxo de SMS (TelefoneService), nunca pelo corpo
+    @Mapping(target = "telefoneVerificado", ignore = true)
+    @Mapping(target = "telefoneVerificadoEm", ignore = true)
     void updateModelFromDto(ChefeRequestDto dto, @MappingTarget ChefeModel model);
 
 

@@ -1,5 +1,6 @@
 package com.couto.chefe_api.security;
 
+import com.couto.chefe_api.TelefoneDeTeste;
 import com.couto.chefe_api.domain.UserModel;
 import com.couto.chefe_api.repository.UsuarioRepository;
 import com.couto.chefe_api.domain.ChefeModel;
@@ -50,6 +51,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @ActiveProfiles("test")
 @org.springframework.context.annotation.Import(com.couto.chefe_api.FiltroDeTeste.class)
+@org.springframework.test.context.event.RecordApplicationEvents
 class ConversaIntegrationTest {
 
     static final JsonMapper JSON = JsonMapper.builder().build();
@@ -67,6 +69,7 @@ class ConversaIntegrationTest {
     @Autowired DenunciaRepository denunciaRepository;
     @Autowired NotificacaoService notificacaoService;
     @Autowired ModeracaoRegistry moderacaoRegistry;
+    @Autowired org.springframework.test.context.event.ApplicationEvents eventos;
     @Autowired com.couto.chefe_api.repository.BloqueioContaRepository bloqueioContaRepository;
 
     MockMvc mockMvc;
@@ -282,6 +285,43 @@ class ConversaIntegrationTest {
         mockMvc.perform(get("/moderacao/denuncias-mensagens").cookie(cookieModerador()))
                 .andExpect(jsonPath("$.content[0].textoDenunciado").value("que *** de pedido"))
                 .andExpect(jsonPath("$.content[0].textoOriginal").value("que palavrao de pedido"));
+    }
+
+    @Test
+    void eventoDeTempoRealDaMensagemSaiMascaradoNoEnvioENaEdicao() throws Exception {
+        long conversa = abrir(ana, bia).andReturnId();
+
+        long mensagem = new Resposta(enviar(bia, conversa, "que palavrao de pedido")).andReturnId();
+
+        var enviado = eventos.stream(com.couto.chefe_api.service.eventos.MensagemEnviadaEvent.class).toList();
+        assertThat(enviado).singleElement().satisfies(e -> {
+            assertThat(e.paraDestinatario().texto()).isEqualTo("que *** de pedido");
+            assertThat(e.paraRemetente().texto()).isEqualTo("que *** de pedido");
+            assertThat(JSON.writeValueAsString(e)).doesNotContain("palavrao");
+        });
+
+        mockMvc.perform(patch("/conversas/" + conversa + "/mensagens/" + mensagem).cookie(cookie(bia))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"texto\":\"agora um palavrao editado\"}"))
+                .andExpect(status().isOk());
+
+        var editado = eventos.stream(com.couto.chefe_api.service.eventos.MensagemEditadaEvent.class).toList();
+        assertThat(editado).singleElement().satisfies(e -> {
+            assertThat(e.paraOutro().texto()).isEqualTo("agora um *** editado");
+            assertThat(e.paraAutor().texto()).isEqualTo("agora um *** editado");
+            assertThat(JSON.writeValueAsString(e)).doesNotContain("palavrao");
+        });
+    }
+
+    @Test
+    void filaDeDenunciaDeMensagemSemMascaraNaoTemTextoOriginal() throws Exception {
+        long conversa = abrir(ana, bia).andReturnId();
+        long mensagem = new Resposta(enviar(bia, conversa, "golpe pix")).andReturnId();
+        denunciar(ana, "/conversas/" + conversa + "/mensagens/" + mensagem, "OFENSIVA").andExpect(status().isCreated());
+
+        mockMvc.perform(get("/moderacao/denuncias-mensagens").cookie(cookieModerador()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].textoDenunciado").value("golpe pix"))
+                .andExpect(jsonPath("$.content[0].textoOriginal").isEmpty());
     }
 
     @Test
@@ -525,7 +565,7 @@ class ConversaIntegrationTest {
         usuario.setNome(nome);
         usuario.setEmail(nome.toLowerCase() + "-" + UUID.randomUUID() + "@x.com");
         usuario.setEndereco(new ArrayList<>());
-        return usuarioRepository.save(usuario);
+        return usuarioRepository.save(TelefoneDeTeste.verificado(usuario));
     }
 
     ChefeModel novoChefe(String nome) {
@@ -538,7 +578,7 @@ class ConversaIntegrationTest {
         chefe.setEspecialidade(Especialidades.BRASILEIRA);
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
-        return chefeRepository.save(chefe);
+        return chefeRepository.save(TelefoneDeTeste.verificado(chefe));
     }
 
     Cookie cookie(UserModel cliente) {

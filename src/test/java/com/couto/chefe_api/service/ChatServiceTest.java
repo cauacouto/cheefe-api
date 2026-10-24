@@ -56,7 +56,8 @@ class ChatServiceTest {
     private final ChefeRepository chefeRepository = mock(ChefeRepository.class);
     private final ModeracaoConteudoService moderacao = mock(ModeracaoConteudoService.class);
     private final ChatService service = new ChatService(conversaRepository, mensagemRepository,
-            usuarioRepository, chefeRepository, mock(NotificacaoService.class), moderacao, eventPublisher, RELOGIO,
+            usuarioRepository, chefeRepository, mock(NotificacaoService.class), moderacao,
+            mock(ExigenciaTelefone.class), eventPublisher, RELOGIO,
             new TransactionTemplate(mock(PlatformTransactionManager.class)));
 
     private final UserModel cliente = new UserModel();
@@ -111,6 +112,34 @@ class ChatServiceTest {
                 .isInstanceOf(com.couto.chefe_api.exception.ConteudoBloqueadoException.class);
         verify(conversaRepository, never()).travarPorId(1L);
         verify(mensagemRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void editarVerificaOTextoAntesDeGravar() {
+        java.util.List<String> textoNaVerificacao = new java.util.ArrayList<>();
+        when(moderacao.verificar(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(inv -> {
+                    textoNaVerificacao.add(mensagem.getTexto());
+                    return inv.getArgument(0);
+                });
+
+        service.editar(1L, 10L, ana, "corrigido");
+
+        // quando o filtro roda, o texto novo ainda não foi para a mensagem
+        assertThat(textoNaVerificacao).containsExactly("original");
+        assertThat(mensagem.getTexto()).isEqualTo("corrigido");
+    }
+
+    @Test
+    void editarComConteudoBloqueadoNaoGravaNemPublica() {
+        when(moderacao.verificar("seu odiento", ana)).thenThrow(new com.couto.chefe_api.exception.ConteudoBloqueadoException());
+
+        assertThatThrownBy(() -> service.editar(1L, 10L, ana, "seu odiento"))
+                .isInstanceOf(com.couto.chefe_api.exception.ConteudoBloqueadoException.class);
+
+        assertThat(mensagem.getTexto()).isEqualTo("original");
+        assertThat(mensagem.getEditadaEm()).isNull();
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 
     @Test

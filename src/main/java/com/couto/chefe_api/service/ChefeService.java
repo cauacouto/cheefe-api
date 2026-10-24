@@ -58,6 +58,7 @@ public class ChefeService {
                 .and(ChefeSpecification.perfilCompleto())
                 .and(ChefeSpecification.naoSuspenso())
                 .and(ChefeSpecification.naoBloqueado())
+                .and(ChefeSpecification.telefoneVerificado())
                 .and(ChefeSpecification.semDenunciasEmExcesso())
                 .and(ChefeSpecification.valorMinimoMaior(valorMinimo))
                 .and(ChefeSpecification.valorMaximoMenor(valorMaximo));
@@ -101,6 +102,9 @@ public class ChefeService {
     public void deletar(UUID id) {
         ChefeModel chefe = chefeRepository.findById(id).orElseThrow(ChefeNaoEncontradoException::new);
         chefe.setAtivo(false);
+        // LGPD: o telefone verificado é dado da conta e some com ela (o hash de banido, se houver, fica)
+        chefe.setTelefoneVerificado(null);
+        chefe.setTelefoneVerificadoEm(null);
         chefeRepository.save(chefe);
     }
 

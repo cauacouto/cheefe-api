@@ -56,10 +56,11 @@ class AuthControllerTest {
         UUID id = UUID.randomUUID();
         UsuarioAutenticado usuario = new UsuarioAutenticado(id, "ana@gmail.com", TipoUsuario.CHEFE);
         when(loginService.contaAtiva(usuario)).thenReturn(true);
+        when(loginService.telefoneVerificado(usuario)).thenReturn(true);
 
         var result = controller.me(usuario, new MockHttpServletResponse());
 
-        assertEquals(new SessaoDto(id, "ana@gmail.com", TipoUsuario.CHEFE), result.getBody());
+        assertEquals(new SessaoDto(id, "ana@gmail.com", TipoUsuario.CHEFE, true), result.getBody());
     }
 
     @Test

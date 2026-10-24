@@ -1,5 +1,6 @@
 package com.couto.chefe_api.security;
 
+import com.couto.chefe_api.TelefoneDeTeste;
 import com.couto.chefe_api.domain.UserModel;
 import com.couto.chefe_api.repository.UsuarioRepository;
 import com.couto.chefe_api.domain.Agendamento;
@@ -716,6 +717,60 @@ class AvaliacaoIntegrationTest {
                 .findFirst().orElseThrow().getId();
     }
 
+    @Test
+    void listaPublicaMostraARespostaDoChefSoNaAvaliacaoRespondida() throws Exception {
+        ChefeModel bia = novoChefe("Bia");
+        UserModel ana = novoCliente("Ana");
+        UserModel edu = novoCliente("Edu");
+        Agendamento a = concluido(novoAgendamento(ana, BASE, bia), LocalDateTime.now().minusDays(1));
+        Avaliacao respondida = avaliacaoSalva(a, ana, bia, 5, "Ótima", true, LocalDateTime.now().minusHours(2));
+        respondida.setResposta("Obrigada!");
+        respondida.setRespondidaEm(LocalDateTime.now().minusHours(1));
+        avaliacaoRepository.save(respondida);
+        avaliacaoSalva(a, edu, bia, 4, "Boa", true, LocalDateTime.now().minusHours(3));
+
+        mockMvc.perform(get("/chefe/" + bia.getId() + "/avaliacoes").cookie(cookieDe(edu)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].comentario").value("Ótima"))
+                .andExpect(jsonPath("$.content[0].resposta").value("Obrigada!"))
+                .andExpect(jsonPath("$.content[1].resposta").doesNotExist());
+    }
+
+    @Test
+    void moderadorNaoVeReputacaoDeClienteNemAvaliaNemListaPendentes() throws Exception {
+        UserModel ana = novoCliente("Ana");
+        ChefeModel bia = novoChefe("Bia");
+        Agendamento a = concluido(novoAgendamento(ana, BASE, bia), LocalDateTime.now().minusDays(1));
+
+        mockMvc.perform(get("/clientes/" + ana.getId() + "/reputacao").cookie(cookieModerador()))
+                .andExpect(status().isForbidden());
+        avaliar(cookieModerador(), a, "{\"chefeId\":\"" + bia.getId() + "\",\"nota\":5}")
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/agendamentos/" + a.getId() + "/avaliacoes/pendentes").cookie(cookieModerador()))
+                .andExpect(status().isForbidden());
+
+        assertThat(avaliacaoRepository.count()).isZero();
+    }
+
+    @Test
+    void chefComOdioNaAvaliacaoDoClienteEhBloqueadoENaoGrava() throws Exception {
+        UserModel ana = novoCliente("Ana");
+        ChefeModel bia = novoChefe("Bia");
+        Agendamento a = concluido(novoAgendamento(ana, BASE, bia), LocalDateTime.now().minusDays(1));
+
+        avaliar(cookieDe(bia), a, "{\"nota\":1,\"comentario\":\"cliente odiento\"}")
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.detail").value("Conteúdo bloqueado e conta suspensa para análise da moderação"));
+
+        assertThat(avaliacaoRepository.count()).isZero();
+        assertThat(chefeRepository.findById(bia.getId()).orElseThrow().getBloqueadoEm()).isNotNull();
+        UserModel anaDepois = usuarioRepository.findById(ana.getId()).orElseThrow();
+        assertThat(anaDepois.getTotalAvaliacoes()).isZero();
+        assertThat(anaDepois.getBloqueadoEm()).isNull();
+        assertThat(bloqueioContaRepository.findAll()).singleElement()
+                .satisfies(b -> assertThat(b.getContaId()).isEqualTo(bia.getId()));
+    }
+
     private Cookie cookieModerador() {
         String email = "moderacao@chefhome.test"; // application-test.yml
         return new Cookie(AuthCookies.ACCESS_TOKEN, tokenService.gerarToken(
@@ -790,7 +845,7 @@ class AvaliacaoIntegrationTest {
         usuario.setNome(nome);
         usuario.setEmail(nome.toLowerCase() + "-" + UUID.randomUUID() + "@x.com");
         usuario.setEndereco(new ArrayList<>());
-        return usuarioRepository.save(usuario);
+        return usuarioRepository.save(TelefoneDeTeste.verificado(usuario));
     }
 
     ChefeModel novoChefe(String nome) {
@@ -805,7 +860,7 @@ class AvaliacaoIntegrationTest {
         chefe.setAnosDeExperiencia(5);
         chefe.setDisponivel(true);
         chefe.setAtivo(true);
-        return chefeRepository.save(chefe);
+        return chefeRepository.save(TelefoneDeTeste.verificado(chefe));
     }
 
     Cookie cookieDe(UserModel usuario) {

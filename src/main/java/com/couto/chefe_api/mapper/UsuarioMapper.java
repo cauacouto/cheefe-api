@@ -21,6 +21,9 @@ public interface UsuarioMapper {
     @Mapping(target = "bloqueioMotivo", ignore = true)
     @Mapping(target = "somaNotas", ignore = true)
     @Mapping(target = "totalAvaliacoes", ignore = true)
+    // telefone verificado só pelo fluxo de SMS (TelefoneService), nunca pelo corpo
+    @Mapping(target = "telefoneVerificado", ignore = true)
+    @Mapping(target = "telefoneVerificadoEm", ignore = true)
     // onboarding mínimo: o telefone entra depois, no PUT /usuario/me
     @Mapping(target = "telefone", ignore = true)
     UserModel toEntity(RegisterRequestDto dto);

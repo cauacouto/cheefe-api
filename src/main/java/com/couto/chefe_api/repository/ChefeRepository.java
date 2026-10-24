@@ -24,14 +24,24 @@ public interface ChefeRepository extends JpaRepository<ChefeModel, UUID>, JpaSpe
 
     boolean existsByIdAndBloqueadoEmIsNotNull(UUID id);
 
-    // visível = ativo, disponível, perfil completo, não suspenso, não bloqueado e < 3 denunciantes com denúncia aberta
-    String VISIVEL = "c.ativo = true AND c.disponivel = true " +
+    boolean existsByIdAndTelefoneVerificadoIsNotNull(UUID id);
+
+    /** O telefone já está verificado em outra conta desta tabela (a própria conta não conta). */
+    boolean existsByTelefoneVerificadoAndIdNot(String telefoneVerificado, UUID id);
+
+    // visível = ativo, disponível, perfil completo, telefone verificado, não suspenso, não bloqueado e
+    // < 3 denunciantes com denúncia aberta
+    String VISIVEL = "c.ativo = true AND c.disponivel = true AND c.telefoneVerificado IS NOT NULL " +
             "AND TRIM(COALESCE(c.nacionalidade, '')) <> '' AND c.especialidade IS NOT NULL " +
             "AND c.senioridade IS NOT NULL AND c.anosDeExperiencia IS NOT NULL " +
             "AND TRIM(COALESCE(c.idiomas, '')) <> '' AND c.valorHora IS NOT NULL " +
             "AND c.suspenso = false AND c.bloqueadoEm IS NULL " +
             "AND (SELECT COUNT(DISTINCT d.cliente.id) FROM Denuncia d WHERE d.chefe = c " +
             "AND d.status = com.couto.chefe_api.enums.StatusDenuncia.ABERTA) < 3";
+
+    /** O chef aparece na busca (mesma regra de {@link #VISIVEL}). */
+    @Query("SELECT COUNT(c) > 0 FROM ChefeModel c WHERE c.id = :id AND " + VISIVEL)
+    boolean visivel(@Param("id") UUID id);
 
     /** SELECT ... FOR UPDATE sempre na mesma ordem (por id): confirmações simultâneas esperam e não travam umas às outras. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)

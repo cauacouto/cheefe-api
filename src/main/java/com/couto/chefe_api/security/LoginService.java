@@ -67,6 +67,15 @@ public class LoginService {
         };
     }
 
+    /** Nulo para a moderação, que não verifica telefone. */
+    public Boolean telefoneVerificado(UsuarioAutenticado usuario) {
+        return switch (usuario.tipo()) {
+            case CLIENTE -> repository.findById(usuario.id()).map(c -> c.getTelefoneVerificadoEm() != null).orElse(false);
+            case CHEFE -> chefeRepository.findById(usuario.id()).map(c -> c.getTelefoneVerificadoEm() != null).orElse(false);
+            case MODERADOR -> null;
+        };
+    }
+
     public RegistroPendenteDto dadosRegistro(String registroToken) {
         GoogleUser googleUser = validarRegistro(registroToken);
         return new RegistroPendenteDto(googleUser.email(), googleUser.nome(), googleUser.foto());

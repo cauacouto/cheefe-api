@@ -58,6 +58,7 @@ public class SecurityConfiguration  {
                         // papel por rota; o dono do recurso é checado nos serviços
                         .requestMatchers("/moderacao/**").hasRole(MODERADOR)
                         .requestMatchers("/usuario/**").hasRole(CLIENTE)
+                        .requestMatchers("/telefone/**").hasAnyRole(CLIENTE, CHEFE)
                         .requestMatchers(HttpMethod.POST, "/denuncias").hasRole(CLIENTE)
                         .requestMatchers(HttpMethod.POST, "/conversas").hasRole(CLIENTE)
                         .requestMatchers("/conversas", "/conversas/**").hasAnyRole(CLIENTE, CHEFE)
@@ -68,6 +69,7 @@ public class SecurityConfiguration  {
                         .requestMatchers(HttpMethod.PATCH, "/chefe/me", "/chefe/me/inativar", "/chefe/me/ativar").hasRole(CHEFE)
                         .requestMatchers(HttpMethod.DELETE, "/chefe/me").hasRole(CHEFE)
                         .requestMatchers(HttpMethod.PUT, "/chefe/me/foto").hasRole(CHEFE)
+                        .requestMatchers("/chefe/me/agenda", "/chefe/me/agenda/**").hasRole(CHEFE)
                         .requestMatchers(HttpMethod.POST, "/pratos").hasRole(CHEFE)
                         .requestMatchers(HttpMethod.PUT, "/pratos/*").hasRole(CHEFE)
                         .requestMatchers(HttpMethod.GET, "/pratos/meus").hasRole(CHEFE)

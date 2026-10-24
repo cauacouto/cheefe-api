@@ -42,8 +42,8 @@ public interface AgendamentoMapper {
     @Mapping(source = "endereco.cep",              target = "cep")
     @Mapping(source = "quantidadePessoas",           target = "quantidadePessoas")
     @Mapping(source = "dataHoraInicial",             target = "dataHora")
-    @Mapping(target = "clienteNotaMedia", expression = "java(Reputacao.media(agendamento.getUsuario().getSomaNotas(), "
-            + "agendamento.getUsuario().getTotalAvaliacoes()))")
+    @Mapping(target = "clienteNotaMedia", expression = "java(agendamento.getUsuario() == null ? null : "
+            + "Reputacao.media(agendamento.getUsuario().getSomaNotas(), agendamento.getUsuario().getTotalAvaliacoes()))")
     @Mapping(source = "usuario.totalAvaliacoes",     target = "clienteTotalAvaliacoes")
     ListaAgendamentoChefeDto toChefeDto(Agendamento agendamento);
 

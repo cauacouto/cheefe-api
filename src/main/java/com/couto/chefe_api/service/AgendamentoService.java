@@ -78,11 +78,14 @@ public class AgendamentoService {
     private final DenunciaRepository denunciaRepository;
     private final HistoricoAgendamentoService historico;
     private final AgendamentoHistoricoRepository historicoRepository;
+    private final AgendaService agendaService;
+    private final ExigenciaTelefone exigenciaTelefone;
     private final Clock clock;
 
     @Transactional
     public AgendamentoResponseDto criarAgendamento(AgendamentoRequestDto dto, UUID usuarioId) {
         var user = usuarioRepository.findById(usuarioId).orElseThrow(UsuarioException::new);
+        exigenciaTelefone.exigir(usuarioId, TipoUsuario.CLIENTE);
 
         validarPeriodo(dto.getDataHoraInicial(), dto.getDataHoraFinal());
         List<ChefeModel> chefes = validarChefes(dto.getChefeIds());
@@ -98,6 +101,7 @@ public class AgendamentoService {
         agendamento.setCriadoEm(agora());
         agendamento.setValorTotal(Agendamento.calcularValor(chefes, dto.getDataHoraInicial(), dto.getDataHoraFinal()));
         exigirHorarioLivre(agendamento);
+        agendaService.exigirDisponivel(chefes, dto.getDataHoraInicial(), dto.getDataHoraFinal());
         Agendamento salvo = agendamentoRepository.save(agendamento);
         historico.registrar(salvo, AcaoAgendamento.CRIADO, usuarioId, TipoUsuario.CLIENTE, null, null);
         eventPublisher.publishEvent(new AgendamentoCriadoEvent(salvo.getId()));
@@ -163,6 +167,7 @@ public class AgendamentoService {
         if (recalcular) {
             agenda.setValorTotal(Agendamento.calcularValor(agenda.getChefes(), agenda.getDataHoraInicial(), agenda.getDataHoraFinal()));
             exigirHorarioLivre(agenda);
+            agendaService.exigirDisponivel(agenda.getChefes(), agenda.getDataHoraInicial(), agenda.getDataHoraFinal());
         }
 
         Agendamento salvo = agendamentoRepository.save(agenda);
@@ -187,6 +192,9 @@ public class AgendamentoService {
         chefeRepository.travar(agendamento.getChefes().stream().map(ChefeModel::getId).toList());
         agendamento.confirmar(agora());
         exigirHorarioLivre(agendamento);
+        // a agenda de todos (como o horário livre); depois da trava, para não confirmar dentro de um bloqueio recém-criado
+        agendaService.exigirDisponivel(agendamento.getChefes(),
+                agendamento.getDataHoraInicial(), agendamento.getDataHoraFinal());
         agendamentoRepository.save(agendamento);
         historico.registrar(agendamento, AcaoAgendamento.CONFIRMADO, chefeId, TipoUsuario.CHEFE, null, null);
         eventPublisher.publishEvent(new AgendamentoConfirmadoEvent(agendamento.getId(), chefeId));
@@ -355,7 +363,7 @@ public class AgendamentoService {
 
     /**
      * Garante que todos os ids existem (ids repetidos contam uma vez) e que os
-     * chefes estão ativos e disponíveis.
+     * chefes estão ativos, disponíveis e com telefone verificado (o mesmo critério de visível na busca).
      */
     private List<ChefeModel> validarChefes(List<UUID> chefeIds) {
         if (chefeIds == null || chefeIds.isEmpty()) {
@@ -374,7 +382,7 @@ public class AgendamentoService {
 
         boolean todosValidos = chefes.stream()
                 .allMatch(chefe -> chefe.isDisponivel() && Boolean.TRUE.equals(chefe.getAtivo()) && !chefe.isSuspenso()
-                        && chefe.getBloqueadoEm() == null
+                        && chefe.getBloqueadoEm() == null && chefe.getTelefoneVerificado() != null
                         && denunciaRepository.countDistinctClienteByChefeIdAndStatus(chefe.getId(), StatusDenuncia.ABERTA)
                         < DenunciaService.LIMITE_OCULTACAO);
         if (!todosValidos) {
