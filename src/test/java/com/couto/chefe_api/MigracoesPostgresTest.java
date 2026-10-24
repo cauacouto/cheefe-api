@@ -261,6 +261,29 @@ class MigracoesPostgresTest {
     }
 
     @Test
+    void avaliacaoTagTemChavePrimariaComposta() throws SQLException {
+        try (Connection app = conectar("chefhome_app", SENHA_APP);
+             Statement st = app.createStatement()) {
+            assertThat(coluna(st, "SELECT pg_get_constraintdef(c.oid) FROM pg_constraint c "
+                    + "JOIN pg_class t ON t.oid = c.conrelid JOIN pg_namespace n ON n.oid = t.relnamespace "
+                    + "WHERE n.nspname = 'chefhome' AND t.relname = 'avaliacao_tag' AND c.contype = 'p'"))
+                    .containsExactly("PRIMARY KEY (avaliacao_id, tag)");
+        }
+    }
+
+    @Test
+    void avaliacaoTemIndicePorAutorEIndiceParcialDaRotina() throws SQLException {
+        try (Connection app = conectar("chefhome_app", SENHA_APP);
+             Statement st = app.createStatement()) {
+            assertThat(coluna(st, "SELECT indexdef FROM pg_indexes WHERE schemaname = 'chefhome' "
+                    + "AND indexname = 'idx_avaliacao_autor'")).singleElement().asString().contains("(autor_id)");
+            assertThat(coluna(st, "SELECT indexdef FROM pg_indexes WHERE schemaname = 'chefhome' "
+                    + "AND indexname = 'idx_avaliacao_a_publicar'")).singleElement().asString()
+                    .contains("(agendamento_id)").contains("publicado_em IS NULL").contains("anonimo = false");
+        }
+    }
+
+    @Test
     void checksDeEnumBatemComOsEnumsJava() throws SQLException {
         assertCheckDeTexto("chefe", "especialidade", com.couto.chefe_api.enums.Especialidades.values());
         assertCheckDeTexto("chefe", "senioridade", Senioridade.values());

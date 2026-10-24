@@ -26,6 +26,7 @@ import com.couto.chefe_api.repository.ChefeRepository;
 import com.couto.chefe_api.repository.UsuarioRepository;
 import com.couto.chefe_api.security.UsuarioAutenticado;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -57,6 +58,7 @@ import java.util.stream.Collectors;
 public class AvaliacaoService {
 
     static final Duration PRAZO = Duration.ofDays(7);
+    static final String JA_AVALIOU = "Você já avaliou essa pessoa neste agendamento";
     static final String MENSAGEM_RECEBIDA = "Você recebeu uma nova avaliação";
     static final String AUTOR_ANONIMO = "Cliente verificado";
     static final String COMENTARIO_REMOVIDO = "Comentário removido pela moderação";
@@ -84,7 +86,7 @@ public class AvaliacaoService {
         exigirDentroDoPrazo(agendamento, agora);
         Avaliado avaliado = avaliadoPor(agendamento, autor, dto.chefeId());
         if (avaliacaoRepository.existsByAgendamento_IdAndAutorIdAndAvaliadoId(agendamento.getId(), autor.id(), avaliado.id())) {
-            throw new ConflitoException("Você já avaliou essa pessoa neste agendamento");
+            throw new ConflitoException(JA_AVALIOU);
         }
         Set<String> tags = validarTags(dto.tags(), avaliado.tipo());
 
@@ -108,7 +110,7 @@ public class AvaliacaoService {
         boolean anonimo = original == null || !Boolean.FALSE.equals(dto.anonimo());
         avaliacao.setAnonimo(anonimo);
         avaliacao.setPublicadoEm(anonimo ? agora : null);
-        Avaliacao salva = avaliacaoRepository.save(avaliacao);
+        Avaliacao salva = salvar(avaliacao);
 
         if (autor.tipo() == TipoUsuario.CHEFE) {
             // o chef avaliou: o comentário com nome que o cliente deixou sobre ele já pode aparecer
@@ -121,6 +123,22 @@ public class AvaliacaoService {
         notificacaoService.notificar(avaliado.id(), avaliado.tipo(), EventoNotificacao.AVALIACAO_RECEBIDA,
                 MENSAGEM_RECEBIDA, null);
         return salva.getId();
+    }
+
+    /**
+     * Duas avaliações iguais ao mesmo tempo passam juntas pela checagem de cima; a segunda cai no unique
+     * do banco. O cliente recebe a mesma resposta da checagem, não a mensagem genérica de integridade.
+     */
+    private Avaliacao salvar(Avaliacao avaliacao) {
+        try {
+            return avaliacaoRepository.save(avaliacao);
+        } catch (DataIntegrityViolationException e) {
+            if (e.getMostSpecificCause().getMessage() != null
+                    && e.getMostSpecificCause().getMessage().contains("uk_avaliacao_agendamento_autor_avaliado")) {
+                throw new ConflitoException(JA_AVALIOU);
+            }
+            throw e;
+        }
     }
 
     /** Chamado pela {@link AvaliacaoRotina}, uma transação por avaliação. */

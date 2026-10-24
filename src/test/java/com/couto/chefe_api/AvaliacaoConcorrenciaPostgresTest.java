@@ -6,6 +6,8 @@ import com.couto.chefe_api.security.UsuarioAutenticado;
 import com.couto.chefe_api.domain.UserModel;
 import com.couto.chefe_api.repository.UsuarioRepository;
 import com.couto.chefe_api.domain.Agendamento;
+import com.couto.chefe_api.domain.Avaliacao;
+import com.couto.chefe_api.repository.AvaliacaoRepository;
 import com.couto.chefe_api.domain.ChefeModel;
 import com.couto.chefe_api.domain.EnderecoModel;
 import com.couto.chefe_api.enums.Especialidades;
@@ -35,6 +37,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -65,6 +68,7 @@ class AvaliacaoConcorrenciaPostgresTest {
     @Autowired EnderecoRepository enderecoRepository;
     @Autowired AgendamentoRepository agendamentoRepository;
     @Autowired com.couto.chefe_api.repository.NotificacaoRepository notificacaoRepository;
+    @Autowired AvaliacaoRepository avaliacaoRepository;
 
     final List<Agendamento> agendamentos = new ArrayList<>();
     ChefeModel bia;
@@ -125,6 +129,90 @@ class AvaliacaoConcorrenciaPostgresTest {
         ChefeModel depois = chefeRepository.findById(bia.getId()).orElseThrow();
         assertThat(depois.getTotalAvaliacoes()).isEqualTo(2);
         assertThat(depois.getSomaNotas()).isEqualTo(8);
+    }
+
+    @Test
+    void avaliacaoRepetidaAoMesmoTempoResponde409ComAMensagemDoConflito() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+        bia = novoChefe();
+        Agendamento agendamento = novoAgendamento(BASE.minusDays(20));
+        agendamento.setStatus(StatusAgendamento.CONCLUIDO);
+        agendamento.setConcluidoEm(LocalDateTime.now().minusDays(1));
+        agendamentos.add(agendamentoRepository.save(agendamento));
+        UserModel cliente = agendamento.getUsuario();
+        Cookie cookie = new Cookie(AuthCookies.ACCESS_TOKEN, tokenService.gerarToken(
+                new UsuarioAutenticado(cliente.getId(), cliente.getEmail(), TipoUsuario.CLIENTE)));
+        Callable<org.springframework.mock.web.MockHttpServletResponse> avaliar = () ->
+                mockMvc.perform(post("/agendamentos/" + agendamento.getId() + "/avaliacoes").cookie(cookie)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"chefeId\":\"" + bia.getId() + "\",\"nota\":4}"))
+                        .andReturn().getResponse();
+
+        var respostas = juntos(avaliar, avaliar);
+
+        assertThat(respostas).extracting(r -> r.getStatus()).containsExactlyInAnyOrder(201, 409);
+        var repetida = respostas.stream().filter(r -> r.getStatus() == 409).findFirst().orElseThrow();
+        assertThat(repetida.getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+                .contains("Você já avaliou essa pessoa neste agendamento");
+        ChefeModel depois = chefeRepository.findById(bia.getId()).orElseThrow();
+        assertThat(depois.getTotalAvaliacoes()).isEqualTo(1);
+        assertThat(depois.getSomaNotas()).isEqualTo(4);
+    }
+
+    @Test
+    void denunciaRepetidaDeAvaliacaoAoMesmoTempoDaUm201EUm409() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+        bia = novoChefe();
+        Agendamento agendamento = novoAgendamento(BASE.minusDays(20));
+        agendamento.setStatus(StatusAgendamento.CONCLUIDO);
+        agendamento.setConcluidoEm(LocalDateTime.now().minusDays(1));
+        agendamentos.add(agendamentoRepository.save(agendamento));
+        Avaliacao avaliacao = new Avaliacao();
+        avaliacao.setAgendamento(agendamento);
+        avaliacao.setAutorId(agendamento.getUsuario().getId());
+        avaliacao.setAutorTipo(TipoUsuario.CLIENTE);
+        avaliacao.setAvaliadoId(bia.getId());
+        avaliacao.setAvaliadoTipo(TipoUsuario.CHEFE);
+        avaliacao.setNota(1);
+        avaliacao.setComentario("ruim");
+        avaliacao.setPublicadoEm(LocalDateTime.now());
+        avaliacao = avaliacaoRepository.save(avaliacao);
+        Cookie cookie = new Cookie(AuthCookies.ACCESS_TOKEN, tokenService.gerarToken(
+                new UsuarioAutenticado(bia.getId(), bia.getEmail(), TipoUsuario.CHEFE)));
+        String url = "/avaliacoes/" + avaliacao.getId() + "/denuncias";
+        Callable<org.springframework.mock.web.MockHttpServletResponse> denunciar = () ->
+                mockMvc.perform(post(url).cookie(cookie).contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"motivo\":\"OFENSIVA\"}"))
+                        .andReturn().getResponse();
+
+        var respostas = juntos(denunciar, denunciar);
+
+        assertThat(respostas).extracting(r -> r.getStatus()).containsExactlyInAnyOrder(201, 409);
+    }
+
+    /** Dispara as chamadas na mesma largada e devolve as respostas. */
+    @SafeVarargs
+    private static List<org.springframework.mock.web.MockHttpServletResponse> juntos(
+            Callable<org.springframework.mock.web.MockHttpServletResponse>... chamadas) throws Exception {
+        ExecutorService pool = Executors.newFixedThreadPool(chamadas.length);
+        CountDownLatch largada = new CountDownLatch(1);
+        try {
+            List<Future<org.springframework.mock.web.MockHttpServletResponse>> futuros = new ArrayList<>();
+            for (var chamada : chamadas) {
+                futuros.add(pool.submit(() -> {
+                    largada.await();
+                    return chamada.call();
+                }));
+            }
+            largada.countDown();
+            List<org.springframework.mock.web.MockHttpServletResponse> respostas = new ArrayList<>();
+            for (var futuro : futuros) {
+                respostas.add(futuro.get(60, TimeUnit.SECONDS));
+            }
+            return respostas;
+        } finally {
+            pool.shutdownNow();
+        }
     }
 
     private Agendamento novoAgendamento(LocalDateTime inicio) {
