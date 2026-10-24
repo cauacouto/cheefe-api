@@ -36,6 +36,14 @@ public record ChefeRequestDto(
 
         @Positive
         @Digits(integer = 8, fraction = 2)
-        BigDecimal valorHora
+        BigDecimal valorHora,
+
+        /** Cidade de origem: o chef só atende nela. */
+        @Pattern(regexp = ".*\\S.*", message = "não pode ficar em branco")
+        @Size(max = 100)
+        String cidade,
+
+        @Pattern(regexp = "[A-Za-z]{2}", message = "deve ser a sigla da UF")
+        String estado
 ) {
 }

@@ -197,6 +197,8 @@ class ModeracaoConteudoServiceIntegrationTest {
         c.setNacionalidade("Brasileira");
         c.setIdiomas("pt");
         c.setValorHora(new BigDecimal("100.00"));
+        c.setCidade("São Paulo");
+        c.setEstado("SP");
         c.setEspecialidade(Especialidades.BRASILEIRA);
         c.setSenioridade(Senioridade.HEAD_CHEF);
         c.setAnosDeExperiencia(5);

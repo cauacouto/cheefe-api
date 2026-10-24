@@ -65,14 +65,14 @@ class ChefeServiceIntegrationTest {
 
     @Test
     void listagemNaoMostraChefesInativos() {
-        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null).getContent())
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null).getContent())
                 .extracting(ChefeResponseDto::nome)
                 .containsExactly("Ativo");
     }
 
     @Test
     void listagemComFiltroDeValorTambemEscondeInativos() {
-        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), new BigDecimal("1"), new BigDecimal("1000")).getContent())
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), new BigDecimal("1"), new BigDecimal("1000"), null, null, null).getContent())
                 .extracting(ChefeResponseDto::nome)
                 .containsExactly("Ativo");
     }
@@ -105,7 +105,7 @@ class ChefeServiceIntegrationTest {
         ChefeModel pausado = chefeRepository.findById(ativo.getId()).orElseThrow();
         assertThat(pausado.getAtivo()).isTrue();
         assertThat(pausado.isDisponivel()).isFalse();
-        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null).getContent()).isEmpty();
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null).getContent()).isEmpty();
         assertThat(chefeService.chefesMaisAgendados(PageRequest.of(0, 10)).getContent()).isEmpty();
     }
 
@@ -113,7 +113,7 @@ class ChefeServiceIntegrationTest {
     void chefPausadoContinuaEditandoOPerfil() {
         chefeService.inativar(ativo.getId());
 
-        chefeService.atualizarDados(new ChefeRequestDto("Renomeado", null, null, null, null, null, null), ativo.getId());
+        chefeService.atualizarDados(new ChefeRequestDto("Renomeado", null, null, null, null, null, null, null, null), ativo.getId());
 
         assertThat(chefeRepository.findById(ativo.getId()).orElseThrow().getNome()).isEqualTo("Renomeado");
     }
@@ -124,7 +124,7 @@ class ChefeServiceIntegrationTest {
 
         chefeService.ativar(ativo.getId());
 
-        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null).getContent())
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null).getContent())
                 .extracting(ChefeResponseDto::nome)
                 .containsExactly("Ativo");
     }
@@ -143,7 +143,7 @@ class ChefeServiceIntegrationTest {
         incompleto.setSenioridade(null);
         chefeRepository.save(incompleto);
 
-        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null).getContent())
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null).getContent())
                 .extracting(ChefeResponseDto::nome).containsExactly("Ativo");
         assertThat(chefeService.chefesMaisAgendados(PageRequest.of(0, 10)).getContent())
                 .extracting(ChefeResponseDto::nome).containsExactly("Ativo");
@@ -155,7 +155,7 @@ class ChefeServiceIntegrationTest {
         semIdiomas.setIdiomas("   ");
         chefeRepository.save(semIdiomas);
 
-        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null).getContent())
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null).getContent())
                 .extracting(ChefeResponseDto::nome).containsExactly("Ativo");
         assertThat(chefeService.chefesMaisAgendados(PageRequest.of(0, 10)).getContent())
                 .extracting(ChefeResponseDto::nome).containsExactly("Ativo");
@@ -165,7 +165,7 @@ class ChefeServiceIntegrationTest {
     void chefCompletoMasPausadoNaoAparece() {
         chefeService.inativar(ativo.getId());
 
-        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null).getContent()).isEmpty();
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null).getContent()).isEmpty();
         assertThat(chefeService.chefesMaisAgendados(PageRequest.of(0, 10)).getContent()).isEmpty();
     }
 
@@ -178,7 +178,7 @@ class ChefeServiceIntegrationTest {
         comEmSpace.setIdiomas("\u2003");
         chefeRepository.save(comEmSpace);
 
-        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null).getContent())
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null).getContent())
                 .extracting(ChefeResponseDto::nome).containsExactly("Ativo");
         assertThat(chefeService.chefesMaisAgendados(PageRequest.of(0, 10)).getContent())
                 .extracting(ChefeResponseDto::nome).containsExactly("Ativo");
@@ -190,7 +190,7 @@ class ChefeServiceIntegrationTest {
         ativo.setSuspenso(true);
         chefeRepository.save(ativo);
 
-        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null).getContent()).isEmpty();
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null).getContent()).isEmpty();
         assertThat(chefeService.chefesMaisAgendados(PageRequest.of(0, 10)).getContent()).isEmpty();
     }
 
@@ -200,7 +200,7 @@ class ChefeServiceIntegrationTest {
             denunciar(ativo, StatusDenuncia.ABERTA);
         }
 
-        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null).getContent()).isEmpty();
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null).getContent()).isEmpty();
         assertThat(chefeService.chefesMaisAgendados(PageRequest.of(0, 10)).getContent()).isEmpty();
     }
 
@@ -210,7 +210,7 @@ class ChefeServiceIntegrationTest {
         denunciar(ativo, StatusDenuncia.ABERTA);
         denunciar(ativo, StatusDenuncia.ARQUIVADA);
 
-        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null).getContent())
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null).getContent())
                 .extracting(ChefeResponseDto::nome).containsExactly("Ativo");
     }
 
@@ -240,6 +240,8 @@ class ChefeServiceIntegrationTest {
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
         chefe.setValorHora(new BigDecimal("100.00"));
+        chefe.setCidade("São Paulo");
+        chefe.setEstado("SP");
         chefe.setEspecialidade(Especialidades.BRASILEIRA);
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);

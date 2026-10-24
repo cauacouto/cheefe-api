@@ -32,6 +32,9 @@ public interface ChefeMapper {
     // telefone verificado só pelo fluxo de SMS (TelefoneService), nunca pelo corpo
     @Mapping(target = "telefoneVerificado", ignore = true)
     @Mapping(target = "telefoneVerificadoEm", ignore = true)
+    // a cidade de origem entra depois, no PATCH /chefe/me (onboarding mínimo)
+    @Mapping(target = "cidade", ignore = true)
+    @Mapping(target = "estado", ignore = true)
     ChefeModel toModel(RegisterRequestDto dto);
 
 @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)

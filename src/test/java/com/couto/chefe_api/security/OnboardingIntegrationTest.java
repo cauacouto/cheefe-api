@@ -127,7 +127,8 @@ class OnboardingIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.perfilCompleto").value(false))
                 .andExpect(jsonPath("$.camposPendentes").value(contains(
-                        "nacionalidade", "especialidade", "senioridade", "anosDeExperiencia", "idiomas", "valorHora")));
+                        "nacionalidade", "especialidade", "senioridade", "anosDeExperiencia", "idiomas", "valorHora",
+                        "cidade", "estado")));
         // o telefone já vem verificado nos dados de teste (TelefoneDeTeste); sem ele, entraria por último na lista
     }
 
@@ -138,7 +139,7 @@ class OnboardingIntegrationTest {
 
         mockMvc.perform(patch("/chefe/me").cookie(cookie).contentType(MediaType.APPLICATION_JSON).content("""
                         {"nacionalidade":"Brasileira","especialidade":"BRASILEIRA","senioridade":"HEAD_CHEF",
-                         "anosDeExperiencia":5,"idiomas":"pt","valorHora":150}"""))
+                         "anosDeExperiencia":5,"idiomas":"pt","valorHora":150,"cidade":"São Paulo","estado":"SP"}"""))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/chefe/me").cookie(cookie))

@@ -118,6 +118,8 @@ class MigracoesPostgresTest {
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
         chefe.setValorHora(new BigDecimal("100"));
+        chefe.setCidade("São Paulo");
+        chefe.setEstado("SP");
         chefe = chefeRepository.save(chefe);
 
         Pratos prato = new Pratos();

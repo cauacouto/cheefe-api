@@ -56,7 +56,7 @@ class BuscaNotaMediaPostgresTest {
         chefe("Medio", 21, 5); // 4.2
 
         List<ChefeResponseDto> pagina = chefeService.mostrarChefes(
-                PageRequest.of(0, 10, Sort.by("notaMedia")), PRECO, PRECO).getContent();
+                PageRequest.of(0, 10, Sort.by("notaMedia")), PRECO, PRECO, null, null, null).getContent();
 
         assertThat(pagina).extracting(ChefeResponseDto::nome).containsExactly("Otimo", "Bom", "Medio", "Novo");
         assertThat(pagina.get(0).notaMedia()).isEqualByComparingTo("4.8");
@@ -70,6 +70,8 @@ class BuscaNotaMediaPostgresTest {
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
         chefe.setValorHora(PRECO);
+        chefe.setCidade("São Paulo");
+        chefe.setEstado("SP");
         chefe.setEspecialidade(Especialidades.BRASILEIRA);
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);

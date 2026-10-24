@@ -243,6 +243,8 @@ class NotificacaoIntegrationTest {
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
         chefe.setValorHora(new BigDecimal("100"));
+        chefe.setCidade("São Paulo");
+        chefe.setEstado("SP");
         chefe.setEspecialidade(Especialidades.BRASILEIRA);
         chefe.setAnosDeExperiencia(5);
         if (completo) {
