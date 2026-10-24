@@ -26,5 +26,9 @@ public interface BloqueioContaRepository extends JpaRepository<BloqueioConta, Lo
     /** Outro bloqueio da mesma conta que ainda a mantém suspensa (aberto ou confirmado). */
     boolean existsByContaIdAndIdNotAndStatusIn(UUID contaId, Long id, Collection<StatusBloqueio> status);
 
+    /** Os bloqueios da conta, para apagar as notificações dos moderadores que apontam para eles. */
+    @Query("SELECT b.id FROM BloqueioConta b WHERE b.contaId = :contaId")
+    java.util.List<Long> idsDaConta(@Param("contaId") UUID contaId);
+
     void deleteByContaId(UUID contaId);
 }

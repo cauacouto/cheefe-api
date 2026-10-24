@@ -125,6 +125,8 @@ public class UsuarioService {
                 avaliacaoRepository.idsDosAgendamentosDoCliente(clienteId));
         apagarDasReferencias(EnumSet.of(EventoNotificacao.AVALIACAO_DENUNCIADA),
                 denunciaAvaliacaoRepository.idsDosAgendamentosDoCliente(clienteId));
+        // os bloqueios do cliente somem; os moderadores não ficam com aviso apontando para nada
+        apagarDasReferencias(EnumSet.of(EventoNotificacao.CONTA_BLOQUEADA), bloqueioContaRepository.idsDaConta(clienteId));
     }
 
     private void apagarDasReferencias(Set<EventoNotificacao> eventos, List<Long> ids) {
