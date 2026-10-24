@@ -1,5 +1,7 @@
 package com.couto.chefe_api.security;
 
+import com.couto.chefe_api.TelefoneDeTeste;
+
 import com.couto.chefe_api.domain.AgendaBloqueio;
 import com.couto.chefe_api.domain.Agendamento;
 import com.couto.chefe_api.domain.ChefeModel;
@@ -555,7 +557,7 @@ class AgendaChefIntegrationTest {
         usuario.setNome(nome);
         usuario.setEmail(nome.toLowerCase() + "-" + UUID.randomUUID() + "@x.com");
         usuario.setEndereco(new ArrayList<>());
-        return usuarioRepository.save(usuario);
+        return usuarioRepository.save(TelefoneDeTeste.verificado(usuario));
     }
 
     ChefeModel novoChefe(String nome) {
@@ -570,7 +572,7 @@ class AgendaChefIntegrationTest {
         chefe.setAnosDeExperiencia(5);
         chefe.setDisponivel(true);
         chefe.setAtivo(true);
-        return chefeRepository.save(chefe);
+        return chefeRepository.save(TelefoneDeTeste.verificado(chefe));
     }
 
     Cookie cookieDe(UserModel usuario) {
