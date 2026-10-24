@@ -85,7 +85,7 @@ class ChatConcorrenciaPostgresTest {
         ana.setNome("Ana");
         ana.setEmail("ana-" + UUID.randomUUID() + "@x.com");
         ana.setEndereco(new ArrayList<>());
-        ana = usuarioRepository.save(ana);
+        ana = usuarioRepository.save(TelefoneDeTeste.verificado(ana));
         bia = new ChefeModel();
         bia.setNome("Bia");
         bia.setEmail("bia-" + UUID.randomUUID() + "@x.com");
@@ -95,7 +95,7 @@ class ChatConcorrenciaPostgresTest {
         bia.setEspecialidade(Especialidades.BRASILEIRA);
         bia.setSenioridade(Senioridade.HEAD_CHEF);
         bia.setAnosDeExperiencia(5);
-        bia = chefeRepository.save(bia);
+        bia = chefeRepository.save(TelefoneDeTeste.verificado(bia));
     }
 
     /** O banco é o mesmo do MigracoesPostgresTest: apaga só o que este teste criou. */

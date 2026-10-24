@@ -1,5 +1,6 @@
 package com.couto.chefe_api.security;
 
+import com.couto.chefe_api.TelefoneDeTeste;
 import com.couto.chefe_api.domain.UserModel;
 import com.couto.chefe_api.repository.UsuarioRepository;
 import com.couto.chefe_api.domain.ChefeModel;
@@ -154,7 +155,7 @@ class OnboardingIntegrationTest {
         cliente.setNome("Ana");
         cliente.setEmail(email);
         cliente.setEndereco(new ArrayList<>());
-        cliente = usuarioRepository.save(cliente);
+        cliente = usuarioRepository.save(TelefoneDeTeste.verificado(cliente));
 
         mockMvc.perform(get("/chefe/me").cookie(new Cookie(AuthCookies.ACCESS_TOKEN,
                         tokenService.gerarToken(new UsuarioAutenticado(cliente.getId(), cliente.getEmail(), TipoUsuario.CLIENTE)))))
@@ -165,7 +166,7 @@ class OnboardingIntegrationTest {
         ChefeModel chefe = new ChefeModel();
         chefe.setNome("Bia");
         chefe.setEmail(email);
-        return chefeRepository.save(chefe);
+        return chefeRepository.save(TelefoneDeTeste.verificado(chefe));
     }
 
     private Cookie cookieDe(ChefeModel chefe) {

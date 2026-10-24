@@ -1,5 +1,6 @@
 package com.couto.chefe_api.security;
 
+import com.couto.chefe_api.TelefoneDeTeste;
 import com.couto.chefe_api.exception.ContaInativaException;
 import com.couto.chefe_api.domain.Agendamento;
 import com.couto.chefe_api.domain.ChefeModel;
@@ -188,14 +189,14 @@ class ModeracaoIntegrationTest {
         chefe.setEspecialidade(Especialidades.BRASILEIRA);
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
-        return chefeRepository.save(chefe);
+        return chefeRepository.save(TelefoneDeTeste.verificado(chefe));
     }
 
     Denuncia denunciar(ChefeModel chefe, StatusDenuncia status) {
         UserModel cliente = new UserModel();
         cliente.setNome("Cliente");
         cliente.setEmail("cliente-" + UUID.randomUUID() + "@x.com");
-        cliente = usuarioRepository.save(cliente);
+        cliente = usuarioRepository.save(TelefoneDeTeste.verificado(cliente));
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(cliente);
         agendamento.setChefes(new ArrayList<>(List.of(chefe)));
@@ -262,7 +263,7 @@ class ModeracaoIntegrationTest {
         cliente.setNome("Cliente");
         cliente.setEmail("cliente-" + UUID.randomUUID() + "@x.com");
         cliente.setEndereco(new ArrayList<>());
-        cliente = usuarioRepository.save(cliente);
+        cliente = usuarioRepository.save(TelefoneDeTeste.verificado(cliente));
         return new Cookie(AuthCookies.ACCESS_TOKEN, tokenService.gerarToken(
                 new UsuarioAutenticado(cliente.getId(), cliente.getEmail(), TipoUsuario.CLIENTE)));
     }

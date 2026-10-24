@@ -32,6 +32,7 @@ import com.couto.chefe_api.repository.AcaoModeracaoRepository;
 import com.couto.chefe_api.repository.ChefeRepository;
 import com.couto.chefe_api.repository.DenunciaMensagemRepository;
 import com.couto.chefe_api.repository.DenunciaRepository;
+import com.couto.chefe_api.repository.TelefoneBanidoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -64,6 +65,8 @@ public class ModeracaoService {
     private final UsuarioRepository usuarioRepository;
     private final AvaliacaoRepository avaliacaoRepository;
     private final DenunciaAvaliacaoRepository denunciaAvaliacaoRepository;
+    private final TelefoneBanidoRepository telefoneBanidoRepository;
+    private final HashTelefone hashTelefone;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
@@ -92,10 +95,14 @@ public class ModeracaoService {
         registrar(moderadorEmail, TipoAcaoModeracao.SUSPENDER_CHEF, chefeId, null);
     }
 
+    /** Reativar também libera o telefone do chef, se um banimento o tinha bloqueado (spec do telefone verificado). */
     @Transactional
     public void reativar(UUID chefeId, String moderadorEmail) {
         ChefeModel chefe = buscarChefe(chefeId);
         chefe.setSuspenso(false);
+        if (chefe.getTelefoneVerificado() != null) {
+            telefoneBanidoRepository.deleteById(hashTelefone.de(chefe.getTelefoneVerificado()));
+        }
         notificarChefe(chefe, EventoNotificacao.CHEF_REATIVADO, "Seu perfil foi reativado");
         registrar(moderadorEmail, TipoAcaoModeracao.REATIVAR_CHEF, chefeId, null);
     }
@@ -105,6 +112,7 @@ public class ModeracaoService {
     public void banir(UUID chefeId, String moderadorEmail) {
         ChefeModel chefe = buscarChefe(chefeId);
         chefe.setAtivo(false);
+        banirTelefone(chefe.getTelefoneVerificado());
         fecharAbertasComoProcedentes(chefeId, moderadorEmail);
         registrar(moderadorEmail, TipoAcaoModeracao.BANIR_CHEF, chefeId, null);
     }
@@ -145,7 +153,8 @@ public class ModeracaoService {
 
     /**
      * Confirma o bloqueio automático: chef passa a inativo (banido) e as denúncias abertas dele procedem;
-     * a conta fica bloqueada (reaplica o bloqueio se outra decisão sobre a mesma conta o tinha limpado).
+     * a conta fica bloqueada (reaplica o bloqueio se outra decisão sobre a mesma conta o tinha limpado) e o
+     * telefone verificado dela não serve para outra conta.
      */
     @Transactional
     public void confirmarBloqueio(Long id, String moderadorEmail) {
@@ -159,6 +168,7 @@ public class ModeracaoService {
                     c.setBloqueadoEm(agora);
                     c.setBloqueioMotivo(motivo);
                 }
+                banirTelefone(c.getTelefoneVerificado());
             });
             fecharAbertasComoProcedentes(bloqueio.getContaId(), moderadorEmail);
         } else {
@@ -167,6 +177,7 @@ public class ModeracaoService {
                     u.setBloqueadoEm(agora);
                     u.setBloqueioMotivo(motivo);
                 }
+                banirTelefone(u.getTelefoneVerificado());
             });
         }
         resolver(bloqueio, StatusBloqueio.CONFIRMADO, moderadorEmail);
@@ -197,6 +208,16 @@ public class ModeracaoService {
         }
         resolver(bloqueio, StatusBloqueio.REVERTIDO, moderadorEmail);
         registrar(moderadorEmail, TipoAcaoModeracao.REVERTER_BLOQUEIO, chefeDoBloqueio(bloqueio), id);
+    }
+
+    /**
+     * Só o hash vai para telefone_banido (sem número nem conta): fica mesmo depois de a conta ser apagada.
+     * Banir de novo o mesmo número não é erro.
+     */
+    private void banirTelefone(String telefoneVerificado) {
+        if (telefoneVerificado != null) {
+            telefoneBanidoRepository.banirSeAusente(hashTelefone.de(telefoneVerificado), LocalDateTime.now(clock));
+        }
     }
 
     private BloqueioConta buscarBloqueioAberto(Long id) {

@@ -220,7 +220,7 @@ class AvaliacaoConcorrenciaPostgresTest {
         cliente.setNome("Cliente");
         cliente.setEmail("cliente-" + UUID.randomUUID() + "@x.com");
         cliente.setEndereco(new ArrayList<>());
-        cliente = usuarioRepository.save(cliente);
+        cliente = usuarioRepository.save(TelefoneDeTeste.verificado(cliente));
         EnderecoModel endereco = new EnderecoModel();
         endereco.setRua("Rua A");
         endereco.setNumero("1");
@@ -254,6 +254,6 @@ class AvaliacaoConcorrenciaPostgresTest {
         chefe.setAnosDeExperiencia(5);
         chefe.setDisponivel(true);
         chefe.setAtivo(true);
-        return chefeRepository.save(chefe);
+        return chefeRepository.save(TelefoneDeTeste.verificado(chefe));
     }
 }

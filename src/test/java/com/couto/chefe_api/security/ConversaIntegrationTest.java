@@ -1,5 +1,6 @@
 package com.couto.chefe_api.security;
 
+import com.couto.chefe_api.TelefoneDeTeste;
 import com.couto.chefe_api.domain.UserModel;
 import com.couto.chefe_api.repository.UsuarioRepository;
 import com.couto.chefe_api.domain.ChefeModel;
@@ -564,7 +565,7 @@ class ConversaIntegrationTest {
         usuario.setNome(nome);
         usuario.setEmail(nome.toLowerCase() + "-" + UUID.randomUUID() + "@x.com");
         usuario.setEndereco(new ArrayList<>());
-        return usuarioRepository.save(usuario);
+        return usuarioRepository.save(TelefoneDeTeste.verificado(usuario));
     }
 
     ChefeModel novoChefe(String nome) {
@@ -577,7 +578,7 @@ class ConversaIntegrationTest {
         chefe.setEspecialidade(Especialidades.BRASILEIRA);
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
-        return chefeRepository.save(chefe);
+        return chefeRepository.save(TelefoneDeTeste.verificado(chefe));
     }
 
     Cookie cookie(UserModel cliente) {

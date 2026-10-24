@@ -1,5 +1,6 @@
 package com.couto.chefe_api.security;
 
+import com.couto.chefe_api.TelefoneDeTeste;
 import com.couto.chefe_api.domain.UserModel;
 import com.couto.chefe_api.repository.UsuarioRepository;
 import com.couto.chefe_api.domain.ChefeModel;
@@ -232,7 +233,7 @@ class NotificacaoIntegrationTest {
         usuario.setNome("Cliente");
         usuario.setEmail("cliente-" + UUID.randomUUID() + "@x.com");
         usuario.setEndereco(new ArrayList<>());
-        return usuarioRepository.save(usuario);
+        return usuarioRepository.save(TelefoneDeTeste.verificado(usuario));
     }
 
     private ChefeModel novoChefe(boolean completo) {
@@ -247,7 +248,7 @@ class NotificacaoIntegrationTest {
         if (completo) {
             chefe.setSenioridade(Senioridade.HEAD_CHEF);
         }
-        return chefeRepository.save(chefe);
+        return chefeRepository.save(TelefoneDeTeste.verificado(chefe));
     }
 
     private Cookie cookieDe(UserModel usuario) {
