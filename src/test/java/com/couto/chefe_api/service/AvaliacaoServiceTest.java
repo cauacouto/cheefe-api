@@ -49,7 +49,7 @@ class AvaliacaoServiceTest {
     final ModeracaoConteudoService moderacao = mock(ModeracaoConteudoService.class);
     final NotificacaoService notificacaoService = mock(NotificacaoService.class);
     final AvaliacaoService service = new AvaliacaoService(agendamentoRepository, avaliacaoRepository, chefeRepository,
-            usuarioRepository, moderacao, mock(ExigenciaTelefone.class), notificacaoService, RELOGIO);
+            usuarioRepository, moderacao, notificacaoService, RELOGIO);
 
     final UserModel ana = new UserModel();
     final ChefeModel bia = new ChefeModel();

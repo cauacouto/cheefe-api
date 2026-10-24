@@ -63,16 +63,11 @@ auth:
   cookie:
     secure: ${AUTH_COOKIE_SECURE:true}
 
-# Verificação de telefone por SMS (Twilio Verify). Em prod, sem as três chaves ou sem o pepper a API não sobe;
-# fora de prod, sem nenhuma das chaves, a API só sobe com chefhome.telefone.verificador-falso: true (código sempre 000000, nenhum SMS sai).
-twilio:
-  account-sid: ${TWILIO_ACCOUNT_SID:}
-  auth-token: ${TWILIO_AUTH_TOKEN:}
-  verify-service-sid: ${TWILIO_VERIFY_SERVICE_SID:}
+# Verificação de telefone parada até a escolha do canal (ex.: WhatsApp): sem provedor, /telefone/* responde 503.
 
 chefhome:
   telefone:
     # Segredo do hash dos telefones banidos (openssl rand -base64 32). Trocar depois esvazia a lista de banidos.
     pepper: ${CHEFHOME_PEPPER_TELEFONE:}
-    # Só em desenvolvimento, sem as chaves do Twilio: true liga a verificação falsa (código 000000). Nunca em prod.
+    # Só em desenvolvimento: true liga a verificação falsa (código 000000) para testar o fluxo. Nunca em prod.
     verificador-falso: ${CHEFHOME_TELEFONE_FALSO:false}

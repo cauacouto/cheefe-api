@@ -58,7 +58,6 @@ public class ChatService {
     private final ChefeRepository chefeRepository;
     private final NotificacaoService notificacaoService;
     private final ModeracaoConteudoService moderacaoConteudo;
-    private final ExigenciaTelefone exigenciaTelefone;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
     private final TransactionTemplate transacao;
@@ -83,7 +82,6 @@ public class ChatService {
                 .filter(c -> Boolean.TRUE.equals(c.getAtivo()))
                 .orElseThrow(ChefeNaoEncontradoException::new);
         UserModel cliente = usuarioRepository.findById(clienteId).orElseThrow(UsuarioException::new);
-        exigenciaTelefone.exigir(clienteId, TipoUsuario.CLIENTE);
         return conversaRepository.findByCliente_IdAndChefe_Id(clienteId, chefeId)
                 .map(existente -> new ConversaAberta(paraDto(existente, clienteId, TipoUsuario.CLIENTE), false))
                 .orElseGet(() -> {
@@ -126,8 +124,6 @@ public class ChatService {
     public MensagemDto enviar(Long conversaId, UsuarioAutenticado usuario, String texto) {
         String normalizado = normalizar(texto);
         doParticipante(conversaId, usuario); // quem não participa recebe 404 antes do filtro, como no editar
-        // leitura simples, sem trava: conta sem telefone verificado nem chega ao filtro (nem é bloqueada por ele)
-        exigenciaTelefone.exigir(usuario);
         // antes de qualquer trava: o bloqueio do autor roda numa transação própria (ver ModeracaoConteudoService)
         String exibido = moderacaoConteudo.verificar(normalizado, usuario);
         Conversa conversa = conversaRepository.travarPorId(conversaId)

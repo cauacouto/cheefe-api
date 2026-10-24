@@ -24,14 +24,12 @@ public interface ChefeRepository extends JpaRepository<ChefeModel, UUID>, JpaSpe
 
     boolean existsByIdAndBloqueadoEmIsNotNull(UUID id);
 
-    boolean existsByIdAndTelefoneVerificadoIsNotNull(UUID id);
 
     /** O telefone já está verificado em outra conta desta tabela (a própria conta não conta). */
     boolean existsByTelefoneVerificadoAndIdNot(String telefoneVerificado, UUID id);
 
-    // visível = ativo, disponível, perfil completo, telefone verificado, não suspenso, não bloqueado e
-    // < 3 denunciantes com denúncia aberta
-    String VISIVEL = "c.ativo = true AND c.disponivel = true AND c.telefoneVerificado IS NOT NULL " +
+    // visível = ativo, disponível, perfil completo, não suspenso, não bloqueado e < 3 denunciantes com denúncia aberta
+    String VISIVEL = "c.ativo = true AND c.disponivel = true " +
             "AND TRIM(COALESCE(c.nacionalidade, '')) <> '' AND c.especialidade IS NOT NULL " +
             "AND c.senioridade IS NOT NULL AND c.anosDeExperiencia IS NOT NULL " +
             "AND TRIM(COALESCE(c.idiomas, '')) <> '' AND c.valorHora IS NOT NULL " +

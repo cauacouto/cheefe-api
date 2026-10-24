@@ -1,8 +1,9 @@
 package com.couto.chefe_api.service;
 
 /**
- * Quem gera, envia e confere o código por SMS (Twilio Verify): a API não gera nem guarda código.
- * Implementações: {@code TwilioVerificadorTelefone} e, fora de produção sem chaves, {@code VerificadorTelefoneFalso}.
+ * Quem gera, envia e confere o código (o provedor; a API não gera nem guarda código). Parado até a escolha do
+ * canal (ex.: WhatsApp): hoje só {@code VerificadorTelefoneIndisponivel} (503) e, em desenvolvimento com
+ * CHEFHOME_TELEFONE_FALSO=true, {@code VerificadorTelefoneFalso}.
  */
 public interface VerificadorTelefone {
 

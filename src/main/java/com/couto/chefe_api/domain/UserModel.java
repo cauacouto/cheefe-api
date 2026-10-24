@@ -51,7 +51,7 @@ public  class UserModel {
     private String bloqueioMotivo;
 
     /**
-     * Celular verificado por SMS (E.164), exigido antes de agir; um por conta (V12: índice único parcial).
+     * Celular verificado (E.164), hoje não exigido (verificação parada, ver README); um por conta (V12: índice único parcial).
      * Separado do {@link #telefone} de contato, que o cliente edita livremente.
      */
     @Column(length = 20, unique = true)

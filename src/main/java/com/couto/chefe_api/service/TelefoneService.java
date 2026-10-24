@@ -30,7 +30,7 @@ import java.util.regex.Pattern;
 
 /**
  * Verificação do telefone por SMS: um telefone por conta (cliente ou chef), nunca o de uma conta banida.
- * As chamadas ao Twilio ficam fora de transação (nenhuma conexão do banco presa esperando a rede).
+ * As chamadas ao provedor ficam fora de transação (nenhuma conexão do banco presa esperando a rede).
  */
 @Service
 @RequiredArgsConstructor
@@ -49,7 +49,7 @@ public class TelefoneService {
     private final TransactionTemplate transacao;
     private final Clock clock;
 
-    /** Último SMS pedido por conta: limite simples em memória, por instância (o Twilio também limita). */
+    /** Último SMS pedido por conta: limite simples em memória, por instância (o provedor também deve limitar). */
     private final Map<UUID, Instant> ultimoPedido = new ConcurrentHashMap<>();
 
     /**

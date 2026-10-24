@@ -8,7 +8,7 @@ public record SessaoDto(
         UUID id,
         String email,
         TipoUsuario tipo,
-        /** Falso: o front abre a tela do SMS antes de agendar, conversar ou avaliar. Nulo para a moderação. */
+        /** Só informação enquanto a verificação de telefone está parada (nada exige). Nulo para a moderação. */
         Boolean telefoneVerificado
 ) {
 }

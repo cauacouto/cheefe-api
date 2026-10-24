@@ -1,5 +1,7 @@
 # Telefone verificado por SMS (Twilio Verify) — Design
 
+> **Status (2026-10-24): parado.** O Twilio foi retirado e nada exige telefone; ficaram a interface `VerificadorTelefone`, o `TelefoneService`, as rotas (503 sem provedor) e o schema da V12. O canal será decidido depois (provavelmente WhatsApp). Ver README "Telefone verificado (parado)".
+
 ## Objetivo
 
 Dificultar a volta de quem foi banido com uma conta Google nova: um telefone verificado por conta, exigido antes de agir, e o telefone de quem teve o banimento confirmado não serve para outra conta. Continuação de "Nova conta depois do banimento" em `2026-10-22-avaliacoes-design.md`.
