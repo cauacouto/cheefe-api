@@ -58,8 +58,10 @@ O `src/main/resources/application.yml` não é versionado. Use o modelo [`applic
 | `DATABASE_URL` / `DATABASE_USERNAME` / `DATABASE_PASSWORD` | conexão da API: `jdbc:postgresql://host:5432/chefe_api?currentSchema=chefhome`, usuário **`chefhome_app`** (só manipula dados) |
 | `FLYWAY_URL` / `FLYWAY_USER` / `FLYWAY_PASSWORD` | **só no passo de migração**, nunca no ambiente da API: usuário `chefhome_migracao` |
 | `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_PUBLIC_URL` | bucket de fotos dos pratos (Cloudflare R2 ou outro compatível com S3, com leitura pública) |
+| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_VERIFY_SERVICE_SID` | Twilio Verify, para o SMS de verificação do telefone (veja "Telefone verificado") |
+| `CHEFHOME_PEPPER_TELEFONE` | segredo aleatório longo (`openssl rand -base64 32`) do hash dos telefones banidos; trocar depois esvazia a lista de banidos |
 
-A aplicação **não sobe** sem o registro do Google e sem `FRONT_URL`.
+A aplicação **não sobe** sem o registro do Google e sem `FRONT_URL`. No perfil `prod`, também não sobe sem as três `TWILIO_*` e sem `CHEFHOME_PEPPER_TELEFONE`. Fora de `prod`, sem nenhuma `TWILIO_*`, nenhum SMS sai: o código é sempre `000000` e o log mostra só o número mascarado.
 
 ### 🗄️ Banco de dados (privilégio mínimo)
 
@@ -175,25 +177,55 @@ Listas paginadas respondem `{ "content": [...], "page": { "size", "number", "tot
 | Sessão | `GET /auth/me` | qualquer logado |
 | Notificações | `GET /notificacoes?somenteNaoLidas=`, `GET /notificacoes/nao-lidas/contagem`, `PATCH /notificacoes/{id}/lida`, `PATCH /notificacoes/lidas` (sempre só as próprias) | qualquer logado |
 | Tempo real | `GET /eventos` (SSE, `text/event-stream`; eventos `mensagem`, `mensagem_editada`, `mensagem_apagada`, `mensagens_lidas` e `notificacao`) | qualquer logado |
+| Telefone | `POST /telefone/codigo` `{telefone}` → 202 (manda o SMS); `POST /telefone/verificar` `{telefone, codigo}` → 200 `{telefone, verificadoEm}` (veja "Telefone verificado") | CLIENTE, CHEFE |
 | Usuário | `GET` · `PUT` · `DELETE /usuario/me` (o e-mail não é editável; o DELETE encerra a sessão e apaga também as conversas, mensagens e denúncias de mensagens do cliente, e as avaliações dos agendamentos dele, com as notas que ele deu saindo da média dos chefs); `PUT /usuario/me/foto` (multipart `foto`) | CLIENTE |
 | Endereços | `GET` · `POST /usuario/enderecos` | CLIENTE |
-| Chefs | `GET /chefe?page=&size=&sort=` (ordenação só por `nome`, `valorHora`, `anosDeExperiencia` ou `notaMedia` — esta sempre da maior para a menor, com os "Novo" por último), `GET /chefe/destaque` (mais agendados primeiro); os dois paginados até 50, só com chefs visíveis (ativos, disponíveis, perfil completo, não suspensos e não ocultados por denúncias) e com `notaMedia` e `totalAvaliacoes` | qualquer logado |
+| Chefs | `GET /chefe?page=&size=&sort=` (ordenação só por `nome`, `valorHora`, `anosDeExperiencia` ou `notaMedia` — esta sempre da maior para a menor, com os "Novo" por último), `GET /chefe/destaque` (mais agendados primeiro); os dois paginados até 50, só com chefs visíveis (ativos, disponíveis, perfil completo, com telefone verificado, não suspensos e não ocultados por denúncias) e com `notaMedia` e `totalAvaliacoes` | qualquer logado |
 | Avaliações de um chef | `GET /chefe/{id}/avaliacoes?page=&size=` (publicadas, mais recentes primeiro, até 50) e `GET /chefe/{id}/reputacao` (veja "Avaliações"); chef bloqueado ou inativo → 404 | qualquer logado |
 | Perfil do chef | `GET /chefe/me` (inclui `perfilCompleto` e `camposPendentes`); `PATCH /chefe/me`; `PUT /chefe/me/foto` (multipart `foto`); `PATCH /chefe/me/inativar` (pausa: some da busca e não recebe agendamentos novos) e `PATCH /chefe/me/ativar` (volta); `DELETE /chefe/me` (apaga a conta: não loga nem opera mais) | CHEFE |
-| Pratos | `GET /pratos?page=&size=` (paginado, até 50) e `GET /pratos/chefe/{chefeId}`: só pratos de chefs visíveis na busca (chef pausado, suspenso, banido ou ocultado por denúncias não aparece) | qualquer logado |
+| Pratos | `GET /pratos?page=&size=` (paginado, até 50) e `GET /pratos/chefe/{chefeId}`: só pratos de chefs visíveis na busca (chef pausado, suspenso, banido, sem telefone verificado ou ocultado por denúncias não aparece) | qualquer logado |
 | Meus pratos | `POST /pratos` (multipart `dados` + `foto`), `PUT /pratos/{id}`, `GET /pratos/meus` (todos os do chef, mesmo pausado) | CHEFE |
-| Agendamentos do cliente | `POST /agendamentos` (endereço precisa ser do cliente; **409** se algum chef escolhido já tiver um agendamento confirmado que se sobreponha — pedidos pendentes podem se sobrepor, e encostar, como 18h–20h e 20h–22h, não conflita), `GET /agendamentos/meus?page=&size=` (paginado, até 50, data mais distante primeiro), `PUT /agendamentos/{id}` (só `PENDENTE`), `PATCH /agendamentos/{id}/cancelar` (veja "Ciclo do agendamento") | CLIENTE |
+| Agendamentos do cliente | `POST /agendamentos` (exige telefone verificado; endereço precisa ser do cliente; chef sem telefone verificado não é agendável, **409**; **409** se algum chef escolhido já tiver um agendamento confirmado que se sobreponha — pedidos pendentes podem se sobrepor, e encostar, como 18h–20h e 20h–22h, não conflita), `GET /agendamentos/meus?page=&size=` (paginado, até 50, data mais distante primeiro), `PUT /agendamentos/{id}` (só `PENDENTE`), `PATCH /agendamentos/{id}/cancelar` (veja "Ciclo do agendamento") | CLIENTE |
 | Agendamentos do chef | `GET /agendamentos/recebidos?page=&size=` (paginado como `/agendamentos/meus`), `PATCH /agendamentos/{id}/confirmar` (só chef do agendamento, só `PENDENTE`; **409** se algum chef do agendamento já tiver outro confirmado no mesmo horário), `PATCH /agendamentos/{id}/recusar`·`desistir`·`concluir` | CHEFE |
 | Linha do tempo | `GET /agendamentos/{id}/historico` (cliente dono ou chef que ainda está no agendamento) | CLIENTE, CHEFE |
-| Avaliar | `POST /agendamentos/{id}/avaliacoes`, `GET /agendamentos/{id}/avaliacoes/pendentes` (cliente dono ou chef que ainda está no agendamento; veja "Avaliações") | CLIENTE, CHEFE |
+| Avaliar | `POST /agendamentos/{id}/avaliacoes` (exige telefone verificado), `GET /agendamentos/{id}/avaliacoes/pendentes` (cliente dono ou chef que ainda está no agendamento; veja "Avaliações") | CLIENTE, CHEFE |
 | Responder e denunciar avaliação | `PUT /avaliacoes/{id}/resposta` `{texto}` → 200 `{resposta}` (o texto como ficou, depois do filtro), `POST /avaliacoes/{id}/denuncias` `{motivo, descricao?}` → 201 `{id, status}` (só o chef avaliado) | CHEFE |
 | Reputação do cliente | `GET /clientes/{id}/reputacao` (só chef que tem ou teve agendamento com o cliente; para os demais, 404) | CHEFE |
 | Denúncias | `POST /denuncias` (só de chef com quem teve agendamento confirmado e já ocorrido) | CLIENTE |
-| Abrir conversa | `POST /conversas` `{chefeId}` (201 nova, 200 se já existe; só o cliente inicia) | CLIENTE |
-| Chat | `GET /conversas?page=&size=` (paginado como `/notificacoes`, mais recente primeiro, até 50 por página); `GET /conversas/{id}/mensagens?antesDe=&size=` (mais novas primeiro, até 100); `POST /conversas/{id}/mensagens`; `PATCH /conversas/{id}/lidas` ("visto"); `PATCH /conversas/{id}/mensagens/{mid}` (só o autor, até 15 min); `DELETE /conversas/{id}/mensagens/{mid}` (só o autor); `POST /conversas/{id}/mensagens/{mid}/denuncias` `{motivo, descricao}` (só quem recebeu; motivos `OFENSIVA`, `ASSEDIO`, `SPAM`, `GOLPE`, `CONTEUDO_IMPROPRIO`, `OUTRO`). Com o chef apagado ou banido, o histórico continua visível, mas ninguém envia mais (403) | CLIENTE, CHEFE (participantes) |
+| Abrir conversa | `POST /conversas` `{chefeId}` (201 nova, 200 se já existe; só o cliente inicia; exige telefone verificado) | CLIENTE |
+| Chat | `GET /conversas?page=&size=` (paginado como `/notificacoes`, mais recente primeiro, até 50 por página); `GET /conversas/{id}/mensagens?antesDe=&size=` (mais novas primeiro, até 100); `POST /conversas/{id}/mensagens` (exige telefone verificado); `PATCH /conversas/{id}/lidas` ("visto"); `PATCH /conversas/{id}/mensagens/{mid}` (só o autor, até 15 min); `DELETE /conversas/{id}/mensagens/{mid}` (só o autor); `POST /conversas/{id}/mensagens/{mid}/denuncias` `{motivo, descricao}` (só quem recebeu; motivos `OFENSIVA`, `ASSEDIO`, `SPAM`, `GOLPE`, `CONTEUDO_IMPROPRIO`, `OUTRO`). Com o chef apagado ou banido, o histórico continua visível, mas ninguém envia mais (403) | CLIENTE, CHEFE (participantes) |
 | Moderação | `GET /moderacao/denuncias?status=`, `PATCH /moderacao/denuncias/{id}/arquivar`, `PATCH /moderacao/chefes/{id}/suspender`·`reativar`·`banir`, `GET /moderacao/denuncias-mensagens?status=` (com o texto do momento da denúncia), `PATCH /moderacao/denuncias-mensagens/{id}/arquivar`·`remover-mensagem`, `GET /moderacao/bloqueios?status=ABERTO` (fila de contas bloqueadas automaticamente, com o texto que disparou), `PATCH /moderacao/bloqueios/{id}/confirmar`·`reverter`, `GET /moderacao/denuncias-avaliacoes?status=` (com o texto original e o autor), `PATCH /moderacao/denuncias-avaliacoes/{id}/arquivar`·`remover-comentario`, `GET /moderacao/comentarios-de-clientes?page=` (o que os chefs escreveram sobre clientes), `GET /moderacao/acoes` (histórico: quem fez cada ação; no banco a API só insere nessa tabela, nunca altera nem apaga) (para quem não modera, a área responde 404) | MODERADOR |
 
 **Bloqueio automático.** Mensagens do chat (ao enviar e ao editar), comentários e respostas de avaliações passam pelo mesmo filtro. Palavrão comum vira `***` para os dois lados (o original fica guardado só para a moderação, inclusive na fila de denúncias de mensagens, em `textoOriginal`). Ódio ou ameaça responde **403**, nada é gravado nem chega ao outro lado, e a conta do autor é suspensa na hora: as sessões abertas caem, inclusive as conexões em tempo real, e o login é recusado. O caso entra na fila `GET /moderacao/bloqueios`, e a moderação confirma (chef fica inativo) ou reverte (a conta volta a logar e operar com o mesmo cookie). Toda decisão fica no histórico `GET /moderacao/acoes`. A lista de termos, revisável, fica em `src/main/resources/moderacao/termos.yml`.
+
+### 📱 Telefone verificado
+
+Cada conta (cliente ou chef) precisa de um celular verificado por SMS **antes de agir**: dá para logar e navegar sem ele. O SMS e o código ficam com o **Twilio Verify** (a API não gera nem guarda código).
+
+1. `POST /telefone/codigo` `{ "telefone": "(11) 98765-4321" }` → **202**: o SMS sai. Só celular do Brasil, com ou sem `+55`, espaços, parênteses e hífen (gravado como `+5511987654321`).
+2. `POST /telefone/verificar` `{ "telefone": "...", "codigo": "123456" }` → **200** `{ "telefone": "+5511987654321", "verificadoEm": "..." }`. Verificar outro número substitui o anterior.
+
+| Situação | Status |
+|---|---|
+| telefone fora do formato | **400** "Telefone inválido" |
+| código errado, expirado ou com tentativas esgotadas | **422** "Código inválido ou expirado" |
+| telefone já verificado por outra conta (cliente ou chef) | **409** "Telefone já usado por outra conta" |
+| telefone de conta banida | **403** "Telefone não pode ser usado" |
+| novo pedido de SMS da mesma conta em menos de 60 s | **429** |
+| Twilio fora do ar | **503** |
+| moderador; chef apagado ou banido | **403** |
+
+**Onde é exigido:** `POST /agendamentos`, `POST /conversas`, `POST /conversas/{id}/mensagens` e `POST /agendamentos/{id}/avaliacoes`. O resto (ler, editar o que já existe, cancelar, recusar, confirmar, responder avaliação, denunciar) não exige, para ninguém ficar preso com agendamento em andamento. Chef sem telefone verificado não aparece na busca, no destaque nem nos pratos públicos, e não pode ser agendado.
+
+**Contrato para o front:** a ação sem telefone verificado responde **403** com a propriedade `codigo`; é por ela (não pelo texto) que o front reconhece o caso e abre a verificação:
+
+```json
+{ "status": 403, "detail": "Verifique seu telefone para continuar", "codigo": "TELEFONE_NAO_VERIFICADO" }
+```
+
+O telefone de contato do cliente (`telefone` em `PUT /usuario/me`) continua separado e livre.
+
+**Banimento e LGPD:** quando a moderação confirma um bloqueio automático ou bane um chef, a API grava em `telefone_banido` só um **hash** (`SHA-256` do segredo `CHEFHOME_PEPPER_TELEFONE` + o número): nem o número, nem a conta. Esse hash fica mesmo depois de a conta ser apagada, com base no **legítimo interesse** de prevenção de fraude (impedir que quem foi banido volte com outra conta Google e o mesmo celular); sem o segredo, a tabela não revela números. Reverter um bloqueio não grava nada, e reativar o chef apaga o hash dele. O telefone verificado em si é dado da conta e some com ela (`DELETE /usuario/me` e `DELETE /chefe/me`), liberando o número, a menos que ele tenha sido banido. O número nunca vai inteiro para o log (só `+55*******4321`).
 
 ### 📅 Ciclo do agendamento
 
