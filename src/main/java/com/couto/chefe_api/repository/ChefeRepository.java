@@ -33,6 +33,10 @@ public interface ChefeRepository extends JpaRepository<ChefeModel, UUID>, JpaSpe
             "AND (SELECT COUNT(DISTINCT d.cliente.id) FROM Denuncia d WHERE d.chefe = c " +
             "AND d.status = com.couto.chefe_api.enums.StatusDenuncia.ABERTA) < 3";
 
+    /** O chef aparece na busca (mesma regra de {@link #VISIVEL}). */
+    @Query("SELECT COUNT(c) > 0 FROM ChefeModel c WHERE c.id = :id AND " + VISIVEL)
+    boolean visivel(@Param("id") UUID id);
+
     /** SELECT ... FOR UPDATE sempre na mesma ordem (por id): confirmações simultâneas esperam e não travam umas às outras. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT c FROM ChefeModel c WHERE c.id IN :ids ORDER BY c.id")

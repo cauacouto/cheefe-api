@@ -48,6 +48,19 @@ public interface AgendamentoRepository extends JpaRepository<Agendamento,Long> {
     boolean existeConfirmadoSobreposto(@Param("chefeId") UUID chefeId, @Param("inicio") LocalDateTime inicio,
                                        @Param("fim") LocalDateTime fim, @Param("ignorarId") Long ignorarId);
 
+    /** Confirmados do chef que se sobrepõem a [inicio, fim), por início (agenda do chef). */
+    @Query("SELECT a FROM Agendamento a JOIN a.chefes c WHERE c.id = :chefeId "
+            + "AND a.status = com.couto.chefe_api.enums.StatusAgendamento.CONFIRMADO "
+            + "AND a.dataHoraInicial < :fim AND a.dataHoraFinal > :inicio ORDER BY a.dataHoraInicial, a.id")
+    List<Agendamento> confirmadosSobrepostos(@Param("chefeId") UUID chefeId, @Param("inicio") LocalDateTime inicio,
+                                             @Param("fim") LocalDateTime fim);
+
+    /** Confirmados do chef que ainda não terminaram. */
+    @Query("SELECT a FROM Agendamento a JOIN a.chefes c WHERE c.id = :chefeId "
+            + "AND a.status = com.couto.chefe_api.enums.StatusAgendamento.CONFIRMADO "
+            + "AND a.dataHoraFinal > :agora ORDER BY a.dataHoraInicial, a.id")
+    List<Agendamento> confirmadosFuturos(@Param("chefeId") UUID chefeId, @Param("agora") LocalDateTime agora);
+
     /** Do cliente, data mais distante primeiro; cliente e endereço no mesmo SELECT (sem N+1). */
     @EntityGraph(attributePaths = {"usuario", "endereco"})
     Page<Agendamento> findByUsuario_IdOrderByDataHoraInicialDescIdDesc(UUID usuarioId, Pageable pageable);
