@@ -77,6 +77,6 @@ class BuscaNotaMediaPostgresTest {
         chefe.setAtivo(true);
         chefe.setSomaNotas(soma);
         chefe.setTotalAvaliacoes(total);
-        criados.add(chefeRepository.save(chefe));
+        criados.add(chefeRepository.save(TelefoneDeTeste.verificado(chefe)));
     }
 }

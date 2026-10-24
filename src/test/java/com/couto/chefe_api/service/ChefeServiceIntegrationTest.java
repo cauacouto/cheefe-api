@@ -1,5 +1,6 @@
 package com.couto.chefe_api.service;
 
+import com.couto.chefe_api.TelefoneDeTeste;
 import com.couto.chefe_api.enums.Senioridade;
 import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.dto.ChefeResponseDto;
@@ -243,6 +244,6 @@ class ChefeServiceIntegrationTest {
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
         chefe.setAtivo(ativo);
-        return chefe;
+        return TelefoneDeTeste.verificado(chefe);
     }
 }

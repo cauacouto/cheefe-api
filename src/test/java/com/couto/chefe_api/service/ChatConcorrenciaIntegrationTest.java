@@ -1,5 +1,6 @@
 package com.couto.chefe_api.service;
 
+import com.couto.chefe_api.TelefoneDeTeste;
 import com.couto.chefe_api.security.UsuarioAutenticado;
 import com.couto.chefe_api.domain.UserModel;
 import com.couto.chefe_api.repository.UsuarioRepository;
@@ -54,7 +55,7 @@ class ChatConcorrenciaIntegrationTest {
         ana.setNome("Ana");
         ana.setEmail("ana-" + UUID.randomUUID() + "@x.com");
         ana.setEndereco(new ArrayList<>());
-        ana = usuarioRepository.save(ana);
+        ana = usuarioRepository.save(TelefoneDeTeste.verificado(ana));
         bia = new ChefeModel();
         bia.setNome("Bia");
         bia.setEmail("bia-" + UUID.randomUUID() + "@x.com");
@@ -64,7 +65,7 @@ class ChatConcorrenciaIntegrationTest {
         bia.setEspecialidade(Especialidades.BRASILEIRA);
         bia.setSenioridade(Senioridade.HEAD_CHEF);
         bia.setAnosDeExperiencia(5);
-        bia = chefeRepository.save(bia);
+        bia = chefeRepository.save(TelefoneDeTeste.verificado(bia));
     }
 
     @AfterEach

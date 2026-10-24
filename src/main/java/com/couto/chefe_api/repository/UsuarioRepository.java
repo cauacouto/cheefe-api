@@ -18,6 +18,11 @@ public interface UsuarioRepository extends JpaRepository<UserModel, UUID> {
 
     boolean existsByIdAndBloqueadoEmIsNotNull(UUID id);
 
+    boolean existsByIdAndTelefoneVerificadoIsNotNull(UUID id);
+
+    /** O telefone já está verificado em outra conta desta tabela (a própria conta não conta). */
+    boolean existsByTelefoneVerificadoAndIdNot(String telefoneVerificado, UUID id);
+
     /** Soma atômica no banco: avaliações simultâneas da mesma pessoa não perdem contagem. */
     @Modifying(flushAutomatically = true)
     @Query("UPDATE UserModel u SET u.somaNotas = u.somaNotas + :nota, u.totalAvaliacoes = u.totalAvaliacoes + 1 WHERE u.id = :id")

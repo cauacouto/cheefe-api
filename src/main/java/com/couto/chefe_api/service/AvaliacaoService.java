@@ -69,6 +69,7 @@ public class AvaliacaoService {
     private final ChefeRepository chefeRepository;
     private final UsuarioRepository usuarioRepository;
     private final ModeracaoConteudoService moderacaoConteudo;
+    private final ExigenciaTelefone exigenciaTelefone;
     private final NotificacaoService notificacaoService;
     private final Clock clock;
 
@@ -81,6 +82,7 @@ public class AvaliacaoService {
         LocalDateTime agora = LocalDateTime.now(clock);
         Agendamento agendamento = doParticipante(agendamentoId, autor);
         exigirChefAtivo(autor);
+        exigenciaTelefone.exigir(autor);
         exigirDentroDoPrazo(agendamento, agora);
         Avaliado avaliado = avaliadoPor(agendamento, autor, dto.chefeId());
         if (avaliacaoRepository.existsByAgendamento_IdAndAutorIdAndAvaliadoId(agendamento.getId(), autor.id(), avaliado.id())) {

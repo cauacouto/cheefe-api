@@ -56,7 +56,8 @@ class ChatServiceTest {
     private final ChefeRepository chefeRepository = mock(ChefeRepository.class);
     private final ModeracaoConteudoService moderacao = mock(ModeracaoConteudoService.class);
     private final ChatService service = new ChatService(conversaRepository, mensagemRepository,
-            usuarioRepository, chefeRepository, mock(NotificacaoService.class), moderacao, eventPublisher, RELOGIO,
+            usuarioRepository, chefeRepository, mock(NotificacaoService.class), moderacao,
+            mock(ExigenciaTelefone.class), eventPublisher, RELOGIO,
             new TransactionTemplate(mock(PlatformTransactionManager.class)));
 
     private final UserModel cliente = new UserModel();

@@ -1,5 +1,6 @@
 package com.couto.chefe_api.security;
 
+import com.couto.chefe_api.TelefoneDeTeste;
 import com.couto.chefe_api.enums.Senioridade;
 import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.domain.UserModel;
@@ -502,7 +503,7 @@ class AutorizacaoIntegrationTest {
         usuario.setNome("Cliente");
         usuario.setEmail("cliente-" + UUID.randomUUID() + "@x.com");
         usuario.setEndereco(new ArrayList<>());
-        return usuarioRepository.save(usuario);
+        return usuarioRepository.save(TelefoneDeTeste.verificado(usuario));
     }
 
     ChefeModel novoChefe() {
@@ -517,7 +518,7 @@ class AutorizacaoIntegrationTest {
         chefe.setAnosDeExperiencia(5);
         chefe.setDisponivel(true);
         chefe.setAtivo(true);
-        return chefeRepository.save(chefe);
+        return chefeRepository.save(TelefoneDeTeste.verificado(chefe));
     }
 
     Cookie cookieDe(UserModel usuario) {

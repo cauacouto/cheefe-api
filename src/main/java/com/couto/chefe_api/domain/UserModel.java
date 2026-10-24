@@ -50,6 +50,15 @@ public  class UserModel {
 
     private String bloqueioMotivo;
 
+    /**
+     * Celular verificado por SMS (E.164), exigido antes de agir; um por conta (V12: índice único parcial).
+     * Separado do {@link #telefone} de contato, que o cliente edita livremente.
+     */
+    @Column(length = 20, unique = true)
+    private String telefoneVerificado;
+
+    private LocalDateTime telefoneVerificadoEm;
+
     /** Soma das notas recebidas e quantas são: a média é soma / total (ver Avaliacao). */
     private int somaNotas;
 

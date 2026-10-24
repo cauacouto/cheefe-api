@@ -67,6 +67,12 @@ private Boolean ativo = true;
 
     private String bloqueioMotivo;
 
+    /** Celular verificado por SMS (E.164): sem ele o chef não age nem aparece; um por conta (V12). */
+    @Column(length = 20, unique = true)
+    private String telefoneVerificado;
+
+    private LocalDateTime telefoneVerificadoEm;
+
     /** Soma das notas recebidas e quantas são: a média é soma / total (ver Avaliacao). */
     private int somaNotas;
 

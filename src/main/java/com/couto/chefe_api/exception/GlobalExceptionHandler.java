@@ -45,7 +45,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             // falha de serviço externo (ex.: storage): o cliente só vê a mensagem genérica, a causa fica no log
             log.error(ex.getMessage(), ex);
         }
-        return problema(ex.getStatus(), ex.getMessage());
+        ResponseEntity<ProblemDetail> resposta = problema(ex.getStatus(), ex.getMessage());
+        if (ex.getCodigo() != null) {
+            resposta.getBody().setProperty("codigo", ex.getCodigo());
+        }
+        return resposta;
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

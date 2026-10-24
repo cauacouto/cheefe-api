@@ -1,5 +1,6 @@
 package com.couto.chefe_api.security;
 
+import com.couto.chefe_api.TelefoneDeTeste;
 import com.couto.chefe_api.dto.ContagemDto;
 import com.couto.chefe_api.service.NotificacaoService;
 import com.couto.chefe_api.service.SseRegistry;
@@ -81,7 +82,7 @@ class EventosIntegrationTest {
         ana.setNome("Ana");
         ana.setEmail("ana-" + UUID.randomUUID() + "@x.com");
         ana.setEndereco(new ArrayList<>());
-        ana = usuarioRepository.save(ana);
+        ana = usuarioRepository.save(TelefoneDeTeste.verificado(ana));
         bia = new ChefeModel();
         bia.setNome("Bia");
         bia.setEmail("bia-" + UUID.randomUUID() + "@x.com");
@@ -91,7 +92,7 @@ class EventosIntegrationTest {
         bia.setEspecialidade(Especialidades.BRASILEIRA);
         bia.setSenioridade(Senioridade.HEAD_CHEF);
         bia.setAnosDeExperiencia(5);
-        bia = chefeRepository.save(bia);
+        bia = chefeRepository.save(TelefoneDeTeste.verificado(bia));
     }
 
     @AfterEach

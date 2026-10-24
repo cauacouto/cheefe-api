@@ -61,6 +61,10 @@ class MigracoesPostgresTest {
     EnderecoRepository enderecoRepository;
     @Autowired
     PratosRepository pratosRepository;
+    @Autowired
+    com.couto.chefe_api.repository.TelefoneBanidoRepository telefoneBanidoRepository;
+    @Autowired
+    org.springframework.transaction.support.TransactionTemplate transacao;
 
     @DynamicPropertySource
     static void bancoReal(DynamicPropertyRegistry registry) throws Exception {
@@ -246,6 +250,42 @@ class MigracoesPostgresTest {
             } finally {
                 st.execute("DELETE FROM chefhome.agendamentos WHERE id = 900004");
             }
+        }
+    }
+
+    /** V12: um telefone verificado por conta em cada tabela (vários nulos podem); hash de banido só entra e sai. */
+    @Test
+    void telefoneVerificadoUnicoPorTabelaEBanidoSoDeInsercaoEExclusao() throws Exception {
+        try (Connection app = conectar("chefhome_app", SENHA_APP);
+             Statement st = app.createStatement()) {
+            for (String[] indice : new String[][]{{"usuarios", "uk_usuarios_telefone_verificado"},
+                    {"chefe", "uk_chefe_telefone_verificado"}}) {
+                assertThat(coluna(st, "SELECT indexdef FROM pg_indexes WHERE schemaname = 'chefhome' AND indexname = '"
+                        + indice[1] + "'")).singleElement().asString()
+                        .contains("UNIQUE").contains("(telefone_verificado)").contains("WHERE (telefone_verificado IS NOT NULL)");
+            }
+            String a = UUID.randomUUID().toString();
+            String b = UUID.randomUUID().toString();
+            try {
+                st.execute("INSERT INTO chefhome.usuarios (id, email, nome) VALUES ('" + a + "', '" + a + "@x.com', 'A'), "
+                        + "('" + b + "', '" + b + "@x.com', 'B')");
+                st.execute("UPDATE chefhome.usuarios SET telefone_verificado = '+5531999990001' WHERE id = '" + a + "'");
+                assertThatThrownBy(() -> st.execute("UPDATE chefhome.usuarios SET telefone_verificado = '+5531999990001' "
+                        + "WHERE id = '" + b + "'"))
+                        .isInstanceOfSatisfying(SQLException.class, e -> assertThat(e.getSQLState()).isEqualTo("23505"));
+            } finally {
+                st.execute("DELETE FROM chefhome.usuarios WHERE id IN ('" + a + "', '" + b + "')");
+            }
+
+            // ON CONFLICT DO NOTHING do Hibernate no Postgres: o mesmo hash duas vezes não é erro
+            String hash = "a".repeat(64);
+            transacao.executeWithoutResult(t -> telefoneBanidoRepository.banirSeAusente(hash, java.time.LocalDateTime.now()));
+            transacao.executeWithoutResult(t -> telefoneBanidoRepository.banirSeAusente(hash, java.time.LocalDateTime.now()));
+            assertThat(coluna(st, "SELECT count(*)::text FROM chefhome.telefone_banido WHERE hash = '" + hash + "'"))
+                    .containsExactly("1");
+            assertSemPermissao(app, "UPDATE chefhome.telefone_banido SET banido_em = now()");
+            assertSemPermissao(app, "TRUNCATE chefhome.telefone_banido");
+            st.execute("DELETE FROM chefhome.telefone_banido WHERE hash = '" + hash + "'");
         }
     }
 

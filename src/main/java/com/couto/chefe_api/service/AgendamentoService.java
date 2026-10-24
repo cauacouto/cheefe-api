@@ -78,11 +78,13 @@ public class AgendamentoService {
     private final DenunciaRepository denunciaRepository;
     private final HistoricoAgendamentoService historico;
     private final AgendamentoHistoricoRepository historicoRepository;
+    private final ExigenciaTelefone exigenciaTelefone;
     private final Clock clock;
 
     @Transactional
     public AgendamentoResponseDto criarAgendamento(AgendamentoRequestDto dto, UUID usuarioId) {
         var user = usuarioRepository.findById(usuarioId).orElseThrow(UsuarioException::new);
+        exigenciaTelefone.exigir(usuarioId, TipoUsuario.CLIENTE);
 
         validarPeriodo(dto.getDataHoraInicial(), dto.getDataHoraFinal());
         List<ChefeModel> chefes = validarChefes(dto.getChefeIds());
@@ -355,7 +357,7 @@ public class AgendamentoService {
 
     /**
      * Garante que todos os ids existem (ids repetidos contam uma vez) e que os
-     * chefes estão ativos e disponíveis.
+     * chefes estão ativos, disponíveis e com telefone verificado (o mesmo critério de visível na busca).
      */
     private List<ChefeModel> validarChefes(List<UUID> chefeIds) {
         if (chefeIds == null || chefeIds.isEmpty()) {
@@ -374,7 +376,7 @@ public class AgendamentoService {
 
         boolean todosValidos = chefes.stream()
                 .allMatch(chefe -> chefe.isDisponivel() && Boolean.TRUE.equals(chefe.getAtivo()) && !chefe.isSuspenso()
-                        && chefe.getBloqueadoEm() == null
+                        && chefe.getBloqueadoEm() == null && chefe.getTelefoneVerificado() != null
                         && denunciaRepository.countDistinctClienteByChefeIdAndStatus(chefe.getId(), StatusDenuncia.ABERTA)
                         < DenunciaService.LIMITE_OCULTACAO);
         if (!todosValidos) {

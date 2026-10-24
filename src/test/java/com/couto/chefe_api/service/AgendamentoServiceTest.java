@@ -79,6 +79,9 @@ class AgendamentoServiceTest {
     private DenunciaRepository denunciaRepository;
     @Mock
     private HistoricoAgendamentoService historico;
+    // telefone verificado: exigência coberta em TelefoneExigidoIntegrationTest; aqui o mock deixa passar
+    @Mock
+    private ExigenciaTelefone exigenciaTelefone;
     @Spy
     private Clock clock = Clock.systemDefaultZone();
 
@@ -429,7 +432,7 @@ class AgendamentoServiceTest {
         chefe.setAnosDeExperiencia(5);
         chefe.setDisponivel(true);
         chefe.setAtivo(true);
-        return chefe;
+        return com.couto.chefe_api.TelefoneDeTeste.verificado(chefe);
     }
 
     private void chefesExistentes(ChefeModel... chefes) {
