@@ -176,7 +176,10 @@ class UsuarioServiceIntegrationTest {
 
         usuarioService.deletar(usuarioId);
 
-        assertThat(notificacaoRepository.findAll()).extracting(n -> n.getReferenciaId())
+        // só as notificações deste teste: outras classes dividem o banco e podem ter deixado as delas
+        assertThat(notificacaoRepository.findAll())
+                .filteredOn(n -> List.of(moderador1, moderador2).contains(n.getDestinatarioId()))
+                .extracting(n -> n.getReferenciaId())
                 .containsExactly(String.valueOf(deOutraConta.getId()));
     }
 
