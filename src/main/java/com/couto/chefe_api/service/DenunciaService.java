@@ -43,10 +43,10 @@ public class DenunciaService {
                 .filter(a -> a.getStatus() == StatusAgendamento.CONFIRMADO || a.getStatus() == StatusAgendamento.CONCLUIDO)
                 .filter(a -> a.getDataHoraInicial() != null && a.getDataHoraInicial().isBefore(LocalDateTime.now(clock)))
                 .orElseThrow(() -> new RecursoNaoEncontradoException("agendamento não encontrado"));
-        ChefeModel chefe = agendamento.getChefes().stream()
-                .filter(c -> c.getId().equals(dto.chefeId()))
-                .findFirst()
-                .orElseThrow(() -> new RecursoNaoEncontradoException("agendamento não encontrado"));
+        ChefeModel chefe = agendamento.getChefe();
+        if (!chefe.getId().equals(dto.chefeId())) {
+            throw new RecursoNaoEncontradoException("agendamento não encontrado");
+        }
 
         if (denunciaRepository.existsByCliente_IdAndChefe_IdAndStatus(clienteId, chefe.getId(), StatusDenuncia.ABERTA)) {
             throw new ConflitoException("já existe uma denúncia sua em análise para este chef");

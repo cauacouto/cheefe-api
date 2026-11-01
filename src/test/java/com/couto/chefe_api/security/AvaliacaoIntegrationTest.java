@@ -202,7 +202,6 @@ class AvaliacaoIntegrationTest {
                 + "\"COMIDA_EXCELENTE\",\"APRESENTACAO_CAPRICHADA\",\"ATRASOU\"]}").andExpect(status().isBadRequest());
         avaliar(cookieDe(ana), a, "{" + chef + "\"nota\":5,\"comentario\":\"" + "x".repeat(1001) + "\"}")
                 .andExpect(status().isBadRequest());
-        avaliar(cookieDe(ana), a, "{\"nota\":5}").andExpect(status().isBadRequest());
         assertThat(avaliacaoRepository.count()).isZero();
 
         avaliar(cookieDe(ana), a, "{" + chef + "\"nota\":5}").andExpect(status().isCreated());
@@ -211,18 +210,32 @@ class AvaliacaoIntegrationTest {
     }
 
     @Test
-    void clienteNaoAvaliaChefQueSaiuNemQuemNaoParticipa() throws Exception {
+    void agendamentoRecusadoNaoPodeSerAvaliado() throws Exception {
+        UserModel ana = novoCliente("Ana");
+        ChefeModel bia = novoChefe("Bia");
+        Agendamento a = novoAgendamento(ana, BASE, bia);
+        a.setStatus(StatusAgendamento.RECUSADO); // Bia recusou: o chef continua no agendamento, mas nada a avaliar
+        a = agendamentoRepository.save(a);
+
+        avaliar(cookieDe(ana), a, "{\"chefeId\":\"" + bia.getId() + "\",\"nota\":1}").andExpect(status().isConflict());
+        assertThat(avaliacaoRepository.count()).isZero();
+        mockMvc.perform(get("/agendamentos/" + a.getId() + "/avaliacoes/pendentes").cookie(cookieDe(ana)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void chefeIdErradoDa400EQuemNaoParticipaRecebe404() throws Exception {
         UserModel ana = novoCliente("Ana");
         ChefeModel bia = novoChefe("Bia");
         ChefeModel caio = novoChefe("Caio");
-        Agendamento a = novoAgendamento(ana, BASE, bia, caio);
-        a.getChefes().removeIf(c -> c.getId().equals(caio.getId())); // Caio recusou antes da conclusão
-        a = concluido(a, LocalDateTime.now().minusDays(1));
+        Agendamento a = concluido(novoAgendamento(ana, BASE, bia), LocalDateTime.now().minusDays(1));
 
-        avaliar(cookieDe(ana), a, "{\"chefeId\":\"" + caio.getId() + "\",\"nota\":1}").andExpect(status().isNotFound());
+        avaliar(cookieDe(ana), a, "{\"chefeId\":\"" + caio.getId() + "\",\"nota\":1}").andExpect(status().isBadRequest());
         avaliar(cookieDe(caio), a, "{\"nota\":1}").andExpect(status().isNotFound());
         avaliar(cookieDe(novoCliente("Edu")), a, "{\"chefeId\":\"" + bia.getId() + "\",\"nota\":1}")
                 .andExpect(status().isNotFound());
+        assertThat(avaliacaoRepository.count()).isZero();
         mockMvc.perform(get("/agendamentos/" + a.getId() + "/avaliacoes/pendentes").cookie(cookieDe(ana)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
@@ -230,6 +243,19 @@ class AvaliacaoIntegrationTest {
                 .andExpect(jsonPath("$[0].nome").value("Bia"))
                 .andExpect(jsonPath("$[0].tipo").value("CHEFE"))
                 .andExpect(jsonPath("$[0].prazo").isNotEmpty());
+    }
+
+    @Test
+    void semChefeIdAvaliaOChefDoAgendamento() throws Exception {
+        UserModel ana = novoCliente("Ana");
+        ChefeModel bia = novoChefe("Bia");
+        Agendamento a = concluido(novoAgendamento(ana, BASE, bia), LocalDateTime.now().minusDays(1));
+
+        avaliar(cookieDe(ana), a, "{\"nota\":4}").andExpect(status().isCreated());
+
+        ChefeModel depois = chefeRepository.findById(bia.getId()).orElseThrow();
+        assertThat(depois.getSomaNotas()).isEqualTo(4);
+        assertThat(depois.getTotalAvaliacoes()).isEqualTo(1);
     }
 
     @Test
@@ -825,11 +851,11 @@ class AvaliacaoIntegrationTest {
         return todas.get(0);
     }
 
-    Agendamento novoAgendamento(UserModel cliente, LocalDateTime inicio, ChefeModel... chefes) {
+    Agendamento novoAgendamento(UserModel cliente, LocalDateTime inicio, ChefeModel chefe) {
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(cliente);
         agendamento.setEndereco(novoEndereco(cliente));
-        agendamento.setChefes(new ArrayList<>(List.of(chefes)));
+        agendamento.setChefe(chefe);
         agendamento.setDataHoraInicial(inicio);
         agendamento.setDataHoraFinal(inicio.plusHours(2));
         agendamento.setQuantidadePessoas(2);

@@ -3,7 +3,7 @@ package com.couto.chefe_api.domain;
 import com.couto.chefe_api.domain.UserModel;
 import com.couto.chefe_api.enums.StatusAgendamento;
 import com.fasterxml.jackson.annotation.JsonFormat;
-import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.DynamicUpdate;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -18,9 +18,9 @@ import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.Objects;
 
+// só as colunas que mudaram vão no UPDATE: salvar o agendamento não sobrescreve o que outra transação gravou
+@DynamicUpdate
 @Entity()
 @Table(name = "agendamentos")
 @Getter
@@ -41,15 +41,10 @@ public class Agendamento  implements Serializable {
     @JoinColumn(name = "user_id")
     private UserModel usuario;
 
-    // listas paginadas: os chefs de todos os agendamentos da página vêm numa query só
-    @ManyToMany
-    @BatchSize(size = 50)
-    @JoinTable(
-            name = "agendamento_chefe",
-            joinColumns = @JoinColumn(name = "agendamento_id"),
-            inverseJoinColumns = @JoinColumn(name = "chefe_id")
-    )
-    private List<ChefeModel> chefes;
+    /** O chef continua no agendamento mesmo depois de recusar ou desistir. */
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "chefe_id")
+    private ChefeModel chefe;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "endereco_id")
@@ -114,18 +109,16 @@ public class Agendamento  implements Serializable {
         status = StatusAgendamento.CANCELADO;
     }
 
-    /** O chef sai do pedido; devolve se ainda restam chefs (senão o pedido vira RECUSADO). */
-    public boolean recusar(ChefeModel chefe, LocalDateTime agora) {
+    public void recusar(LocalDateTime agora) {
         exigirStatus(StatusAgendamento.PENDENTE, "recusar");
         exigirAntesDoInicio(agora, "recusar");
-        return retirar(chefe, StatusAgendamento.RECUSADO);
+        status = StatusAgendamento.RECUSADO;
     }
 
-    /** O chef sai do agendamento confirmado; devolve se ainda restam chefs (senão ele vira CANCELADO). */
-    public boolean desistir(ChefeModel chefe, LocalDateTime agora) {
+    public void desistir(LocalDateTime agora) {
         exigirStatus(StatusAgendamento.CONFIRMADO, "desistir de");
         exigirAntesDoInicio(agora, "desistir de");
-        return retirar(chefe, StatusAgendamento.CANCELADO);
+        status = StatusAgendamento.CANCELADO;
     }
 
     public void concluirPeloChef(LocalDateTime agora) {
@@ -156,28 +149,12 @@ public class Agendamento  implements Serializable {
         return true;
     }
 
-    /** Soma do valor/hora dos chefs vezes a duração, já em reais com 2 casas (o mesmo valor que vai para o banco). */
-    public static BigDecimal calcularValor(List<ChefeModel> chefes, LocalDateTime inicio, LocalDateTime fim) {
+    /** Valor/hora do chef vezes a duração, já em reais com 2 casas (o mesmo valor que vai para o banco). */
+    public static BigDecimal calcularValor(ChefeModel chefe, LocalDateTime inicio, LocalDateTime fim) {
         BigDecimal horas = BigDecimal.valueOf(ChronoUnit.MINUTES.between(inicio, fim))
                 .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
-        return chefes.stream()
-                .map(ChefeModel::getValorHora)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .multiply(horas)
-                .setScale(2, RoundingMode.HALF_UP);
-    }
-
-    private boolean retirar(ChefeModel chefe, StatusAgendamento seNaoSobrarNinguem) {
-        chefes.removeIf(c -> c.getId().equals(chefe.getId()));
-        if (chefes.isEmpty()) {
-            status = seNaoSobrarNinguem;
-            return false;
-        }
-        if (dataHoraInicial != null && dataHoraFinal != null) {
-            valorTotal = calcularValor(chefes, dataHoraInicial, dataHoraFinal);
-        }
-        return true;
+        BigDecimal valorHora = chefe.getValorHora() == null ? BigDecimal.ZERO : chefe.getValorHora();
+        return valorHora.multiply(horas).setScale(2, RoundingMode.HALF_UP);
     }
 
     private void exigirStatus(StatusAgendamento esperado, String acao) {

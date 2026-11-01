@@ -9,8 +9,8 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Avaliação de um agendamento concluído. {@code chefeId} só vale para o cliente (qual chef ele avalia);
- * o chef sempre avalia o cliente. {@code anonimo} nulo = anônimo (padrão).
+ * Avaliação de um agendamento concluído. {@code chefeId} é opcional e só vale para o cliente; se vier, precisa ser o chef do agendamento
+ * (o chef sempre avalia o cliente). {@code anonimo} nulo = anônimo (padrão).
  */
 public record AvaliarRequestDto(
         UUID chefeId,

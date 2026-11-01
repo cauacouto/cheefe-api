@@ -322,19 +322,6 @@ class AgendaChefIntegrationTest {
     }
 
     @Test
-    void comVariosChefsOErroCitaQuemEstaIndisponivel() throws Exception {
-        ChefeModel bia = novoChefe("Bia");
-        ChefeModel caio = novoChefe("Caio");
-        gravarBloqueio(caio, BASE, BASE.plusHours(3));
-        UserModel ana = novoCliente("Ana");
-
-        pedir(ana, novoEndereco(ana).getId(), BASE.plusHours(1), BASE.plusHours(2), bia, caio)
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.detail").value(containsString("Caio")))
-                .andExpect(jsonPath("$.detail").value(containsString("indisponível nesse horário")));
-    }
-
-    @Test
     void agendarNumDiaFixoDa409EEmOutroDiaNao() throws Exception {
         ChefeModel bia = novoChefe("Bia");
         diasFixos(bia, BASE.getDayOfWeek().name()).andExpect(status().isOk());
@@ -396,16 +383,15 @@ class AgendaChefIntegrationTest {
     }
 
     @Test
-    void confirmarConfereAAgendaDeTodosOsChefsDoAgendamento() throws Exception {
+    void confirmarConfereAAgendaDoChef() throws Exception {
         ChefeModel bia = novoChefe("Bia");
-        ChefeModel caio = novoChefe("Caio");
-        gravarBloqueio(caio, BASE, BASE.plusHours(3));
-        Agendamento pedido = novoAgendamento(novoCliente("Ana"), BASE.plusHours(1), StatusAgendamento.PENDENTE, bia, caio);
+        Agendamento pedido = novoAgendamento(novoCliente("Ana"), BASE.plusHours(1), StatusAgendamento.PENDENTE, bia);
+        // a Bia bloqueou o horário depois do pedido
+        gravarBloqueio(bia, BASE, BASE.plusHours(3));
 
-        // confirmar vale para os dois chefs: Caio bloqueou depois do pedido, então Bia não confirma por ele
         mockMvc.perform(patch("/agendamentos/" + pedido.getId() + "/confirmar").cookie(cookieDe(bia)))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.detail").value(containsString("Caio")));
+                .andExpect(jsonPath("$.detail").value(INDISPONIVEL));
         assertThat(agendamentoRepository.findById(pedido.getId()).orElseThrow().getStatus()).isEqualTo(StatusAgendamento.PENDENTE);
     }
 
@@ -528,11 +514,11 @@ class AgendaChefIntegrationTest {
         return bloqueioRepository.save(bloqueio);
     }
 
-    Agendamento novoAgendamento(UserModel cliente, LocalDateTime inicio, StatusAgendamento status, ChefeModel... chefes) {
+    Agendamento novoAgendamento(UserModel cliente, LocalDateTime inicio, StatusAgendamento status, ChefeModel chefe) {
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(cliente);
         agendamento.setEndereco(novoEndereco(cliente));
-        agendamento.setChefes(new ArrayList<>(List.of(chefes)));
+        agendamento.setChefe(chefe);
         agendamento.setDataHoraInicial(inicio);
         agendamento.setDataHoraFinal(inicio.plusHours(2));
         agendamento.setQuantidadePessoas(2);

@@ -398,19 +398,6 @@ class AutorizacaoIntegrationTest {
     }
 
     @Test
-    void segundoChefDoAgendamentoConfirma() throws Exception {
-        ChefeModel x = novoChefe();
-        ChefeModel y = novoChefe();
-        Agendamento agendamento = novoAgendamento(novoCliente(), x, y);
-
-        mockMvc.perform(patch("/agendamentos/" + agendamento.getId() + "/confirmar").cookie(cookieDe(y)))
-                .andExpect(status().isOk());
-
-        assertThat(agendamentoRepository.findById(agendamento.getId()).orElseThrow().getStatus())
-                .isEqualTo(StatusAgendamento.CONFIRMADO);
-    }
-
-    @Test
     void recebidosListaSoOsDoChef() throws Exception {
         ChefeModel x = novoChefe();
         Agendamento deX = novoAgendamento(novoCliente(), x);
@@ -436,11 +423,11 @@ class AutorizacaoIntegrationTest {
         return enderecoRepository.save(endereco);
     }
 
-    Agendamento novoAgendamento(UserModel cliente, ChefeModel... chefes) {
+    Agendamento novoAgendamento(UserModel cliente, ChefeModel chefe) {
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(cliente);
         agendamento.setEndereco(novoEndereco(cliente));
-        agendamento.setChefes(new ArrayList<>(List.of(chefes)));
+        agendamento.setChefe(chefe);
         agendamento.setDataHoraInicial(LocalDateTime.now().plusDays(10).withHour(18).withMinute(0).withSecond(0).withNano(0));
         agendamento.setDataHoraFinal(LocalDateTime.now().plusDays(10).withHour(20).withMinute(0).withSecond(0).withNano(0));
         agendamento.setQuantidadePessoas(2);

@@ -42,3 +42,21 @@ CREATE TABLE menu_ocasiao (
 );
 
 CREATE INDEX idx_menu_ocasiao_ocasiao ON menu_ocasiao (ocasiao);
+
+-- Um chef por agendamento: a coluna substitui a tabela de junção.
+ALTER TABLE agendamentos ADD COLUMN chefe_id uuid;
+ALTER TABLE agendamentos ADD CONSTRAINT fk_agendamentos_chefe FOREIGN KEY (chefe_id) REFERENCES chefe;
+
+-- min() não existe para uuid no Postgres: compara como texto e volta para uuid
+UPDATE agendamentos a SET chefe_id = (SELECT min(ac.chefe_id::text)::uuid FROM agendamento_chefe ac WHERE ac.agendamento_id = a.id);
+-- todos os chefs saíram: vale quem recusou ou desistiu por último
+UPDATE agendamentos a SET chefe_id = (SELECT h.autor_id FROM agendamento_historico h
+    WHERE h.agendamento_id = a.id AND h.autor_tipo = 'CHEFE' AND h.acao IN ('RECUSADO','DESISTENCIA')
+    ORDER BY h.ocorrido_em DESC, h.id DESC LIMIT 1) WHERE a.chefe_id IS NULL;
+-- sem rastro de chef: dado de teste, o projeto não está em produção
+DELETE FROM denuncia WHERE agendamento_id IN (SELECT id FROM agendamentos WHERE chefe_id IS NULL);
+DELETE FROM agendamentos WHERE chefe_id IS NULL;
+
+ALTER TABLE agendamentos ALTER COLUMN chefe_id SET NOT NULL;
+CREATE INDEX idx_agendamentos_chefe_status ON agendamentos (chefe_id, status);
+DROP TABLE agendamento_chefe;

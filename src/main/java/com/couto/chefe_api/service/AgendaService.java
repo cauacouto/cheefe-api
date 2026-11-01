@@ -132,17 +132,15 @@ public class AgendaService {
         return novos.stream().sorted().toList();
     }
 
-    /** Garante que nenhum dos chefs está em bloqueio ou dia fixo no horário; com vários, o erro cita o nome. */
+    /** Garante que o chef não está em bloqueio nem dia fixo no horário. */
     @Transactional(readOnly = true)
-    public void exigirDisponivel(List<ChefeModel> chefes, LocalDateTime inicio, LocalDateTime fim) {
+    public void exigirDisponivel(ChefeModel chefe, LocalDateTime inicio, LocalDateTime fim) {
         Set<DayOfWeek> tocados = diasTocados(inicio, fim);
-        for (ChefeModel chefe : chefes) {
-            boolean emBloqueio = bloqueioRepository.existeSobreposto(chefe.getId(), inicio, fim);
-            boolean emDiaFixo = !emBloqueio && diaFixoRepository.doChefe(chefe.getId()).stream()
-                    .anyMatch(d -> tocados.contains(d.getDiaSemana()));
-            if (emBloqueio || emDiaFixo) {
-                throw new AgendaIndisponivelException(chefes.size() > 1 ? chefe.getNome() : null);
-            }
+        boolean emBloqueio = bloqueioRepository.existeSobreposto(chefe.getId(), inicio, fim);
+        boolean emDiaFixo = !emBloqueio && diaFixoRepository.doChefe(chefe.getId()).stream()
+                .anyMatch(d -> tocados.contains(d.getDiaSemana()));
+        if (emBloqueio || emDiaFixo) {
+            throw new AgendaIndisponivelException();
         }
     }
 

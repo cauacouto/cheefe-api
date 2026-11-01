@@ -221,7 +221,7 @@ class ChefeServiceIntegrationTest {
         cliente = usuarioRepository.save(cliente);
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(cliente);
-        agendamento.setChefes(new java.util.ArrayList<>(java.util.List.of(chefe)));
+        agendamento.setChefe(chefe);
         agendamento = agendamentoRepository.save(agendamento);
         Denuncia denuncia = new Denuncia();
         denuncia.setChefe(chefe);

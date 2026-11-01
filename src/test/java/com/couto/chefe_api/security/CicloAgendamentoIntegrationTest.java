@@ -145,28 +145,32 @@ class CicloAgendamentoIntegrationTest {
     }
 
     @Test
-    void recusaParcialEDepoisOChefQueSaiuRecebe404() throws Exception {
+    void recusarViraRecusadoEOChefContinuaNoAgendamento() throws Exception {
         UserModel ana = novoCliente("Ana");
         ChefeModel bia = novoChefe("Bia");
-        ChefeModel caio = novoChefe("Caio");
-        Agendamento a = novoAgendamento(ana, BASE, bia, caio);
+        Agendamento a = novoAgendamento(ana, BASE, bia);
 
         acao(cookieDe(bia), a, "recusar", "{\"motivo\":\"LOCAL_FORA_DA_AREA\"}").andExpect(status().isOk());
 
         Agendamento depois = agendamentoRepository.findById(a.getId()).orElseThrow();
-        assertThat(depois.getStatus()).isEqualTo(StatusAgendamento.PENDENTE);
-        assertThat(nomesDosChefes(a)).containsExactly("Caio");
-        assertThat(depois.getValorTotal()).isEqualByComparingTo("200.00"); // só o Caio: R$ 100/h x 2h
+        assertThat(depois.getStatus()).isEqualTo(StatusAgendamento.RECUSADO);
+        assertThat(depois.getValorTotal()).isEqualByComparingTo("200.00");
         assertThat(ultima(a).getAcao()).isEqualTo(AcaoAgendamento.RECUSADO);
         assertThat(ultima(a).getAutorId()).isEqualTo(bia.getId());
-
-        acao(cookieDe(bia), a, "recusar", null).andExpect(status().isNotFound());
-        acao(cookieDe(bia), a, "concluir", null).andExpect(status().isNotFound());
-        mockMvc.perform(get("/agendamentos/" + a.getId() + "/historico").cookie(cookieDe(bia))).andExpect(status().isNotFound());
+        mockMvc.perform(get("/agendamentos/recebidos").cookie(cookieDe(bia)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(a.getId()))
+                .andExpect(jsonPath("$.content[0].status").value("RECUSADO"));
+        mockMvc.perform(get("/agendamentos/meus").cookie(cookieDe(ana)))
+                .andExpect(jsonPath("$.content[0].chefe.id").value(bia.getId().toString()));
+        mockMvc.perform(get("/agendamentos/" + a.getId() + "/historico").cookie(cookieDe(bia)))
+                .andExpect(status().isOk());
+        // o pedido já saiu de PENDENTE: recusar de novo é conflito, não "inexistente"
+        acao(cookieDe(bia), a, "recusar", null).andExpect(status().isConflict());
     }
 
     @Test
-    void desistenciaDoUltimoChefCancelaELiberaOHorario() throws Exception {
+    void desistirViraCanceladoEOChefContinuaVendoAHistoria() throws Exception {
         ChefeModel bia = novoChefe("Bia");
         Agendamento a = novoAgendamento(novoCliente("Ana"), BASE, bia);
         confirmar(a);
@@ -175,6 +179,7 @@ class CicloAgendamentoIntegrationTest {
 
         assertThat(statusDe(a)).isEqualTo(StatusAgendamento.CANCELADO);
         assertThat(ultima(a).getAcao()).isEqualTo(AcaoAgendamento.DESISTENCIA);
+        mockMvc.perform(get("/agendamentos/" + a.getId() + "/historico").cookie(cookieDe(bia))).andExpect(status().isOk());
         Agendamento outro = novoAgendamento(novoCliente("Edu"), BASE, bia);
         mockMvc.perform(patch("/agendamentos/" + outro.getId() + "/confirmar").cookie(cookieDe(bia))).andExpect(status().isOk());
     }
@@ -249,27 +254,25 @@ class CicloAgendamentoIntegrationTest {
     void historicoEmOrdemComAutorEMotivo() throws Exception {
         UserModel ana = novoCliente("Ana");
         ChefeModel bia = novoChefe("Bia");
-        ChefeModel caio = novoChefe("Caio");
-        Agendamento a = novoAgendamento(ana, BASE, bia, caio);
-        acao(cookieDe(bia), a, "recusar", "{\"motivo\":\"NUMERO_DE_PESSOAS\",\"descricao\":\"só até 10\"}")
+        Agendamento a = novoAgendamento(ana, BASE, bia);
+        acao(cookieDe(bia), a, "confirmar", null).andExpect(status().isOk());
+        acao(cookieDe(bia), a, "desistir", "{\"motivo\":\"NUMERO_DE_PESSOAS\",\"descricao\":\"só até 10\"}")
                 .andExpect(status().isOk());
-        acao(cookieDe(ana), a, "cancelar", "{\"motivo\":\"OUTRO\"}").andExpect(status().isOk());
 
-        for (Cookie quem : new Cookie[]{cookieDe(ana), cookieDe(caio)}) {
+        for (Cookie quem : new Cookie[]{cookieDe(ana), cookieDe(bia)}) {
             mockMvc.perform(get("/agendamentos/" + a.getId() + "/historico").cookie(quem))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.length()").value(2))
-                    .andExpect(jsonPath("$[0].acao").value("RECUSADO"))
+                    .andExpect(jsonPath("$[0].acao").value("CONFIRMADO"))
                     .andExpect(jsonPath("$[0].autor.nome").value("Bia"))
                     .andExpect(jsonPath("$[0].autor.tipo").value("CHEFE"))
-                    .andExpect(jsonPath("$[0].motivo.codigo").value("NUMERO_DE_PESSOAS"))
-                    .andExpect(jsonPath("$[0].motivo.rotulo").value("Não atendo essa quantidade de pessoas"))
-                    .andExpect(jsonPath("$[0].descricao").value("só até 10"))
-                    .andExpect(jsonPath("$[0].ocorridoEm").isNotEmpty())
-                    .andExpect(jsonPath("$[1].acao").value("CANCELADO"))
-                    .andExpect(jsonPath("$[1].autor.nome").value("Ana"))
-                    .andExpect(jsonPath("$[1].motivo.rotulo").value("Outro motivo"))
-                    .andExpect(jsonPath("$[1].descricao").doesNotExist());
+                    .andExpect(jsonPath("$[0].motivo").doesNotExist())
+                    .andExpect(jsonPath("$[1].acao").value("DESISTENCIA"))
+                    .andExpect(jsonPath("$[1].autor.nome").value("Bia"))
+                    .andExpect(jsonPath("$[1].motivo.codigo").value("NUMERO_DE_PESSOAS"))
+                    .andExpect(jsonPath("$[1].motivo.rotulo").value("Não atendo essa quantidade de pessoas"))
+                    .andExpect(jsonPath("$[1].descricao").value("só até 10"))
+                    .andExpect(jsonPath("$[1].ocorridoEm").isNotEmpty());
         }
     }
 
@@ -321,22 +324,6 @@ class CicloAgendamentoIntegrationTest {
     }
 
     @Test
-    void doisChefsRecusandoAoMesmoTempoViraRecusado() throws Exception {
-        ChefeModel bia = novoChefe("Bia");
-        ChefeModel caio = novoChefe("Caio");
-        Agendamento a = novoAgendamento(novoCliente("Ana"), BASE, bia, caio);
-        Cookie deBia = cookieDe(bia);
-        Cookie deCaio = cookieDe(caio);
-
-        emParalelo(List.of(
-                () -> acao(deBia, a, "recusar", null).andReturn().getResponse().getStatus(),
-                () -> acao(deCaio, a, "recusar", null).andReturn().getResponse().getStatus()));
-
-        assertThat(statusDe(a)).isEqualTo(StatusAgendamento.RECUSADO);
-        assertThat(nomesDosChefes(a)).isEmpty();
-    }
-
-    @Test
     void contaApagadaLevaOAvisoDeCancelamentoDoChefEOHistorico() throws Exception {
         UserModel ana = novoCliente("Ana");
         ChefeModel bia = novoChefe("Bia");
@@ -368,13 +355,6 @@ class CicloAgendamentoIntegrationTest {
         List<AgendamentoHistorico> linhas = historicoRepository.findByAgendamento_IdOrderByOcorridoEmAscIdAsc(agendamento.getId());
         assertThat(linhas).isNotEmpty();
         return linhas.get(linhas.size() - 1);
-    }
-
-    private List<String> nomesDosChefes(Agendamento agendamento) {
-        return chefeRepository.findAll().stream()
-                .filter(c -> agendamentoRepository.findRecebidos(c.getId(), org.springframework.data.domain.PageRequest.of(0, 50))
-                        .stream().anyMatch(x -> x.getId().equals(agendamento.getId())))
-                .map(ChefeModel::getNome).toList();
     }
 
     private void confirmar(Agendamento agendamento) {
@@ -419,11 +399,11 @@ class CicloAgendamentoIntegrationTest {
 
     // ---------------------------------------------------------------------
 
-    Agendamento novoAgendamento(UserModel cliente, LocalDateTime inicio, ChefeModel... chefes) {
+    Agendamento novoAgendamento(UserModel cliente, LocalDateTime inicio, ChefeModel chefe) {
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(cliente);
         agendamento.setEndereco(novoEndereco(cliente));
-        agendamento.setChefes(new ArrayList<>(List.of(chefes)));
+        agendamento.setChefe(chefe);
         agendamento.setDataHoraInicial(inicio);
         agendamento.setDataHoraFinal(inicio.plusHours(2));
         agendamento.setQuantidadePessoas(2);

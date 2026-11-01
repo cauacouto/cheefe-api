@@ -148,7 +148,7 @@ class AgendamentoConcorrenciaPostgresTest {
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(cliente);
         agendamento.setEndereco(endereco);
-        agendamento.setChefes(new ArrayList<>(List.of(bia)));
+        agendamento.setChefe(bia);
         agendamento.setDataHoraInicial(inicio);
         agendamento.setDataHoraFinal(inicio.plusHours(2));
         agendamento.setQuantidadePessoas(2);

@@ -196,7 +196,7 @@ class DenunciaIntegrationTest {
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(cliente);
         agendamento.setEndereco(endereco);
-        agendamento.setChefes(new ArrayList<>(List.of(chefe)));
+        agendamento.setChefe(chefe);
         agendamento.setDataHoraInicial(LocalDateTime.now().minusDays(3));
         agendamento.setDataHoraFinal(LocalDateTime.now().minusDays(3).plusHours(2));
         agendamento.setQuantidadePessoas(2);

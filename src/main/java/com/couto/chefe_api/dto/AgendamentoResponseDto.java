@@ -8,7 +8,6 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Getter
 @Setter
@@ -34,7 +33,7 @@ public class AgendamentoResponseDto {
     private String complemento;
     private String estado;
     private String cep;
-    private List<String> chefes;
+    private ChefeResumoDto chefe;
     private String status;
     @JsonFormat(pattern = "dd-MM-yyyy HH:mm")
     private LocalDateTime criadoEm;

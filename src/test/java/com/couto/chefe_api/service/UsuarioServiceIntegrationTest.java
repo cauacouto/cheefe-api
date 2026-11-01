@@ -188,19 +188,12 @@ class UsuarioServiceIntegrationTest {
         ChefeModel bia = novoChefe("Bia");
         ChefeModel caio = novoChefe("Caio");
         UserModel cliente = usuarioRepository.findById(usuarioId).orElseThrow();
-        Agendamento ag = new Agendamento();
-        ag.setUsuario(cliente);
-        ag.setChefes(new ArrayList<>(List.of(bia, caio)));
-        ag.setDataHoraInicial(LocalDateTime.now().minusDays(2));
-        ag.setDataHoraFinal(LocalDateTime.now().minusDays(2).plusHours(2));
-        ag.setQuantidadePessoas(2);
-        ag.setValorTotal(new BigDecimal("200.00"));
-        ag.setStatus(StatusAgendamento.CONCLUIDO);
-        ag.setConcluidoEm(LocalDateTime.now().minusDays(1));
-        ag = agendamentoRepository.save(ag);
+        Agendamento daBia = concluido(cliente, bia);
+        Agendamento doCaio = concluido(cliente, caio);
         // outra pessoa também avaliou a Bia: só a nota do cliente apagado sai
         transactionTemplate.executeWithoutResult(t -> chefeRepository.somarAvaliacao(bia.getId(), 2));
-        for (ChefeModel chefe : List.of(bia, caio)) {
+        for (Agendamento ag : List.of(daBia, doCaio)) {
+            ChefeModel chefe = ag.getChefe();
             transactionTemplate.executeWithoutResult(t -> chefeRepository.somarAvaliacao(chefe.getId(), 5));
             Avaliacao a = new Avaliacao();
             a.setAgendamento(ag);
@@ -227,6 +220,19 @@ class UsuarioServiceIntegrationTest {
         assertThat(caioDepois.getSomaNotas()).isZero();
         assertThat(avaliacaoRepository.count()).isZero();
         assertThat(notificacaoRepository.findAll()).isEmpty();
+    }
+
+    private Agendamento concluido(UserModel cliente, ChefeModel chefe) {
+        Agendamento ag = new Agendamento();
+        ag.setUsuario(cliente);
+        ag.setChefe(chefe);
+        ag.setDataHoraInicial(LocalDateTime.now().minusDays(2));
+        ag.setDataHoraFinal(LocalDateTime.now().minusDays(2).plusHours(2));
+        ag.setQuantidadePessoas(2);
+        ag.setValorTotal(new BigDecimal("200.00"));
+        ag.setStatus(StatusAgendamento.CONCLUIDO);
+        ag.setConcluidoEm(LocalDateTime.now().minusDays(1));
+        return agendamentoRepository.save(ag);
     }
 
     private BloqueioConta bloqueio(UUID contaId) {

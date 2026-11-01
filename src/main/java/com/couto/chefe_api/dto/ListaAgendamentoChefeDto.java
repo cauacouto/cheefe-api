@@ -32,4 +32,5 @@ public class ListaAgendamentoChefeDto {
     /** Reputação do cliente para o chef decidir; nula com menos de 5 avaliações. */
     private BigDecimal clienteNotaMedia;
     private int clienteTotalAvaliacoes;
+    private ChefeResumoDto chefe;
 }

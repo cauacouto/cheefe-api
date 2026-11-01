@@ -74,7 +74,7 @@ class ListagensIntegrationTest {
         ChefeModel bia = novoChefe("Bia");
         ChefeModel caio = novoChefe("Caio");
         novoAgendamento(ana, BASE.plusDays(1), bia);
-        Agendamento maisDistante = novoAgendamento(ana, BASE.plusDays(5), bia, caio);
+        Agendamento maisDistante = novoAgendamento(ana, BASE.plusDays(5), bia);
         novoAgendamento(ana, BASE.plusDays(3), caio);
 
         mockMvc.perform(get("/agendamentos/meus").param("size", "2").cookie(cookieDe(ana)))
@@ -84,9 +84,10 @@ class ListagensIntegrationTest {
                 .andExpect(jsonPath("$.content[0].id").value(maisDistante.getId()))
                 .andExpect(jsonPath("$.content[0].valorTotal").value(200.0))
                 .andExpect(jsonPath("$.content[0].dataHoraFinal").isNotEmpty())
-                .andExpect(jsonPath("$.content[0].chefes.length()").value(2))
-                .andExpect(jsonPath("$.content[0].chefes[*].nome").value(org.hamcrest.Matchers.containsInAnyOrder("Bia", "Caio")))
-                .andExpect(jsonPath("$.content[0].chefes[0].id").isNotEmpty());
+                .andExpect(jsonPath("$.content[0].chefe.nome").value("Bia"))
+                .andExpect(jsonPath("$.content[0].chefe.id").value(bia.getId().toString()))
+                .andExpect(jsonPath("$.content[0].nomesChefes").doesNotExist())
+                .andExpect(jsonPath("$.content[0].chefes").doesNotExist());
     }
 
     @Test
@@ -272,11 +273,11 @@ class ListagensIntegrationTest {
 
     // ---------------------------------------------------------------------
 
-    Agendamento novoAgendamento(UserModel cliente, LocalDateTime inicio, ChefeModel... chefes) {
+    Agendamento novoAgendamento(UserModel cliente, LocalDateTime inicio, ChefeModel chefe) {
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(cliente);
         agendamento.setEndereco(novoEndereco(cliente));
-        agendamento.setChefes(new ArrayList<>(List.of(chefes)));
+        agendamento.setChefe(chefe);
         agendamento.setDataHoraInicial(inicio);
         agendamento.setDataHoraFinal(inicio.plusHours(2));
         agendamento.setQuantidadePessoas(2);

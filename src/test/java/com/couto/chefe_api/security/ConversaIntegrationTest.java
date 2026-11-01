@@ -528,7 +528,7 @@ class ConversaIntegrationTest {
 
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(ana);
-        agendamento.setChefes(new ArrayList<>(java.util.List.of(bia)));
+        agendamento.setChefe(bia);
         agendamento.setQuantidadePessoas(2);
         agendamento.setStatus(StatusAgendamento.CONFIRMADO);
         agendamento = agendamentoRepository.save(agendamento);

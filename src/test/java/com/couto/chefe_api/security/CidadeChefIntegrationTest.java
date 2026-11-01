@@ -169,8 +169,6 @@ class CidadeChefIntegrationTest {
 
         pedir(ana, emCampinas, bia).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail").value("Chef Bia não atende em Campinas"));
-        pedir(ana, emCampinas, caio, bia).andExpect(status().isConflict())
-                .andExpect(jsonPath("$.detail").value("Chef Bia não atende em Campinas"));
         pedir(ana, emCampinas, caio).andExpect(status().isCreated());
         // mesma cidade escrita de outro jeito
         pedir(ana, emSaoPauloMinusculo, bia).andExpect(status().isCreated());

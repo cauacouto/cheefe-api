@@ -201,7 +201,7 @@ class ModeracaoIntegrationTest {
         cliente = usuarioRepository.save(TelefoneDeTeste.verificado(cliente));
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(cliente);
-        agendamento.setChefes(new ArrayList<>(List.of(chefe)));
+        agendamento.setChefe(chefe);
         agendamento = agendamentoRepository.save(agendamento);
         Denuncia denuncia = new Denuncia();
         denuncia.setChefe(chefe);

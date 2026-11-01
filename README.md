@@ -187,10 +187,10 @@ Listas paginadas respondem `{ "content": [...], "page": { "size", "number", "tot
 | Perfil do chef | `GET /chefe/me` (inclui `perfilCompleto` e `camposPendentes`); `PATCH /chefe/me` (inclui `cidade` e `estado` (UF) de origem, obrigatórios para aparecer na busca e ser agendado: o chef só atende nessa cidade); `PUT /chefe/me/foto` (multipart `foto`); `PATCH /chefe/me/inativar` (pausa: some da busca e não recebe agendamentos novos) e `PATCH /chefe/me/ativar` (volta); `DELETE /chefe/me` (apaga a conta: não loga nem opera mais) | CHEFE |
 | Pratos | `GET /pratos?page=&size=` (paginado, até 50) e `GET /pratos/chefe/{chefeId}`: só pratos de chefs visíveis na busca (chef pausado, suspenso, banido ou ocultado por denúncias não aparece) | qualquer logado |
 | Meus pratos | `POST /pratos` (multipart `dados` + `foto`), `PUT /pratos/{id}`, `GET /pratos/meus` (todos os do chef, mesmo pausado) | CHEFE |
-| Agendamentos do cliente | `POST /agendamentos` (endereço precisa ser do cliente e da mesma cidade e UF de origem de cada chef escolhido, senão **409** "Chef {nome} não atende em {cidade}" — vale também ao trocar endereço ou chefs no `PUT` e ao confirmar; **409** se algum chef escolhido já tiver um agendamento confirmado que se sobreponha — pedidos pendentes podem se sobrepor, e encostar, como 18h–20h e 20h–22h, não conflita), `GET /agendamentos/meus?page=&size=` (paginado, até 50, data mais distante primeiro), `PUT /agendamentos/{id}` (só `PENDENTE`), `PATCH /agendamentos/{id}/cancelar` (veja "Ciclo do agendamento") | CLIENTE |
-| Agendamentos do chef | `GET /agendamentos/recebidos?page=&size=` (paginado como `/agendamentos/meus`), `PATCH /agendamentos/{id}/confirmar` (só chef do agendamento, só `PENDENTE`; **409** se algum chef do agendamento já tiver outro confirmado no mesmo horário), `PATCH /agendamentos/{id}/recusar`·`desistir`·`concluir` | CHEFE |
-| Linha do tempo | `GET /agendamentos/{id}/historico` (cliente dono ou chef que ainda está no agendamento) | CLIENTE, CHEFE |
-| Avaliar | `POST /agendamentos/{id}/avaliacoes`, `GET /agendamentos/{id}/avaliacoes/pendentes` (cliente dono ou chef que ainda está no agendamento; veja "Avaliações") | CLIENTE, CHEFE |
+| Agendamentos do cliente | `POST /agendamentos` (um agendamento tem um chef só: `chefeIds` aceita um id, repetido conta uma vez, mais de um distinto → **400**; as respostas trazem `chefe` — `{ id, nome, imageUrl, especialidade }` — no lugar de `chefes`; o endereço precisa ser do cliente e da mesma cidade e UF de origem do chef, senão **409** "Chef {nome} não atende em {cidade}" — vale também ao trocar endereço ou chef no `PUT` e ao confirmar; **409** se o chef já tiver um agendamento confirmado que se sobreponha — pedidos pendentes podem se sobrepor, e encostar, como 18h–20h e 20h–22h, não conflita), `GET /agendamentos/meus?page=&size=` (paginado, até 50, data mais distante primeiro), `PUT /agendamentos/{id}` (só `PENDENTE`), `PATCH /agendamentos/{id}/cancelar` (veja "Ciclo do agendamento") | CLIENTE |
+| Agendamentos do chef | `GET /agendamentos/recebidos?page=&size=` (paginado como `/agendamentos/meus`), `PATCH /agendamentos/{id}/confirmar` (só chef do agendamento, só `PENDENTE`; **409** se o chef já tiver outro confirmado no mesmo horário), `PATCH /agendamentos/{id}/recusar`·`desistir`·`concluir` | CHEFE |
+| Linha do tempo | `GET /agendamentos/{id}/historico` (cliente dono ou chef do agendamento, mesmo depois de recusar ou desistir) | CLIENTE, CHEFE |
+| Avaliar | `POST /agendamentos/{id}/avaliacoes`, `GET /agendamentos/{id}/avaliacoes/pendentes` (cliente dono ou chef do agendamento; veja "Avaliações") | CLIENTE, CHEFE |
 | Responder e denunciar avaliação | `PUT /avaliacoes/{id}/resposta` `{texto}` → 200 `{resposta}` (o texto como ficou, depois do filtro), `POST /avaliacoes/{id}/denuncias` `{motivo, descricao?}` → 201 `{id, status}` (só o chef avaliado) | CHEFE |
 | Reputação do cliente | `GET /clientes/{id}/reputacao` (só chef que tem ou teve agendamento com o cliente; para os demais, 404) | CHEFE |
 | Denúncias | `POST /denuncias` (só de chef com quem teve agendamento confirmado e já ocorrido) | CLIENTE |
@@ -222,14 +222,14 @@ O telefone de contato do cliente (`telefone` em `PUT /usuario/me`) continua sepa
 | `PENDENTE` | `PATCH /confirmar` | chef do agendamento | antes do início, sem conflito de horário | `CONFIRMADO` |
 | `PENDENTE` | `PATCH /cancelar` | cliente | antes do início | `CANCELADO` |
 | `CONFIRMADO` | `PATCH /cancelar` | cliente | até 24h antes do início | `CANCELADO` |
-| `PENDENTE` | `PATCH /recusar` | chef do agendamento | antes do início | o chef sai e o valor é recalculado; sem chefs, `RECUSADO` |
-| `CONFIRMADO` | `PATCH /desistir` | chef do agendamento | antes do início | o chef sai e o valor é recalculado; sem chefs, `CANCELADO` |
+| `PENDENTE` | `PATCH /recusar` | chef do agendamento | antes do início | `RECUSADO`; o chef continua no agendamento e vê a linha do tempo |
+| `CONFIRMADO` | `PATCH /desistir` | chef do agendamento | antes do início | `CANCELADO`; o chef continua no agendamento e vê a linha do tempo |
 | `CONFIRMADO` | `PATCH /concluir` | chef do agendamento | depois do início | `CONCLUIDO` |
 | `CONFIRMADO` | (rotina) | sistema | depois do fim | `CONCLUIDO` |
 | `PENDENTE` | (rotina) | sistema | depois do início | `EXPIRADO` |
 
 - Criar, editar o horário e confirmar também dão **409** ("Chef indisponível nesse horário") quando o horário cai num bloqueio ou dia fixo da agenda do chef (veja "Agenda do chef"). A rotina nunca expira nem recusa nada por causa da agenda.
-- **Cidade:** o chef só atende na cidade de origem dele (`cidade` e `estado` do perfil). Criar, trocar endereço ou chefs e confirmar dão **409** "Chef {nome} não atende em {cidade}" quando o endereço é de outra cidade ou UF; a comparação ignora acento, maiúsculas e espaços.
+- **Cidade:** o chef só atende na cidade de origem dele (`cidade` e `estado` do perfil). Criar, trocar endereço ou chef e confirmar dão **409** "Chef {nome} não atende em {cidade}" quando o endereço é de outra cidade ou UF; a comparação ignora acento, maiúsculas e espaços.
 - `CANCELADO`, `RECUSADO`, `CONCLUIDO` e `EXPIRADO` são finais. Fora do status ou do prazo → **409** com o motivo; agendamento de outra pessoa → **404**.
 - Cancelar, recusar e desistir aceitam um corpo opcional `{ "motivo": "<código>", "descricao": "<até 300 caracteres>" }`:
   - cliente (`/cancelar`): `MUDANCA_DE_PLANOS`, `DATA_OU_HORARIO`, `ENCONTREI_OUTRA_OPCAO`, `VALOR`, `OUTRO`;
@@ -248,18 +248,18 @@ O chef diz quando não atende, e o cliente não consegue agendar nesses horário
 - `DELETE /chefe/me/agenda/bloqueios/{id}` → **204**; de outro chef → **404**.
 - `PUT /chefe/me/agenda/dias-fixos` `{ "dias": ["MONDAY", ...] }` (sem repetição; lista vazia limpa) → **200** com a lista.
 - **Confirmados não são derrubados:** um bloqueio ou dia novo que pegue agendamento `CONFIRMADO` (que ainda não terminou) responde **409** "Você tem agendamento confirmado nesse período", com o id e o horário dos que conflitam; o chef desiste antes (`PATCH /agendamentos/{id}/desistir`) e o cliente é avisado pelo fluxo normal. Pedidos `PENDENTE` no período continuam: o chef recusa um por um.
-- **Conflito de horário:** o agendamento `[início, fim)` conflita com um bloqueio que se sobreponha (encostar, como 18h–20h e 20h–22h, não conflita) ou com um dia fixo em que caia qualquer parte dele (no fuso do servidor, como os demais prazos). Vale em `POST /agendamentos` (todos os chefs escolhidos), `PUT /agendamentos/{id}` (novo horário) e `PATCH /agendamentos/{id}/confirmar` (todos os chefs do agendamento) → **409** "Chef indisponível nesse horário" (com vários chefs, cita o nome).
+- **Conflito de horário:** o agendamento `[início, fim)` conflita com um bloqueio que se sobreponha (encostar, como 18h–20h e 20h–22h, não conflita) ou com um dia fixo em que caia qualquer parte dele (no fuso do servidor, como os demais prazos). Vale em `POST /agendamentos`, `PUT /agendamentos/{id}` (novo horário) e `PATCH /agendamentos/{id}/confirmar` → **409** "Chef indisponível nesse horário".
 - **Consulta pública** `GET /chefe/{id}/agenda?de=&ate=` (qualquer logado; `dd-MM-yyyy`; padrão hoje até hoje + 30 dias; janela máxima de 90 dias, senão **400**) → `[{ "inicio", "fim" }]`: bloqueios, dias fixos (dias inteiros) e agendamentos confirmados dentro da janela, ordenados e mesclados (o que se sobrepõe ou encosta vira um só), sem motivo nem id. Chef não visível na busca → **404**.
 - Criar ou mexer na agenda e confirmar agendamento usam a mesma trava do chef, então uma confirmação e um bloqueio simultâneos nunca deixam um confirmado dentro de um bloqueio.
 - Fora do escopo: horário de atendimento por dia, feriados, fuso por chef e sincronização com Google Agenda.
 
 ### ⭐ Avaliações
 
-Depois de um agendamento `CONCLUIDO`, o cliente avalia cada chef e cada chef avalia o cliente, até **7 dias** depois da conclusão (fora do prazo, ou sem conclusão → **409**; quem não está no agendamento → **404**). Uma avaliação por pessoa avaliada, sem edição (repetida → **409**).
+Depois de um agendamento `CONCLUIDO`, o cliente avalia o chef e o chef avalia o cliente, até **7 dias** depois da conclusão (fora do prazo, ou sem conclusão → **409**; quem não está no agendamento → **404**). Uma avaliação por pessoa avaliada, sem edição (repetida → **409**).
 
 ```json
 POST /agendamentos/{id}/avaliacoes
-{ "chefeId": "<só o cliente manda>", "nota": 5, "tags": ["PONTUAL"], "comentario": "opcional, até 1000", "anonimo": true }
+{ "chefeId": "<opcional; se vier, precisa ser o chef do agendamento, senão 400>", "nota": 5, "tags": ["PONTUAL"], "comentario": "opcional, até 1000", "anonimo": true }
 ```
 
 - `GET /agendamentos/{id}/avaliacoes/pendentes` → `[{ "id", "nome", "tipo", "prazo" }]`: quem ainda posso avaliar (vazio fora do status ou do prazo).

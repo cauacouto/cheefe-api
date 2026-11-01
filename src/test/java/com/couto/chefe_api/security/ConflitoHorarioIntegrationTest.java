@@ -94,7 +94,6 @@ class ConflitoHorarioIntegrationTest {
 
         pedir(ana, endereco, BASE.plusHours(1), BASE.plusHours(3), bia).andExpect(status().isConflict());
         pedir(ana, endereco, BASE.minusHours(1), BASE.plusHours(3), bia).andExpect(status().isConflict());
-        pedir(ana, endereco, BASE.plusHours(1), BASE.plusHours(3), caio, bia).andExpect(status().isConflict());
         // encostar não conflita, e outro chef no mesmo horário pode
         pedir(ana, endereco, BASE.plusHours(2), BASE.plusHours(4), bia).andExpect(status().isCreated());
         pedir(ana, endereco, BASE.plusHours(1), BASE.plusHours(3), caio).andExpect(status().isCreated());
@@ -135,16 +134,15 @@ class ConflitoHorarioIntegrationTest {
     }
 
     @Test
-    void confirmarChecaTodosOsChefsDoAgendamento() throws Exception {
-        ChefeModel bia = novoChefe("Bia");
+    void confirmarSobrepostoAUmConfirmadoDoChefDa409() throws Exception {
         ChefeModel caio = novoChefe("Caio");
         confirmar(novoAgendamento(novoCliente("Edu"), BASE, caio));
-        // pendente com Bia e Caio no mesmo horário em que o Caio já está confirmado
-        Agendamento comOsDois = novoAgendamento(novoCliente("Ana"), BASE.plusHours(1), bia, caio);
+        // pendente no mesmo horário em que o Caio já está confirmado
+        Agendamento pendente = novoAgendamento(novoCliente("Ana"), BASE.plusHours(1), caio);
 
-        mockMvc.perform(patch("/agendamentos/" + comOsDois.getId() + "/confirmar").cookie(cookieDe(bia)))
+        mockMvc.perform(patch("/agendamentos/" + pendente.getId() + "/confirmar").cookie(cookieDe(caio)))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("Caio")));
+                .andExpect(jsonPath("$.detail").value("O chef Caio já tem um agendamento confirmado nesse horário"));
     }
 
     @Test
@@ -207,11 +205,11 @@ class ConflitoHorarioIntegrationTest {
 
     // ---------------------------------------------------------------------
 
-    Agendamento novoAgendamento(UserModel cliente, LocalDateTime inicio, ChefeModel... chefes) {
+    Agendamento novoAgendamento(UserModel cliente, LocalDateTime inicio, ChefeModel chefe) {
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(cliente);
         agendamento.setEndereco(novoEndereco(cliente));
-        agendamento.setChefes(new ArrayList<>(List.of(chefes)));
+        agendamento.setChefe(chefe);
         agendamento.setDataHoraInicial(inicio);
         agendamento.setDataHoraFinal(inicio.plusHours(2));
         agendamento.setQuantidadePessoas(2);

@@ -112,7 +112,6 @@ class TelefoneParadoIntegrationTest {
     void clienteSemTelefoneAgendaEChefSemTelefonePodeSerAgendado() throws Exception {
         agendar(caio, endereco(caio), bia).andExpect(status().isCreated());
         agendar(ana, endereco(ana), duda).andExpect(status().isCreated());
-        agendar(ana, endereco(ana), bia, duda).andExpect(status().isCreated());
     }
 
     @Test
@@ -201,11 +200,11 @@ class TelefoneParadoIntegrationTest {
         return conversaRepository.save(conversa);
     }
 
-    Agendamento agendamento(UserModel cliente, ChefeModel... chefes) {
+    Agendamento agendamento(UserModel cliente, ChefeModel chefe) {
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(cliente);
         agendamento.setEndereco(endereco(cliente));
-        agendamento.setChefes(new ArrayList<>(List.of(chefes)));
+        agendamento.setChefe(chefe);
         agendamento.setDataHoraInicial(FUTURO);
         agendamento.setDataHoraFinal(FUTURO.plusHours(2));
         agendamento.setQuantidadePessoas(2);

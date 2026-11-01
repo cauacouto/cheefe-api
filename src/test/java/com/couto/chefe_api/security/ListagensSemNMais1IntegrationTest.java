@@ -76,10 +76,10 @@ class ListagensSemNMais1IntegrationTest {
     void agendamentosDoClienteEDoChefSemNMais1() throws Exception {
         UserModel ana = novoCliente("Ana");
         ChefeModel bia = novoChefe("Bia");
-        criarAgendamentos(ana, bia, 2);
+        criarAgendamentos(ana, bia, 2, 0);
         long clienteComDois = queries(get("/agendamentos/meus").cookie(cookieDe(ana)));
         long chefComDois = queries(get("/agendamentos/recebidos").cookie(cookieDe(bia)));
-        criarAgendamentos(ana, bia, 6);
+        criarAgendamentos(ana, bia, 6, 2);
 
         assertThat(queries(get("/agendamentos/meus").cookie(cookieDe(ana)))).isEqualTo(clienteComDois);
         assertThat(queries(get("/agendamentos/recebidos").cookie(cookieDe(bia)))).isEqualTo(chefComDois);
@@ -106,20 +106,20 @@ class ListagensSemNMais1IntegrationTest {
         return estatisticas.getPrepareStatementCount();
     }
 
-    private void criarAgendamentos(UserModel cliente, ChefeModel chefe, int quantidade) {
-        for (int i = 0; i < quantidade; i++) {
-            // cada um com outro chef junto: a coleção de chefs também precisa vir sem N+1
-            novoAgendamento(cliente, BASE.plusDays(i), chefe, novoChefe("Extra" + i));
+    private void criarAgendamentos(UserModel cliente, ChefeModel chefe, int quantidade, int primeiro) {
+        for (int i = primeiro; i < primeiro + quantidade; i++) {
+            // um sim, um não, com outro chef: o chef de cada agendamento também precisa vir sem N+1
+            novoAgendamento(cliente, BASE.plusDays(i), i % 2 == 0 ? chefe : novoChefe("Extra" + i));
         }
     }
 
     // ---------------------------------------------------------------------
 
-    Agendamento novoAgendamento(UserModel cliente, LocalDateTime inicio, ChefeModel... chefes) {
+    Agendamento novoAgendamento(UserModel cliente, LocalDateTime inicio, ChefeModel chefe) {
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(cliente);
         agendamento.setEndereco(novoEndereco(cliente));
-        agendamento.setChefes(new ArrayList<>(List.of(chefes)));
+        agendamento.setChefe(chefe);
         agendamento.setDataHoraInicial(inicio);
         agendamento.setDataHoraFinal(inicio.plusHours(2));
         agendamento.setQuantidadePessoas(2);

@@ -158,7 +158,8 @@ public class AvaliacaoService {
         LocalDateTime prazo = agendamento.getConcluidoEm().plus(PRAZO);
         List<Avaliado> possiveis = new ArrayList<>();
         if (usuario.tipo() == TipoUsuario.CLIENTE) {
-            agendamento.getChefes().forEach(c -> possiveis.add(new Avaliado(c.getId(), c.getNome(), TipoUsuario.CHEFE)));
+            ChefeModel chefe = agendamento.getChefe();
+            possiveis.add(new Avaliado(chefe.getId(), chefe.getNome(), TipoUsuario.CHEFE));
         } else {
             UserModel cliente = agendamento.getUsuario();
             possiveis.add(new Avaliado(cliente.getId(), cliente.getNome(), TipoUsuario.CLIENTE));
@@ -195,7 +196,7 @@ public class AvaliacaoService {
     @Transactional(readOnly = true)
     public ReputacaoDto reputacaoDoCliente(UUID clienteId, UsuarioAutenticado chef) {
         exigirChefAtivo(chef);
-        if (!agendamentoRepository.existsByUsuario_IdAndChefes_Id(clienteId, chef.id())) {
+        if (!agendamentoRepository.existsByUsuario_IdAndChefe_Id(clienteId, chef.id())) {
             throw new RecursoNaoEncontradoException("cliente não encontrado");
         }
         UserModel cliente = usuarioRepository.findById(clienteId)
@@ -323,7 +324,7 @@ public class AvaliacaoService {
         return agendamentoRepository.findById(agendamentoId)
                 .filter(a -> switch (usuario.tipo()) {
                     case CLIENTE -> a.getUsuario() != null && a.getUsuario().getId().equals(usuario.id());
-                    case CHEFE -> a.getChefes().stream().anyMatch(c -> c.getId().equals(usuario.id()));
+                    case CHEFE -> a.getChefe().getId().equals(usuario.id());
                     case MODERADOR -> false;
                 })
                 .orElseThrow(AgendamentoException::new);
@@ -350,14 +351,11 @@ public class AvaliacaoService {
             UserModel cliente = agendamento.getUsuario();
             return new Avaliado(cliente.getId(), cliente.getNome(), TipoUsuario.CLIENTE);
         }
-        if (chefeId == null) {
-            throw new RegraDeNegocioException("Informe qual chef você está avaliando (chefeId)");
+        ChefeModel chefe = agendamento.getChefe();
+        // o chef do agendamento é um só; se o cliente apontar outro, o pedido está errado
+        if (chefeId != null && !chefeId.equals(chefe.getId())) {
+            throw new RegraDeNegocioException("O chef informado não é o chef deste agendamento");
         }
-        // chef que recusou ou desistiu saiu do agendamento: não aparece para avaliar
-        ChefeModel chefe = agendamento.getChefes().stream()
-                .filter(c -> c.getId().equals(chefeId))
-                .findFirst()
-                .orElseThrow(() -> new AgendamentoException("chef não encontrado neste agendamento"));
         return new Avaliado(chefe.getId(), chefe.getNome(), TipoUsuario.CHEFE);
     }
 

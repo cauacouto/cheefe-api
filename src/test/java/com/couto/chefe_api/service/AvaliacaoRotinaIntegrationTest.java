@@ -128,7 +128,7 @@ class AvaliacaoRotinaIntegrationTest {
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(cliente);
         agendamento.setEndereco(enderecoRepository.save(endereco));
-        agendamento.setChefes(new ArrayList<>(List.of(chef)));
+        agendamento.setChefe(chef);
         agendamento.setDataHoraInicial(concluidoEm.minusHours(2));
         agendamento.setDataHoraFinal(concluidoEm);
         agendamento.setQuantidadePessoas(2);
