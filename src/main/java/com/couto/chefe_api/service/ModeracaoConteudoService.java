@@ -13,16 +13,17 @@ public class ModeracaoConteudoService {
 
     private final FiltroConteudo filtro;
     private final BloqueioContaService bloqueioContaService;
+    private final DetectorContato detectorContato;
 
     /**
-     * Devolve o texto exibível (ofensas viram "***"). Ódio ou ameaça bloqueiam a conta do autor e
+     * Devolve o texto exibível (ofensas e contatos viram "***"). Ódio ou ameaça bloqueiam a conta do autor e
      * lançam {@link ConteudoBloqueadoException}; o bloqueio é commitado em transação própria.
      * Moderadores nunca são bloqueados: a exceção sai, mas nenhuma conta é alterada nem entra na fila.
      * <p>
      * Chamar ANTES de travar ou gravar a linha do autor: a transação interna (REQUIRES_NEW) atualiza a
      * conta do autor e ficaria esperando o lock da transação externa.
      */
-    public String verificar(String texto, UsuarioAutenticado autor) {
+    public ConteudoVerificado verificar(String texto, UsuarioAutenticado autor) {
         ResultadoFiltro resultado = filtro.analisar(texto);
         if (resultado.violacao().isPresent()) {
             if (autor.tipo() == TipoUsuario.MODERADOR) {
@@ -31,6 +32,7 @@ public class ModeracaoConteudoService {
             bloqueioContaService.bloquear(autor.id(), autor.tipo(), resultado.violacao().get(), texto);
             throw new ConteudoBloqueadoException();
         }
-        return resultado.textoExibido();
+        DetectorContato.Resultado contato = detectorContato.mascarar(resultado.textoExibido());
+        return new ConteudoVerificado(contato.texto(), contato.contatoOculto());
     }
 }

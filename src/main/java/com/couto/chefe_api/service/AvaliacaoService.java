@@ -92,7 +92,7 @@ public class AvaliacaoService {
 
         // antes de qualquer trava: o bloqueio do autor roda numa transação própria (ver ModeracaoConteudoService)
         String original = dto.comentario() == null || dto.comentario().isBlank() ? null : dto.comentario().strip();
-        String exibido = original == null ? null : moderacaoConteudo.verificar(original, autor);
+        String exibido = original == null ? null : moderacaoConteudo.verificar(original, autor).texto();
 
         somarNoAvaliado(avaliado, dto.nota());
 
@@ -212,7 +212,7 @@ public class AvaliacaoService {
         Avaliacao avaliacao = sobreOChef(avaliacaoId, chef);
         exigirComentarioPublicado(avaliacao, "Só é possível responder comentário publicado");
         String original = texto.strip();
-        String exibido = moderacaoConteudo.verificar(original, chef);
+        String exibido = moderacaoConteudo.verificar(original, chef).texto();
         boolean primeira = avaliacao.getRespondidaEm() == null;
         avaliacao.setResposta(exibido);
         avaliacao.setRespostaOriginal(original);

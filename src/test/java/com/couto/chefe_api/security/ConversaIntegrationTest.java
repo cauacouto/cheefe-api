@@ -1,5 +1,7 @@
 package com.couto.chefe_api.security;
 
+import com.couto.chefe_api.domain.Mensagem;
+
 import com.couto.chefe_api.TelefoneDeTeste;
 import com.couto.chefe_api.domain.UserModel;
 import com.couto.chefe_api.repository.UsuarioRepository;
@@ -310,6 +312,62 @@ class ConversaIntegrationTest {
             assertThat(e.paraAutor().texto()).isEqualTo("agora um *** editado");
             assertThat(JSON.writeValueAsString(e)).doesNotContain("palavrao");
         });
+    }
+
+    @Test
+    void contatoViraAsteriscosEAvisaSoOAutor() throws Exception {
+        long conversa = abrir(ana, bia).andReturnId();
+
+        long mensagem = new Resposta(enviar(bia, conversa, "me liga 21 98888-7777")).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.texto").value("me liga ***"))
+                .andExpect(jsonPath("$.contatoOculto").value(true)).andReturnId();
+
+        assertThat(mensagemRepository.findById(mensagem).orElseThrow().getTextoOriginal()).isEqualTo("me liga 21 98888-7777");
+        mockMvc.perform(get("/conversas/" + conversa + "/mensagens").cookie(cookie(ana)))
+                .andExpect(jsonPath("$[0].texto").value("me liga ***"))
+                .andExpect(jsonPath("$[0].contatoOculto").value(false));
+        mockMvc.perform(get("/conversas/" + conversa + "/mensagens").cookie(cookie(bia)))
+                .andExpect(jsonPath("$[0].contatoOculto").value(true));
+        assertThat(eventos.stream(com.couto.chefe_api.service.eventos.MensagemEnviadaEvent.class).toList())
+                .singleElement().satisfies(e -> {
+                    assertThat(e.paraRemetente().contatoOculto()).isTrue();
+                    assertThat(e.paraDestinatario().contatoOculto()).isFalse();
+                    assertThat(JSON.writeValueAsString(e)).doesNotContain("98888");
+                });
+    }
+
+    @Test
+    void edicaoRecalculaOContato() throws Exception {
+        long conversa = abrir(ana, bia).andReturnId();
+        long mensagem = new Resposta(enviar(bia, conversa, "oi")).andReturnId();
+        String base = "/conversas/" + conversa + "/mensagens/" + mensagem;
+
+        mockMvc.perform(patch(base).cookie(cookie(bia)).contentType(MediaType.APPLICATION_JSON).content("{\"texto\":\"chef@gmail.com\"}"))
+                .andExpect(jsonPath("$.texto").value("***"))
+                .andExpect(jsonPath("$.contatoOculto").value(true));
+        assertThat(eventos.stream(com.couto.chefe_api.service.eventos.MensagemEditadaEvent.class).toList())
+                .singleElement().satisfies(e -> {
+                    assertThat(e.paraAutor().contatoOculto()).isTrue();
+                    assertThat(e.paraOutro().contatoOculto()).isFalse();
+                });
+
+        mockMvc.perform(patch(base).cookie(cookie(bia)).contentType(MediaType.APPLICATION_JSON).content("{\"texto\":\"tudo certo\"}"))
+                .andExpect(jsonPath("$.contatoOculto").value(false));
+        Mensagem limpa = mensagemRepository.findById(mensagem).orElseThrow();
+        assertThat(limpa.isContatoOculto()).isFalse();
+        assertThat(limpa.getTextoOriginal()).isNull();
+    }
+
+    @Test
+    void filaDeDenunciaMostraOContatoOriginal() throws Exception {
+        long conversa = abrir(ana, bia).andReturnId();
+        long mensagem = new Resposta(enviar(bia, conversa, "meu insta @chef.bia")).andReturnId();
+
+        denunciar(ana, "/conversas/" + conversa + "/mensagens/" + mensagem, "OUTRO").andExpect(status().isCreated());
+
+        mockMvc.perform(get("/moderacao/denuncias-mensagens").cookie(cookieModerador()))
+                .andExpect(jsonPath("$.content[0].textoDenunciado").value("meu insta ***"))
+                .andExpect(jsonPath("$.content[0].textoOriginal").value("meu insta @chef.bia"));
     }
 
     @Test

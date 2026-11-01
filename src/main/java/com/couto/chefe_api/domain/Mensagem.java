@@ -55,6 +55,11 @@ public class Mensagem {
     @ColumnDefault("false")
     private boolean removidaPorModeracao;
 
+    /** O filtro trocou algum contato por "***": o autor é avisado (ver MensagemDto). */
+    @Column(nullable = false)
+    @ColumnDefault("false")
+    private boolean contatoOculto;
+
     public boolean isApagada() {
         return apagadaEm != null || removidaPorModeracao;
     }

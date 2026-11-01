@@ -264,6 +264,25 @@ class AvaliacaoIntegrationTest {
     }
 
     @Test
+    void contatoNaAvaliacaoENaRespostaViraAsteriscos() throws Exception {
+        UserModel ana = novoCliente("Ana");
+        ChefeModel bia = novoChefe("Bia");
+        Agendamento a = concluido(novoAgendamento(ana, BASE, bia), LocalDateTime.now().minusDays(1));
+
+        avaliar(cookieDe(ana), a, "{\"chefeId\":\"" + bia.getId() + "\",\"nota\":5,\"comentario\":\"Ótima! Meu zap 21 98888-7777\"}")
+                .andExpect(status().isCreated());
+        Avaliacao av = unica();
+        assertThat(av.getComentario()).isEqualTo("Ótima! Meu zap ***");
+        assertThat(av.getComentarioOriginal()).isEqualTo("Ótima! Meu zap 21 98888-7777");
+
+        responder(cookieDe(bia), av, "Obrigada! instagram.com/chefbia").andExpect(status().isOk());
+
+        Avaliacao respondida = avaliacaoRepository.findById(av.getId()).orElseThrow();
+        assertThat(respondida.getResposta()).isEqualTo("Obrigada! ***");
+        assertThat(respondida.getRespostaOriginal()).isEqualTo("Obrigada! instagram.com/chefbia");
+    }
+
+    @Test
     void ofensaEhMascaradaEOriginalFicaGuardado() throws Exception {
         UserModel ana = novoCliente("Ana");
         ChefeModel bia = novoChefe("Bia");

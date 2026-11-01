@@ -89,7 +89,7 @@ class ChatServiceTest {
         when(conversaRepository.travarPorId(1L)).thenReturn(Optional.of(conversa));
         when(mensagemRepository.findByIdAndConversa_Id(10L, 1L)).thenReturn(Optional.of(mensagem));
         when(moderacao.verificar(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any()))
-                .thenAnswer(inv -> inv.getArgument(0));
+                .thenAnswer(inv -> new ConteudoVerificado(inv.getArgument(0), false));
     }
 
     @Test
@@ -120,7 +120,7 @@ class ChatServiceTest {
         when(moderacao.verificar(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any()))
                 .thenAnswer(inv -> {
                     textoNaVerificacao.add(mensagem.getTexto());
-                    return inv.getArgument(0);
+                    return new ConteudoVerificado(inv.getArgument(0), false);
                 });
 
         service.editar(1L, 10L, ana, "corrigido");
