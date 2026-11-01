@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.DynamicUpdate;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
@@ -20,6 +21,8 @@ import java.util.Set;
  * Menu do chef: pratos por etapa a um preço por pessoa. Não se exclui (agendamentos apontam para ele): pausa-se.
  * Some junto com o chef (ON DELETE CASCADE).
  */
+// só as colunas alteradas vão no UPDATE: pausar ao mesmo tempo em que o chef edita não desfaz a edição (nem o contrário)
+@DynamicUpdate
 @Entity
 @Table(name = "menu", indexes = @Index(name = "idx_menu_chefe_ativo", columnList = "chefe_id, ativo"))
 @Getter
