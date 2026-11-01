@@ -499,13 +499,16 @@ class MigracoesPostgresTest {
             st.execute("INSERT INTO endereco (id, user_id, rua, tipo_de_residencia) VALUES (1, '" + ana + "', 'Rua A', 'CASA')");
             st.execute("INSERT INTO agendamentos (id, user_id, endereco_id, status, valor_total) VALUES "
                     + "(1, '" + ana + "', 1, 'PENDENTE', 450.00), (2, '" + ana + "', 1, 'RECUSADO', 300.00), "
-                    + "(3, '" + ana + "', 1, 'RECUSADO', 100.00), (4, '" + ana + "', 1, 'CANCELADO', 100.00)");
+                    + "(3, '" + ana + "', 1, 'RECUSADO', 100.00), (4, '" + ana + "', 1, 'CANCELADO', 100.00), "
+                    + "(5, '" + ana + "', 1, 'RECUSADO', 100.00)");
             // 1: dois chefs; 2: ninguém, mas a Bia recusou antes do Caio desistir; 3 e 4: sem rastro de chef
             st.execute("INSERT INTO agendamento_chefe (agendamento_id, chefe_id) VALUES (1, '" + caio + "'), (1, '" + bia + "')");
             st.execute("INSERT INTO agendamento_historico (id, agendamento_id, acao, autor_id, autor_tipo, ocorrido_em) VALUES "
                     + "(1, 2, 'RECUSADO', '" + bia + "', 'CHEFE', '2026-10-01 10:00'), "
                     + "(2, 2, 'DESISTENCIA', '" + caio + "', 'CHEFE', '2026-10-01 11:00'), "
-                    + "(3, 4, 'CANCELADO', '" + ana + "', 'CLIENTE', '2026-10-01 12:00')");
+                    + "(3, 4, 'CANCELADO', '" + ana + "', 'CLIENTE', '2026-10-01 12:00'), "
+                    // 5: o autor do histórico é um chef que não existe mais: também sem rastro utilizável
+                    + "(4, 5, 'RECUSADO', '00000000-0000-0000-0000-0000000000ff', 'CHEFE', '2026-10-01 13:00')");
             st.execute("INSERT INTO denuncia (agendamento_id, chefe_id, cliente_id, motivo, descricao, status, criada_em) VALUES "
                     + "(3, '" + bia + "', '" + ana + "', 'OUTRO', 'x', 'ABERTA', '2026-10-01 10:00')");
         }

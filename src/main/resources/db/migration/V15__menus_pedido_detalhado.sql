@@ -52,6 +52,7 @@ UPDATE agendamentos a SET chefe_id = (SELECT min(ac.chefe_id::text)::uuid FROM a
 -- todos os chefs saíram: vale quem recusou ou desistiu por último
 UPDATE agendamentos a SET chefe_id = (SELECT h.autor_id FROM agendamento_historico h
     WHERE h.agendamento_id = a.id AND h.autor_tipo = 'CHEFE' AND h.acao IN ('RECUSADO','DESISTENCIA')
+    AND EXISTS (SELECT 1 FROM chefe c WHERE c.id = h.autor_id)
     ORDER BY h.ocorrido_em DESC, h.id DESC LIMIT 1) WHERE a.chefe_id IS NULL;
 -- sem rastro de chef: dado de teste, o projeto não está em produção
 DELETE FROM denuncia WHERE agendamento_id IN (SELECT id FROM agendamentos WHERE chefe_id IS NULL);
