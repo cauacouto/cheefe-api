@@ -5,7 +5,12 @@ import com.couto.chefe_api.repository.UsuarioRepository;
 import com.couto.chefe_api.domain.Agendamento;
 import com.couto.chefe_api.domain.ChefeModel;
 import com.couto.chefe_api.domain.EnderecoModel;
+import com.couto.chefe_api.domain.Menu;
+import com.couto.chefe_api.domain.MenuItem;
 import com.couto.chefe_api.domain.Pratos;
+import com.couto.chefe_api.enums.EtapaMenu;
+import com.couto.chefe_api.enums.OcasiaoMenu;
+import com.couto.chefe_api.repository.MenuRepository;
 import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.enums.Senioridade;
 import com.couto.chefe_api.enums.TipoDeResidencia;
@@ -55,6 +60,7 @@ class ListagensSemNMais1IntegrationTest {
     @Autowired EnderecoRepository enderecoRepository;
     @Autowired AgendamentoRepository agendamentoRepository;
     @Autowired PratosRepository pratosRepository;
+    @Autowired MenuRepository menuRepository;
     @Autowired com.couto.chefe_api.MenuDeTeste menus;
     @Autowired EntityManagerFactory entityManagerFactory;
 
@@ -68,6 +74,7 @@ class ListagensSemNMais1IntegrationTest {
     @AfterEach
     void limparBanco() {
         agendamentoRepository.deleteAll();
+        menuRepository.deleteAll();
         pratosRepository.deleteAll();
         enderecoRepository.deleteAll();
         usuarioRepository.deleteAll();
@@ -101,6 +108,21 @@ class ListagensSemNMais1IntegrationTest {
         assertThat(queries(get("/pratos").cookie(ana))).isEqualTo(comDois);
     }
 
+    @Test
+    void menusDoChefSemNMais1NosPratos() throws Exception {
+        Cookie ana = cookieDe(novoCliente("Ana"));
+        ChefeModel bia = novoChefe("Bia");
+        novoMenu(bia, 1, 0);
+        long comUmPrato = queries(get("/chefe/" + bia.getId() + "/menus").cookie(ana));
+        long meusComUmPrato = queries(get("/menus/meus").cookie(cookieDe(bia)));
+        novoMenu(bia, 6, 1);
+        novoMenu(bia, 6, 7);
+
+        // mais menus e mais pratos: as consultas não crescem
+        assertThat(queries(get("/chefe/" + bia.getId() + "/menus").cookie(ana))).isEqualTo(comUmPrato);
+        assertThat(queries(get("/menus/meus").cookie(cookieDe(bia)))).isEqualTo(meusComUmPrato);
+    }
+
     private long queries(MockHttpServletRequestBuilder pedido) throws Exception {
         Statistics estatisticas = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
         estatisticas.clear();
@@ -129,6 +151,25 @@ class ListagensSemNMais1IntegrationTest {
         agendamento.getRestricoes().add(new com.couto.chefe_api.domain.RestricaoAgendamento(
                 com.couto.chefe_api.enums.TipoRestricao.VEGANO, 1));
         return agendamentoRepository.save(agendamento);
+    }
+
+    /** Menu ativo do chef com {@code pratos} pratos novos (nomes a partir de {@code primeiro}). */
+    Menu novoMenu(ChefeModel chefe, int pratos, int primeiro) {
+        Menu menu = new Menu();
+        menu.setChefe(chefe);
+        menu.setNome("Menu " + primeiro);
+        menu.setPrecoPorPessoa(new BigDecimal("100.00"));
+        menu.setMinimoConvidados(1);
+        menu.setMaximoConvidados(10);
+        menu.setDuracaoMinutos(120);
+        menu.setIngredientesInclusos(true);
+        menu.setAtivo(true);
+        menu.setCriadoEm(LocalDateTime.now());
+        menu.getOcasioes().add(OcasiaoMenu.OUTRA);
+        for (int i = 0; i < pratos; i++) {
+            menu.getItens().add(new MenuItem(menu, novoPrato(chefe, "Prato" + (primeiro + i)), EtapaMenu.PRINCIPAL, i + 1));
+        }
+        return menuRepository.save(menu);
     }
 
     Pratos novoPrato(ChefeModel chefe, String nome) {
