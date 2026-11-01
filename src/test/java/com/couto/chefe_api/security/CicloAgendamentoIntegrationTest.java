@@ -1,5 +1,7 @@
 package com.couto.chefe_api.security;
 
+import com.couto.chefe_api.enums.EventoNotificacao;
+
 import com.couto.chefe_api.TelefoneDeTeste;
 import com.couto.chefe_api.domain.UserModel;
 import com.couto.chefe_api.repository.UsuarioRepository;
@@ -73,6 +75,7 @@ class CicloAgendamentoIntegrationTest {
     @Autowired com.couto.chefe_api.MenuDeTeste menus;
     @Autowired AgendamentoHistoricoRepository historicoRepository;
     @Autowired com.couto.chefe_api.repository.NotificacaoRepository notificacaoRepository;
+    @Autowired com.couto.chefe_api.service.NotificacaoService notificacaoService;
 
     MockMvc mockMvc;
 
@@ -147,10 +150,15 @@ class CicloAgendamentoIntegrationTest {
     }
 
     @Test
-    void recusarViraRecusadoEOChefContinuaNoAgendamento() throws Exception {
+    void recusarViraRecusadoEOChefNaoVeMaisNadaDoCliente() throws Exception {
         UserModel ana = novoCliente("Ana");
         ChefeModel bia = novoChefe("Bia");
         Agendamento a = novoAgendamento(ana, BASE, bia);
+        // os avisos do pedido citam o cliente
+        notificacaoService.notificar(bia.getId(), TipoUsuario.CHEFE, EventoNotificacao.AGENDAMENTO_CRIADO,
+                "Novo pedido de Ana", String.valueOf(a.getId()));
+        notificacaoService.notificar(bia.getId(), TipoUsuario.CHEFE, EventoNotificacao.AGENDAMENTO_EDITADO,
+                "Ana alterou o pedido", String.valueOf(a.getId()));
 
         acao(cookieDe(bia), a, "recusar", "{\"motivo\":\"LOCAL_FORA_DA_AREA\"}").andExpect(status().isOk());
 
@@ -159,16 +167,40 @@ class CicloAgendamentoIntegrationTest {
         assertThat(depois.getValorTotal()).isEqualByComparingTo("200.00");
         assertThat(ultima(a).getAcao()).isEqualTo(AcaoAgendamento.RECUSADO);
         assertThat(ultima(a).getAutorId()).isEqualTo(bia.getId());
+        // para o chef o pedido deixa de existir: nada de endereço, restrições, observações ou reputação do cliente
         mockMvc.perform(get("/agendamentos/recebidos").cookie(cookieDe(bia)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content[0].id").value(a.getId()))
-                .andExpect(jsonPath("$.content[0].status").value("RECUSADO"));
+                .andExpect(jsonPath("$.content.length()").value(0))
+                .andExpect(jsonPath("$.page.totalElements").value(0));
+        mockMvc.perform(get("/agendamentos/" + a.getId() + "/historico").cookie(cookieDe(bia)))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/clientes/" + ana.getId() + "/reputacao").cookie(cookieDe(bia)))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/agendamentos/" + a.getId() + "/avaliacoes/pendentes").cookie(cookieDe(bia)))
+                .andExpect(status().isNotFound());
+        acao(cookieDe(bia), a, "recusar", null).andExpect(status().isNotFound());
+        assertThat(notificacaoRepository.findAll()).noneMatch(n -> n.getDestinatarioId().equals(bia.getId()));
+        // o cliente continua vendo o pedido dele, e quem recusou
         mockMvc.perform(get("/agendamentos/meus").cookie(cookieDe(ana)))
                 .andExpect(jsonPath("$.content[0].chefe.id").value(bia.getId().toString()));
-        mockMvc.perform(get("/agendamentos/" + a.getId() + "/historico").cookie(cookieDe(bia)))
+        mockMvc.perform(get("/agendamentos/" + a.getId() + "/historico").cookie(cookieDe(ana)))
                 .andExpect(status().isOk());
-        // o pedido já saiu de PENDENTE: recusar de novo é conflito, não "inexistente"
-        acao(cookieDe(bia), a, "recusar", null).andExpect(status().isConflict());
+    }
+
+    @Test
+    void outroAgendamentoComOMesmoClienteContinuaVisivelParaOChef() throws Exception {
+        UserModel ana = novoCliente("Ana");
+        ChefeModel bia = novoChefe("Bia");
+        Agendamento recusado = novoAgendamento(ana, BASE, bia);
+        Agendamento outro = novoAgendamento(ana, BASE.plusDays(1), bia);
+
+        acao(cookieDe(bia), recusado, "recusar", null).andExpect(status().isOk());
+
+        mockMvc.perform(get("/agendamentos/recebidos").cookie(cookieDe(bia)))
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(outro.getId()));
+        mockMvc.perform(get("/clientes/" + ana.getId() + "/reputacao").cookie(cookieDe(bia)))
+                .andExpect(status().isOk());
     }
 
     @Test

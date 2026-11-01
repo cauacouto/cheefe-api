@@ -127,6 +127,10 @@ class NotificacaoListenerTest {
         verify(notificacaoService).notificar(ana.getId(), TipoUsuario.CLIENTE, EventoNotificacao.AGENDAMENTO_RECUSADO,
                 "Seu pedido de 25/10 foi recusado: O local fica fora da minha área de atendimento"
                         + " — fico em Santo André", "42");
+        // os avisos do pedido citam o cliente: quem recusou não vê mais nada dele
+        verify(notificacaoService).apagarDasReferencias(
+                java.util.EnumSet.of(EventoNotificacao.AGENDAMENTO_CRIADO, EventoNotificacao.AGENDAMENTO_EDITADO),
+                java.util.List.of("42"));
         verifyNoMoreInteractions(notificacaoService);
     }
 

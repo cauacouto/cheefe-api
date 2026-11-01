@@ -24,7 +24,7 @@ Fazer o chef preferir tocar o negócio pelo ChefHome em vez de planilha e WhatsA
   "ultimoAgendamento": "12-09-2026 19:30", "proximoAgendamento": "20-11-2026 19:30" }
 ```
 
-**`GET /clientes/{id}/historico`** (CHEFE, conta ativa): só para chef que tem ou teve agendamento (qualquer status) com o cliente; para os demais, **404** (mesma regra de `GET /clientes/{id}/reputacao`).
+**`GET /clientes/{id}/historico`** (CHEFE, conta ativa): só para chef que tem ou teve agendamento com o cliente, fora os que recusou; para os demais, **404** (mesma regra de `GET /clientes/{id}/reputacao`).
 
 ```json
 {

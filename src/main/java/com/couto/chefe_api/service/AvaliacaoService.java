@@ -196,7 +196,7 @@ public class AvaliacaoService {
     @Transactional(readOnly = true)
     public ReputacaoDto reputacaoDoCliente(UUID clienteId, UsuarioAutenticado chef) {
         exigirChefAtivo(chef);
-        if (!agendamentoRepository.existsByUsuario_IdAndChefe_Id(clienteId, chef.id())) {
+        if (!agendamentoRepository.chefConheceOCliente(clienteId, chef.id())) {
             throw new RecursoNaoEncontradoException("cliente não encontrado");
         }
         UserModel cliente = usuarioRepository.findById(clienteId)
@@ -324,7 +324,7 @@ public class AvaliacaoService {
         return agendamentoRepository.findById(agendamentoId)
                 .filter(a -> switch (usuario.tipo()) {
                     case CLIENTE -> a.getUsuario() != null && a.getUsuario().getId().equals(usuario.id());
-                    case CHEFE -> a.getChefe().getId().equals(usuario.id());
+                    case CHEFE -> a.visivelPara(usuario.id());
                     case MODERADOR -> false;
                 })
                 .orElseThrow(AgendamentoException::new);

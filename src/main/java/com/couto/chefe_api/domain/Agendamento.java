@@ -21,6 +21,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.UUID;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -121,6 +122,11 @@ public class Agendamento  implements Serializable {
 
     /** Prazo mínimo para o cliente cancelar um agendamento já confirmado. */
     public static final Duration PRAZO_CANCELAMENTO_CONFIRMADO = Duration.ofHours(24);
+
+    /** Pedido recusado deixa de existir para o chef: ele não vê mais nada do cliente por aqui. */
+    public boolean visivelPara(UUID chefeId) {
+        return chefe.getId().equals(chefeId) && status != StatusAgendamento.RECUSADO;
+    }
 
     public void confirmar(LocalDateTime agora) {
         exigirStatus(StatusAgendamento.PENDENTE, "confirmar");

@@ -25,8 +25,10 @@ public interface AgendamentoRepository extends JpaRepository<Agendamento,Long> {
     /** Só a existência, sem carregar a entidade (ver atualizarAgendamento). */
     boolean existsByIdAndUsuario_Id(Long id, UUID usuarioId);
 
-    /** O chef tem (ou teve) algum agendamento com o cliente: pode ver a reputação dele. */
-    boolean existsByUsuario_IdAndChefe_Id(UUID clienteId, UUID chefeId);
+    /** O chef tem (ou teve) algum agendamento com o cliente, fora os que recusou: pode ver a reputação dele. */
+    @Query("SELECT COUNT(a) > 0 FROM Agendamento a WHERE a.usuario.id = :clienteId AND a.chefe.id = :chefeId "
+            + "AND a.status <> com.couto.chefe_api.enums.StatusAgendamento.RECUSADO")
+    boolean chefConheceOCliente(@Param("clienteId") UUID clienteId, @Param("chefeId") UUID chefeId);
 
     @Query("SELECT a.id FROM Agendamento a WHERE a.usuario.id = :clienteId")
     List<Long> idsDoCliente(@Param("clienteId") UUID clienteId);
@@ -69,9 +71,12 @@ public interface AgendamentoRepository extends JpaRepository<Agendamento,Long> {
     Page<Agendamento> findByUsuario_IdOrderByDataHoraInicialDescIdDesc(UUID usuarioId, Pageable pageable);
 
     @EntityGraph(attributePaths = {"usuario", "endereco", "chefe"})
+    /** Sem os recusados: depois de recusar, o chef não vê mais nada do cliente. */
     @Query(value = "SELECT a FROM Agendamento a WHERE a.chefe.id = :chefeId "
+            + "AND a.status <> com.couto.chefe_api.enums.StatusAgendamento.RECUSADO "
             + "ORDER BY a.dataHoraInicial DESC, a.id DESC",
-            countQuery = "SELECT COUNT(a) FROM Agendamento a WHERE a.chefe.id = :chefeId")
+            countQuery = "SELECT COUNT(a) FROM Agendamento a WHERE a.chefe.id = :chefeId "
+                    + "AND a.status <> com.couto.chefe_api.enums.StatusAgendamento.RECUSADO")
     Page<Agendamento> findRecebidos(@Param("chefeId") UUID chefeId, Pageable pageable);
 
 

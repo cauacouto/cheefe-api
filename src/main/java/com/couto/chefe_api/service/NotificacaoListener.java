@@ -18,6 +18,8 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.EnumSet;
+import java.util.List;
 
 /**
  * Grava as notificações na mesma transação da ação (BEFORE_COMMIT): se o agendamento
@@ -73,6 +75,12 @@ public class NotificacaoListener {
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
     public void aoChefSair(ChefSaiuDoAgendamentoEvent evento) {
         Agendamento agendamento = buscar(evento.agendamentoId());
+        if (evento.recusa()) {
+            // os avisos do pedido citam o cliente: quem recusou não vê mais nada dele
+            notificacaoService.apagarDasReferencias(
+                    EnumSet.of(EventoNotificacao.AGENDAMENTO_CRIADO, EventoNotificacao.AGENDAMENTO_EDITADO),
+                    List.of(String.valueOf(agendamento.getId())));
+        }
         String dia = dia(agendamento.getDataHoraInicial());
         String mensagem = evento.recusa()
                 ? "Seu pedido de " + dia + " foi recusado"

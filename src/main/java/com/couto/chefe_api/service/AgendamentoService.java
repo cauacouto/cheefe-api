@@ -294,7 +294,7 @@ public class AgendamentoService {
             case CLIENTE -> agendamentoRepository.findByIdAndUsuario_Id(id, usuario.id()).orElseThrow(AgendamentoException::new);
             // leitura: sem trava (FOR UPDATE nem é permitido numa transação somente leitura no Postgres)
             case CHEFE -> agendamentoRepository.findById(id)
-                    .filter(a -> a.getChefe().getId().equals(usuario.id()))
+                    .filter(a -> a.visivelPara(usuario.id()))
                     .orElseThrow(AgendamentoException::new);
             case MODERADOR -> throw new AgendamentoException();
         };
@@ -345,7 +345,7 @@ public class AgendamentoService {
      */
     private Agendamento doChef(Long id, UUID chefeId) {
         return agendamentoRepository.travarPorId(id)
-                .filter(a -> a.getChefe().getId().equals(chefeId))
+                .filter(a -> a.visivelPara(chefeId))
                 .orElseThrow(AgendamentoException::new);
     }
 
