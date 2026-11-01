@@ -58,7 +58,7 @@ public final class ChefeSpecification {
         };
     }
 
-    /** Mesma regra de {@link ChefeModel#isPerfilCompleto()}. */
+    /** Mesmos campos de perfil de {@link ChefeRepository#VISIVEL}, que também exige ao menos um menu ativo. */
     public static Specification<ChefeModel> perfilCompleto() {
         return (root, query, cb) -> cb.and(
                 cb.notEqual(cb.trim(cb.coalesce(root.get("nacionalidade"), "")), ""),

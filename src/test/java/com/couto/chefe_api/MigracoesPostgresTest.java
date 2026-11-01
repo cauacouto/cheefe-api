@@ -472,9 +472,11 @@ class MigracoesPostgresTest {
     /**
      * V15 sobre agendamentos que já têm chefs: com vários vale o de menor id; sem nenhum (todos recusaram ou
      * desistiram) vale quem saiu por último; sem rastro nenhum o agendamento e as denúncias dele são apagados.
+     * Agendamentos antigos ficam sem menu e mantêm o valor total; a especialidade do chef vira linha da lista e
+     * valor_hora, chefe.especialidade e a tabela de junção saem.
      */
     @Test
-    void v15DeixaUmChefPorAgendamento() throws Exception {
+    void v14ParaV15ConverteOsDadosAntigos() throws Exception {
         executarComoSuperusuario(POSTGRES, "CREATE DATABASE conversao_v15");
         Container.ExecResult setup = POSTGRES.execInContainer("psql",
                 "-U", POSTGRES.getUsername(), "-d", "conversao_v15", "-v", "ON_ERROR_STOP=1",
@@ -493,10 +495,11 @@ class MigracoesPostgresTest {
              Statement st = app.createStatement()) {
             st.execute("INSERT INTO usuarios (id, email, nome) VALUES ('" + ana + "', 'a@x.com', 'Ana')");
             st.execute("INSERT INTO chefe (id, email, nome) VALUES ('" + bia + "', 'b@x.com', 'Bia'), ('" + caio + "', 'c@x.com', 'Caio')");
+            st.execute("UPDATE chefe SET especialidade = 'ITALIANA', valor_hora = 150.00 WHERE id = '" + bia + "'");
             st.execute("INSERT INTO endereco (id, user_id, rua, tipo_de_residencia) VALUES (1, '" + ana + "', 'Rua A', 'CASA')");
-            st.execute("INSERT INTO agendamentos (id, user_id, endereco_id, status) VALUES "
-                    + "(1, '" + ana + "', 1, 'PENDENTE'), (2, '" + ana + "', 1, 'RECUSADO'), "
-                    + "(3, '" + ana + "', 1, 'RECUSADO'), (4, '" + ana + "', 1, 'CANCELADO')");
+            st.execute("INSERT INTO agendamentos (id, user_id, endereco_id, status, valor_total) VALUES "
+                    + "(1, '" + ana + "', 1, 'PENDENTE', 450.00), (2, '" + ana + "', 1, 'RECUSADO', 300.00), "
+                    + "(3, '" + ana + "', 1, 'RECUSADO', 100.00), (4, '" + ana + "', 1, 'CANCELADO', 100.00)");
             // 1: dois chefs; 2: ninguém, mas a Bia recusou antes do Caio desistir; 3 e 4: sem rastro de chef
             st.execute("INSERT INTO agendamento_chefe (agendamento_id, chefe_id) VALUES (1, '" + caio + "'), (1, '" + bia + "')");
             st.execute("INSERT INTO agendamento_historico (id, agendamento_id, acao, autor_id, autor_tipo, ocorrido_em) VALUES "
@@ -515,6 +518,21 @@ class MigracoesPostgresTest {
             assertThat(coluna(st, "SELECT id || ':' || chefe_id FROM agendamentos ORDER BY id"))
                     .containsExactly("1:" + bia, "2:" + caio);
             assertThat(coluna(st, "SELECT count(*)::text FROM denuncia")).containsExactly("0");
+            assertThat(coluna(st, "SELECT id || ':' || coalesce(menu_id::text, 'nulo') || ':' || valor_total FROM agendamentos ORDER BY id"))
+                    .containsExactly("1:nulo:450.00", "2:nulo:300.00");
+            assertThat(coluna(st, "SELECT chefe_id || ':' || especialidade FROM chefe_especialidade"))
+                    .containsExactly(bia + ":ITALIANA");
+            assertThat(coluna(st, "SELECT count(*)::text FROM information_schema.columns WHERE table_schema = 'chefhome' "
+                    + "AND table_name = 'chefe' AND column_name IN ('valor_hora', 'especialidade')")).containsExactly("0");
+            assertThat(coluna(st, "SELECT count(*)::text FROM information_schema.tables WHERE table_schema = 'chefhome' "
+                    + "AND table_name = 'agendamento_chefe'")).containsExactly("0");
+            // a API só manipula dados nas tabelas novas: DML sim, DDL não
+            for (String tabela : new String[]{"menu", "menu_item", "menu_ocasiao", "chefe_especialidade", "agendamento_restricao"}) {
+                assertThat(coluna(st, "SELECT has_table_privilege('chefhome_app', 'chefhome." + tabela + "', "
+                        + "'SELECT,INSERT,UPDATE,DELETE')::text")).as(tabela).containsExactly("true");
+                assertSemPermissao(app, "DROP TABLE chefhome." + tabela);
+                assertSemPermissao(app, "ALTER TABLE chefhome." + tabela + " DISABLE TRIGGER ALL");
+            }
             assertThat(coluna(st, "SELECT is_nullable FROM information_schema.columns WHERE table_schema = 'chefhome' "
                     + "AND table_name = 'agendamentos' AND column_name = 'chefe_id'")).containsExactly("NO");
         }
