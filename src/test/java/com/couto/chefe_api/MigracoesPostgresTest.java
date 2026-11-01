@@ -347,6 +347,10 @@ class MigracoesPostgresTest {
     @Test
     void checksDeEnumBatemComOsEnumsJava() throws SQLException {
         assertCheckDeTexto("chefe_especialidade", "especialidade", com.couto.chefe_api.enums.Especialidades.values());
+        assertCheckDeTexto("menu_item", "etapa", com.couto.chefe_api.enums.EtapaMenu.values());
+        assertCheckDeTexto("menu_ocasiao", "ocasiao", com.couto.chefe_api.enums.OcasiaoMenu.values());
+        assertCheckDeTexto("agendamentos", "ocasiao", com.couto.chefe_api.enums.OcasiaoMenu.values());
+        assertCheckDeTexto("agendamento_restricao", "tipo", com.couto.chefe_api.enums.TipoRestricao.values());
         assertCheckDeTexto("chefe", "senioridade", Senioridade.values());
         assertCheckDeTexto("notificacao", "destinatario_tipo", com.couto.chefe_api.enums.TipoUsuario.values());
         assertCheckDeTexto("notificacao", "evento", com.couto.chefe_api.enums.EventoNotificacao.values());

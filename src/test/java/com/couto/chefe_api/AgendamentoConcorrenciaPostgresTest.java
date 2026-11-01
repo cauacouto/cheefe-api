@@ -16,6 +16,9 @@ import com.couto.chefe_api.enums.TipoUsuario;
 import com.couto.chefe_api.repository.AgendamentoRepository;
 import com.couto.chefe_api.repository.ChefeRepository;
 import com.couto.chefe_api.repository.EnderecoRepository;
+import com.couto.chefe_api.repository.MenuRepository;
+import com.couto.chefe_api.repository.PratosRepository;
+import com.couto.chefe_api.domain.Menu;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -44,6 +47,7 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 /** Confirmações simultâneas do mesmo horário no Postgres real: a trava no chef deixa passar só uma. */
 @SpringBootTest
@@ -64,6 +68,9 @@ class AgendamentoConcorrenciaPostgresTest {
     @Autowired ChefeRepository chefeRepository;
     @Autowired EnderecoRepository enderecoRepository;
     @Autowired AgendamentoRepository agendamentoRepository;
+    @Autowired MenuRepository menuRepository;
+    @Autowired PratosRepository pratosRepository;
+    @Autowired MenuDeTeste menus;
 
     final List<Agendamento> agendamentos = new ArrayList<>();
     ChefeModel bia;
@@ -76,6 +83,10 @@ class AgendamentoConcorrenciaPostgresTest {
             enderecoRepository.deleteById(a.getEndereco().getId());
             usuarioRepository.deleteById(a.getUsuario().getId());
         });
+        // o menu e o prato do teste (os itens saem em cascata)
+        menuRepository.deleteAll(menuRepository.findAll().stream().filter(m -> m.getChefe().getId().equals(bia.getId())).toList());
+        pratosRepository.deleteAll(pratosRepository.findAll().stream()
+                .filter(p -> p.getChefeModel().getId().equals(bia.getId())).toList());
         chefeRepository.deleteById(bia.getId());
     }
 
@@ -113,6 +124,59 @@ class AgendamentoConcorrenciaPostgresTest {
         assertThat(status).filteredOn(s -> s == 409).hasSize(5);
         assertThat(agendamentoRepository.findAllById(agendamentos.stream().map(Agendamento::getId).toList()))
                 .filteredOn(a -> a.getStatus() == StatusAgendamento.CONFIRMADO).hasSize(1);
+    }
+
+    /** O PUT do cliente e o confirm do chef disputam a mesma linha: um espera o outro, o estado final é coerente. */
+    @Test
+    void putContraConfirmSerializaSemPerderEstado() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+        bia = novoChefe();
+        Menu menu = menus.ativo(bia);
+        Cookie chef = new Cookie(AuthCookies.ACCESS_TOKEN, tokenService.gerarToken(
+                new UsuarioAutenticado(bia.getId(), bia.getEmail(), TipoUsuario.CHEFE)));
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            for (int rodada = 0; rodada < 6; rodada++) {
+                Agendamento criado = novoAgendamento(BASE.plusDays(rodada));
+                criado.aplicarMenu(menu, 2);
+                Agendamento agendamento = agendamentoRepository.save(criado);
+                agendamentos.add(agendamento);
+                Cookie cliente = new Cookie(AuthCookies.ACCESS_TOKEN, tokenService.gerarToken(new UsuarioAutenticado(
+                        criado.getUsuario().getId(), criado.getUsuario().getEmail(), TipoUsuario.CLIENTE)));
+
+                CountDownLatch largada = new CountDownLatch(1);
+                Future<Integer> edicao = pool.submit(() -> {
+                    largada.await();
+                    return mockMvc.perform(put("/agendamentos/" + agendamento.getId()).cookie(cliente)
+                                    .contentType("application/json").content("{\"quantidadePessoas\":3}"))
+                            .andReturn().getResponse().getStatus();
+                });
+                Future<Integer> confirmacao = pool.submit(() -> {
+                    largada.await();
+                    return mockMvc.perform(patch("/agendamentos/" + agendamento.getId() + "/confirmar").cookie(chef))
+                            .andReturn().getResponse().getStatus();
+                });
+                largada.countDown();
+                int statusEdicao = edicao.get(60, TimeUnit.SECONDS);
+                int statusConfirmacao = confirmacao.get(60, TimeUnit.SECONDS);
+
+                Agendamento final_ = agendamentoRepository.findById(agendamento.getId()).orElseThrow();
+                // dois desfechos possíveis, ambos com o confirm valendo e nenhuma escrita perdida:
+                // editou e depois confirmou (3 pessoas), ou confirmou e a edição foi recusada (2 pessoas)
+                assertThat(statusConfirmacao).isEqualTo(200);
+                assertThat(final_.getStatus()).isEqualTo(StatusAgendamento.CONFIRMADO);
+                if (statusEdicao == 200) {
+                    assertThat(final_.getQuantidadePessoas()).isEqualTo(3);
+                    assertThat(final_.getValorTotal()).isEqualByComparingTo("300.00");
+                } else {
+                    assertThat(statusEdicao).isEqualTo(409);
+                    assertThat(final_.getQuantidadePessoas()).isEqualTo(2);
+                    assertThat(final_.getValorTotal()).isEqualByComparingTo("200.00");
+                }
+            }
+        } finally {
+            pool.shutdownNow();
+        }
     }
 
     @Test

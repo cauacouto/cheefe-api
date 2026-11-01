@@ -60,6 +60,7 @@ class MenuIntegrationTest {
     @Autowired ChefeRepository chefeRepository;
     @Autowired PratosRepository pratosRepository;
     @Autowired MenuRepository menuRepository;
+    @Autowired org.springframework.transaction.support.TransactionTemplate transacao;
     @Autowired MenuDeTeste menuDeTeste;
 
     MockMvc mockMvc;
@@ -123,6 +124,33 @@ class MenuIntegrationTest {
                 .andExpect(jsonPath("$.ocasioes[0]").value("FAMILIA"))
                 .andExpect(jsonPath("$.itens.length()").value(1))
                 .andExpect(jsonPath("$.itens[0].etapa").value("ENTRADA"));
+    }
+
+    @Test
+    void editarAcrescentandoEDepoisTrocandoPratosMantemOsItensCertos() throws Exception {
+        ChefeModel bia = novoChefe("Bia");
+        Pratos um = novoPrato(bia, "Moqueca");
+        Pratos dois = novoPrato(bia, "Risoto");
+        Pratos tres = novoPrato(bia, "Pudim");
+        long id = JSON.readTree(mockMvc.perform(post("/menus").cookie(cookieDe(bia)).contentType(MediaType.APPLICATION_JSON)
+                        .content(menu(base().com("itens", List.of(item(um, "PRINCIPAL", 1))))))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString()).get("id").asLong();
+
+        // acrescenta um prato e mantém o que já estava
+        mockMvc.perform(put("/menus/" + id).cookie(cookieDe(bia)).contentType(MediaType.APPLICATION_JSON)
+                        .content(menu(base().com("itens", List.of(item(um, "PRINCIPAL", 1), item(dois, "SOBREMESA", 1))))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.itens.length()").value(2))
+                .andExpect(jsonPath("$.itens[0].nomePrato").value("Moqueca"))
+                .andExpect(jsonPath("$.itens[1].nomePrato").value("Risoto"));
+        assertThat(pratosDoMenu(id)).containsExactlyInAnyOrder(um.getId(), dois.getId());
+
+        // tira o primeiro e acrescenta outro
+        mockMvc.perform(put("/menus/" + id).cookie(cookieDe(bia)).contentType(MediaType.APPLICATION_JSON)
+                        .content(menu(base().com("itens", List.of(item(dois, "SOBREMESA", 1), item(tres, "ENTRADA", 1))))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.itens.length()").value(2));
+        assertThat(pratosDoMenu(id)).containsExactlyInAnyOrder(dois.getId(), tres.getId());
     }
 
     @Test
@@ -384,6 +412,11 @@ class MenuIntegrationTest {
         mockMvc.perform(post("/menus").cookie(cookieDe(chefe)).contentType(MediaType.APPLICATION_JSON)
                         .content(menu(corpo)))
                 .andExpect(status().isBadRequest());
+    }
+
+    List<Integer> pratosDoMenu(long id) {
+        return transacao.execute(t -> menuRepository.findById(id).orElseThrow().getItens().stream()
+                .map(i -> i.getPrato().getId()).toList());
     }
 
     Pratos novoPrato(ChefeModel chefe, String nome) {
