@@ -39,7 +39,7 @@ public class RegisterRequestDto {
     @Size(max = 100)
     private String nacionalidade;
     @Size(min = 1, max = 3)
-    private List<Especialidades> especialidades;
+    private List<@NotNull Especialidades> especialidades;
     private Senioridade senioridade;
     @PositiveOrZero
     private Integer anosDeExperiencia;

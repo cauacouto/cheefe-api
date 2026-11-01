@@ -43,8 +43,7 @@ public class AgendamentoRequestDto {
     @NotNull
     private OcasiaoMenu ocasiao;
 
-    @Valid
-    private List<RestricaoDto> restricoes;
+    private List<@NotNull @Valid RestricaoDto> restricoes;
 
     @Size(max = 1000)
     private String observacoes;

@@ -2,6 +2,7 @@ package com.couto.chefe_api.dto;
 
 import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.enums.Senioridade;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
@@ -23,7 +24,7 @@ public record ChefeRequestDto(
 
         /** De 1 a 3, sem repetir (a repetição é recusada no serviço). */
         @Size(min = 1, max = 3)
-        List<Especialidades> especialidades,
+        List<@NotNull Especialidades> especialidades,
 
         @PositiveOrZero
         Integer anosDeExperiencia,

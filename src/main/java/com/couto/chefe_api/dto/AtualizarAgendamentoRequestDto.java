@@ -4,6 +4,7 @@ import com.couto.chefe_api.enums.OcasiaoMenu;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Future;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
@@ -30,8 +31,7 @@ public record AtualizarAgendamentoRequestDto(
 
         OcasiaoMenu ocasiao,
 
-        @Valid
-        List<RestricaoDto> restricoes,
+        List<@NotNull @Valid RestricaoDto> restricoes,
 
         @Size(max = 1000)
         String observacoes

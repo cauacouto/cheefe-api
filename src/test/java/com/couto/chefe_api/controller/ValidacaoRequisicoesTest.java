@@ -25,6 +25,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasItems;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -127,6 +128,33 @@ class ValidacaoRequisicoesTest {
                         .content("{\"quantidadePessoas\":3}"))
                 .andExpect(status().isOk());
         verify(agendamentoService).atualizarAgendamento(any(), anyLong(), any());
+    }
+
+    @Test
+    void listasComElementoNuloDao400() throws Exception {
+        String inicio = LocalDateTime.now().plusDays(3).format(FORMATO);
+        mvc.perform(post("/agendamentos").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"menuId\":1,\"dataHoraInicial\":\"" + inicio + "\",\"enderecoId\":1,"
+                                + "\"ocasiao\":\"FAMILIA\",\"quantidadePessoas\":4,\"restricoes\":[null]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.campos[*].campo").value(hasItems("restricoes[0]")));
+        mvc.perform(put("/agendamentos/7").contentType(MediaType.APPLICATION_JSON).content("{\"restricoes\":[null]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.campos[*].campo").value(hasItems("restricoes[0]")));
+        mvc.perform(patch("/chefe/me").contentType(MediaType.APPLICATION_JSON).content("{\"especialidades\":[null]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.campos[*].campo").value(hasItems("especialidades[0]")));
+        verifyNoInteractions(agendamentoService, chefeService);
+
+        // o cadastro não passa por estes controllers: valida o DTO direto
+        var cadastro = new com.couto.chefe_api.dto.RegisterRequestDto();
+        cadastro.setTipoUsuario(TipoUsuario.CHEFE);
+        cadastro.setNome("Bia");
+        cadastro.setEspecialidades(java.util.Collections.singletonList(null));
+        try (var fabrica = jakarta.validation.Validation.buildDefaultValidatorFactory()) {
+            assertThat(fabrica.getValidator().validate(cadastro))
+                    .anyMatch(v -> v.getPropertyPath().toString().startsWith("especialidades"));
+        }
     }
 
     @Test
