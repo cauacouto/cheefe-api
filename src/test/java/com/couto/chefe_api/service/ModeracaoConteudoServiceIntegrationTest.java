@@ -69,10 +69,47 @@ class ModeracaoConteudoServiceIntegrationTest {
     void ofensaSoMascara() {
         UserModel cliente = cliente();
 
-        String exibido = service.verificar("que palavrao", autenticado(cliente.getId(), TipoUsuario.CLIENTE));
+        ConteudoVerificado verificado = service.verificar("que palavrao", autenticado(cliente.getId(), TipoUsuario.CLIENTE));
 
-        assertThat(exibido).isEqualTo("que ***");
+        assertThat(verificado.texto()).isEqualTo("que ***");
+        assertThat(verificado.contatoOculto()).isFalse();
         assertThat(usuarioRepository.findById(cliente.getId()).orElseThrow().getBloqueadoEm()).isNull();
+        assertThat(bloqueioRepository.count()).isZero();
+    }
+
+    @Test
+    void ofensaEContatoNaMesmaMensagemViramDoisAsteriscos() {
+        UserModel cliente = cliente();
+
+        ConteudoVerificado verificado = service.verificar("um palavrao, me liga 21 98888-7777",
+                autenticado(cliente.getId(), TipoUsuario.CLIENTE));
+
+        assertThat(verificado.texto()).isEqualTo("um ***, me liga ***");
+        assertThat(verificado.contatoOculto()).isTrue();
+        assertThat(usuarioRepository.findById(cliente.getId()).orElseThrow().getBloqueadoEm()).isNull();
+    }
+
+    @Test
+    void odioBloqueiaAntesDaMascaraDeContato() {
+        UserModel cliente = cliente();
+        var autor = autenticado(cliente.getId(), TipoUsuario.CLIENTE);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.verificar("seu odiento 21 98888-7777", autor))
+                .isInstanceOf(com.couto.chefe_api.exception.ConteudoBloqueadoException.class);
+
+        assertThat(usuarioRepository.findById(cliente.getId()).orElseThrow().getBloqueadoEm()).isNotNull();
+        // a fila da moderação vê o texto como foi escrito
+        assertThat(bloqueioRepository.findAll()).singleElement()
+                .satisfies(b -> assertThat(b.getTexto()).isEqualTo("seu odiento 21 98888-7777"));
+    }
+
+    @Test
+    void contatoSozinhoNaoBloqueiaNinguem() {
+        UserModel cliente = cliente();
+
+        ConteudoVerificado verificado = service.verificar("chef@gmail.com", autenticado(cliente.getId(), TipoUsuario.CLIENTE));
+
+        assertThat(verificado.texto()).isEqualTo("***");
         assertThat(bloqueioRepository.count()).isZero();
     }
 

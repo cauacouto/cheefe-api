@@ -247,6 +247,26 @@ class AutorizacaoIntegrationTest {
     }
 
     @Test
+    void pratoComContatoDa400ComCodigoENadaEhGravado() throws Exception {
+        ChefeModel chefe = novoChefe();
+        Pratos prato = novoPrato(chefe, "Moqueca");
+
+        for (String corpo : java.util.List.of("{\"nomePrato\":\"Moqueca wa.me/5521988887777\",\"descricao\":\"x\"}",
+                "{\"nomePrato\":\"Moqueca\",\"descricao\":\"Encomendas: 21 98888-7777\"}")) {
+            mockMvc.perform(put("/pratos/" + prato.getId()).cookie(cookieDe(chefe))
+                            .contentType(MediaType.APPLICATION_JSON).content(corpo))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.codigo").value("CONTATO_NAO_PERMITIDO"))
+                    .andExpect(jsonPath("$.detail").value("Não é permitido colocar telefone, e-mail, rede social ou link no prato"));
+        }
+
+        assertThat(pratosRepository.findById(prato.getId()).orElseThrow().getNomePrato()).isEqualTo("Moqueca");
+        mockMvc.perform(put("/pratos/" + prato.getId()).cookie(cookieDe(chefe))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"nomePrato\":\"Moqueca capixaba\",\"descricao\":\"Para 4 pessoas\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void meusPratosListaSoOsDoChef() throws Exception {
         ChefeModel x = novoChefe();
         novoPrato(x, "Prato de X");

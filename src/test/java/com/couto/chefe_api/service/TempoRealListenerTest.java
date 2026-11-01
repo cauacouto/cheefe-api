@@ -28,8 +28,8 @@ class TempoRealListenerTest {
 
     @Test
     void mensagemVaiParaODestinatarioEParaAsAbasDoRemetente() {
-        MensagemDto minha = new MensagemDto(10L, 1L, "oi", agora, true, false, null, false, false);
-        MensagemDto dela = new MensagemDto(10L, 1L, "oi", agora, false, false, null, false, false);
+        MensagemDto minha = new MensagemDto(10L, 1L, "oi", agora, true, false, null, false, false, false);
+        MensagemDto dela = new MensagemDto(10L, 1L, "oi", agora, false, false, null, false, false, false);
 
         listener.aoEnviar(new MensagemEnviadaEvent(ana, minha, bia, dela));
 

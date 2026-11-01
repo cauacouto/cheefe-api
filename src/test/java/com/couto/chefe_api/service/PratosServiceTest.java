@@ -38,7 +38,8 @@ class PratosServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new PratosService(pratosRepository, new PratosMapperImpl(), chefeRepository, imagemStorage);
+        service = new PratosService(pratosRepository, new PratosMapperImpl(), chefeRepository, imagemStorage,
+                new DetectorContato());
         chefe.setId(UUID.randomUUID());
         chefe.setNome("Chefe");
         when(chefeRepository.findById(chefe.getId())).thenReturn(Optional.of(chefe));
@@ -55,6 +56,15 @@ class PratosServiceTest {
         assertThat(salvo.getValue().getImageUrl()).isEqualTo("https://cdn/prato.png");
         assertThat(salvo.getValue().getChefeModel()).isSameAs(chefe);
         verify(imagemStorage).enviar(foto, PastaImagem.PRATOS);
+    }
+
+    @Test
+    void pratoComContatoNaoFazUploadNemGrava() {
+        assertThatThrownBy(() -> service.cadastrarPratos(new CadastraPratosDtoRequest("Moqueca", "Pedidos: chef@gmail.com"),
+                foto, chefe.getId())).isInstanceOf(com.couto.chefe_api.exception.ContatoNaoPermitidoException.class);
+
+        verifyNoInteractions(imagemStorage);
+        verify(pratosRepository, org.mockito.Mockito.never()).save(any());
     }
 
     @Test

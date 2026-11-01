@@ -125,7 +125,7 @@ public class ChatService {
         String normalizado = normalizar(texto);
         doParticipante(conversaId, usuario); // quem não participa recebe 404 antes do filtro, como no editar
         // antes de qualquer trava: o bloqueio do autor roda numa transação própria (ver ModeracaoConteudoService)
-        String exibido = moderacaoConteudo.verificar(normalizado, usuario);
+        ConteudoVerificado verificado = moderacaoConteudo.verificar(normalizado, usuario);
         Conversa conversa = conversaRepository.travarPorId(conversaId)
                 .filter(c -> participa(c, usuario))
                 .orElseThrow(() -> new RecursoNaoEncontradoException("conversa não encontrada"));
@@ -140,7 +140,7 @@ public class ChatService {
         mensagem.setConversa(conversa);
         mensagem.setRemetenteId(usuario.id());
         mensagem.setRemetenteTipo(usuario.tipo());
-        definirTexto(mensagem, normalizado, exibido);
+        definirTexto(mensagem, normalizado, verificado);
         mensagem.setEnviadaEm(agora);
         Mensagem salva = mensagemRepository.save(mensagem);
         conversa.setUltimaMensagemEm(agora);
@@ -247,9 +247,10 @@ public class ChatService {
     }
 
     /** O texto exibido (com ***) e, só quando o filtro mascarou algo, o original para a moderação. */
-    private static void definirTexto(Mensagem mensagem, String original, String exibido) {
-        mensagem.setTexto(exibido);
-        mensagem.setTextoOriginal(exibido.equals(original) ? null : original);
+    private static void definirTexto(Mensagem mensagem, String original, ConteudoVerificado verificado) {
+        mensagem.setTexto(verificado.texto());
+        mensagem.setTextoOriginal(verificado.texto().equals(original) ? null : original);
+        mensagem.setContatoOculto(verificado.contatoOculto());
     }
 
     private static String normalizar(String texto) {

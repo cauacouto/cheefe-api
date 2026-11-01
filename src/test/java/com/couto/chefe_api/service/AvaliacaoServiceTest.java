@@ -69,7 +69,7 @@ class AvaliacaoServiceTest {
         agendamento.setStatus(StatusAgendamento.CONCLUIDO);
         when(agendamentoRepository.findById(1L)).thenReturn(Optional.of(agendamento));
         when(chefeRepository.somarAvaliacao(any(), anyInt())).thenReturn(1);
-        when(moderacao.verificar(any(), any())).thenAnswer(inv -> inv.getArgument(0));
+        when(moderacao.verificar(any(), any())).thenAnswer(inv -> new ConteudoVerificado(inv.getArgument(0), false));
         when(avaliacaoRepository.save(any())).thenAnswer(inv -> {
             Avaliacao a = inv.getArgument(0);
             a.setId(10L);

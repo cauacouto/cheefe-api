@@ -1,5 +1,7 @@
 package com.couto.chefe_api.service;
 
+import com.couto.chefe_api.exception.ContatoNaoPermitidoException;
+
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Page;
@@ -32,12 +34,14 @@ public class PratosService {
     private final PratosMapper pratosMapper;
     private final ChefeRepository chefeRepository;
     private final ImagemStorageService imagemStorageService;
+    private final DetectorContato detectorContato;
 
     @Transactional
     public CadastraPratosDtoResponse cadastrarPratos(CadastraPratosDtoRequest dto, MultipartFile file, UUID id) {
         ChefeModel chefe = chefeRepository.findById(id)
                 .orElseThrow(ChefeNaoEncontradoException::new);
         chefe.exigirAtivo();
+        exigirSemContato(dto);
 
         Pratos pratos = pratosMapper.toModel(dto);
         pratos.setChefeModel(chefe);
@@ -71,8 +75,16 @@ public class PratosService {
         // prato de outro chef é tratado como inexistente
         Pratos pratos = pratosRepository.findByIdAndChefeModel_Id(pratoId, chefeId).orElseThrow(PratoNaoEncontradoException::new);
         pratos.getChefeModel().exigirAtivo();
+        exigirSemContato(dto);
         pratosMapper.updatePrato(dto, pratos);
         Pratos salvar = pratosRepository.save(pratos);
         return pratosMapper.toDto(salvar);
+    }
+
+    /** Recusa em vez de mascarar: é formulário, o chef corrige na hora. Antes do upload, para não subir foto à toa. */
+    private void exigirSemContato(CadastraPratosDtoRequest dto) {
+        if (detectorContato.contem(dto.nomePrato()) || detectorContato.contem(dto.descricao())) {
+            throw new ContatoNaoPermitidoException();
+        }
     }
 }

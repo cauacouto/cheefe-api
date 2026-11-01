@@ -16,13 +16,17 @@ public record MensagemDto(
         boolean lida,
         @JsonFormat(pattern = "dd-MM-yyyy HH:mm") LocalDateTime lidaEm,
         boolean editada,
-        boolean apagada
+        boolean apagada,
+        /** Só para o autor: o front explica que telefone, e-mail e redes ficam ocultos no ChefHome. */
+        boolean contatoOculto
 ) {
 
     public static MensagemDto de(Mensagem mensagem, UUID leitorId) {
         boolean apagada = mensagem.isApagada();
+        boolean minha = mensagem.getRemetenteId().equals(leitorId);
         return new MensagemDto(mensagem.getId(), mensagem.getConversa().getId(), apagada ? null : mensagem.getTexto(),
-                mensagem.getEnviadaEm(), mensagem.getRemetenteId().equals(leitorId), mensagem.getLidaEm() != null,
-                mensagem.getLidaEm(), mensagem.getEditadaEm() != null, apagada);
+                mensagem.getEnviadaEm(), minha, mensagem.getLidaEm() != null,
+                mensagem.getLidaEm(), mensagem.getEditadaEm() != null, apagada,
+                minha && !apagada && mensagem.isContatoOculto());
     }
 }
