@@ -95,16 +95,18 @@ Rodam na rotina de agendamentos que já existe (a cada 15 minutos).
 - **`AgendamentoService`**: `ajustarDetalhes` e `confirmarDetalhes`; checagem de conflito com folga (a consulta de sobreposição de confirmados recebe a folga).
 - **`AgendaService`**: agenda pública com folga.
 - **`ChatService.abrirConversa`**: ramo do chef.
+- **`SecurityConfiguration`**: `POST /conversas` passa a `hasAnyRole(CLIENTE, CHEFE)`; `GET /clientes`, `GET /clientes/*/historico` e `PUT /clientes/*/nota` com `hasRole(CHEFE)`; `PATCH /agendamentos/*/detalhes` e `/detalhes/confirmar` com `hasRole(CLIENTE)`.
 - **Enums:** `EventoNotificacao` ganha `LEMBRETE_DETALHES`, `RESUMO_DO_SERVICO`, `DETALHES_ALTERADOS`, `DETALHES_CONFIRMADOS`, `UM_ANO_DE_CLIENTE`; `AcaoAgendamento` ganha `DETALHES_ALTERADOS`, `DETALHES_CONFIRMADOS`.
 
 ## Dados (V16)
 
 - `chefe`: `folga_minutos int NOT NULL DEFAULT 60`, check `0..240` e múltiplo de 15.
 - `nota_cliente`: `chefe_id` (FK), `cliente_id` (FK), `texto varchar(2000) NOT NULL`, `texto_original varchar(2000)`, `atualizada_em timestamp(6) NOT NULL`; PK `(chefe_id, cliente_id)`.
-- `agendamento`: `lembrete_cliente_em`, `resumo_chef_em`, `detalhes_confirmados_em`, `aviso_um_ano_em` (`timestamp(6)`, nulos).
+- `agendamentos`: `lembrete_cliente_em`, `resumo_chef_em`, `detalhes_confirmados_em`, `aviso_um_ano_em` (`timestamp(6)`, nulos).
 - Índices parciais para as rotinas: confirmados sem lembrete (`status = 'CONFIRMADO' AND lembrete_cliente_em IS NULL`), sem resumo (`… AND resumo_chef_em IS NULL`), concluídos sem aviso (`status = 'CONCLUIDO' AND aviso_um_ano_em IS NULL`).
+- CHECKs recriados com todos os valores atuais mais os novos: `notificacao_evento_check` (os cinco eventos) e o de `agendamento_historico.acao` (`DETALHES_ALTERADOS`, `DETALHES_CONFIRMADOS`).
 - Grants do `chefhome_app` no padrão das migrations anteriores; entidades com o mesmo schema.
-- Exclusão de conta: `UsuarioService.deletar` apaga as notas sobre o cliente; o soft delete do chef apaga as notas dele.
+- Exclusão de conta: `UsuarioService.deletar` apaga as notas sobre o cliente e, dos outros, as notificações que apontam para dados dele: `UM_ANO_DE_CLIENTE` (referência = id do cliente; a mensagem cita o primeiro nome), `RESUMO_DO_SERVICO`, `DETALHES_ALTERADOS` e `DETALHES_CONFIRMADOS` (referência = id do agendamento). O soft delete do chef apaga as notas dele.
 
 ## Erros
 

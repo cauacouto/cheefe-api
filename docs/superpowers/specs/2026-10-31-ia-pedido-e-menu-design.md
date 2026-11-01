@@ -42,7 +42,7 @@ Usar IA onde ela tira trabalho chato das pessoas: o cliente descreve o jantar em
    - datas relativas ("sábado", "amanhã") são resolvidas pelo modelo com a data atual informada no prompt e conferidas aqui.
    - `observacoes` passa pelo `DetectorContato` (contato vira `***`).
 4. **Sugestão de chefs pelo código:** a busca existente (`ChefeService`/`ChefeSpecification`) com cidade e UF do endereço mais recente do cliente (sem endereço → sem filtro de cidade e `endereco` em `camposFaltando`), `ocasiao`, primeira especialidade e `valorMaximo = orcamentoMaximoPorPessoa`, ordenada por `notaMedia`; até 10 chefs.
-5. Resposta **200** `{ "rascunho": { …PedidoInterpretado validado… }, "chefesSugeridos": [ ChefeResumoDto ] }`. Nada é gravado além do contador de uso. O front abre o formulário de pedido preenchido; o envio continua pelo `POST /agendamentos`.
+5. Resposta **200** `{ "rascunho": { …PedidoInterpretado validado… }, "chefesSugeridos": [ ChefeResponseDto ] }`. Nada é gravado além do contador de uso. O front abre o formulário de pedido preenchido; o envio continua pelo `POST /agendamentos`.
 
 ### Proposta de menu (chef)
 
@@ -102,7 +102,7 @@ Usar IA onde ela tira trabalho chato das pessoas: o cliente descreve o jantar em
 
 ### Configuração
 
-- `chefhome.ia.provedor`: `falso` (padrão em desenvolvimento e teste), `anthropic` ou `openai` (starters do Spring AI); modelo e chave por `${VAR}`. Chaves nunca em log.
+- `chefhome.ia.provedor`: `falso` (padrão em desenvolvimento e teste), `anthropic` ou `openai` (starters do Spring AI); modelo e chave por `${VAR}`. Chaves nunca em log. **Antes de implementar:** confirmar a versão do Spring AI compatível com o Spring Boot 4.0.5 do projeto.
 - Em `prod` sem provedor configurado, a API **sobe** e as rotas de IA respondem **503** `IA_INDISPONIVEL` (a IA é opcional).
 - `AssistenteIaFalso`: determinístico, sem rede; extrai números, ocasiões e restrições por palavras-chave e devolve propostas e listas fixas montadas com os pratos recebidos. Serve aos testes e ao desenvolvimento do front.
 
@@ -122,7 +122,7 @@ Usar IA onde ela tira trabalho chato das pessoas: o cliente descreve o jantar em
 ## Dados (V19)
 
 - `pratos`: `ingredientes varchar(1000)`.
-- `lista_compras`: `agendamento_id` (PK, FK), `itens jsonb NOT NULL`, `avisos jsonb`, `gerada_em timestamp(6) NOT NULL`, `versao_prompt varchar(20) NOT NULL`. Some com o agendamento.
+- `lista_compras`: `agendamento_id` (PK, FK), `itens jsonb NOT NULL` (na entidade, `@JdbcTypeCode(SqlTypes.JSON)`, para o H2 dos testes), `avisos jsonb`, `gerada_em timestamp(6) NOT NULL`, `versao_prompt varchar(20) NOT NULL`. Some com o agendamento.
 - `uso_ia_diario`: `usuario_id uuid`, `dia date`, `operacao varchar`, `contagem int NOT NULL`; PK `(usuario_id, dia, operacao)`. Linhas com mais de 30 dias são apagadas por uma rotina diária. Some com a conta.
 - Grants e entidades no padrão das migrations anteriores.
 
@@ -145,7 +145,7 @@ Usar IA onde ela tira trabalho chato das pessoas: o cliente descreve o jantar em
 - **Interpretar:** com o falso, rascunho e chefes sugeridos pela busca existente; sem endereço → sem filtro de cidade e `endereco` faltando; ódio no texto bloqueia; observações com contato mascaradas.
 - **Proposta:** só pratos do chef; preço de referência pelo menu mais parecido e nulo sem menu; permissões e status.
 - **Lista:** gerar, gravar, substituir; cliente e chef leem; 409 sem menu e fora de `CONFIRMADO`.
-- **Limites:** 429 no limite, contagem somada do chef, virada do dia (relógio fixo), concorrência no contador (Postgres: N chamadas simultâneas não passam do limite).
+- **Limites (Postgres, Testcontainers):** o `ON CONFLICT … RETURNING` é SQL nativo e não roda no H2 dos testes. 429 no limite, contagem somada do chef, virada do dia (relógio fixo), concorrência no contador (N chamadas simultâneas não passam do limite). Nos testes em H2, `UsoIaService` é substituído por um dublê.
 - **Falhas:** provedor lançando exceção, timeout e JSON inválido → 503; nova tentativa só em erro de rede.
 - **Privacidade:** captura do que o falso recebe: sem nome, e-mail, telefone, endereço nem id de conta.
 - **Configuração:** `prod` sem provedor sobe e responde 503.

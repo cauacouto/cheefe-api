@@ -23,7 +23,7 @@ Manter cliente e chef dentro do ChefHome: telefone, e-mail, @ de rede social e l
 | Resposta do chef (`PUT /avaliacoes/{id}/resposta`) | contato vira `***`; original em `respostaOriginal` |
 | Nome e descrição de prato (`POST /pratos`, `PUT /pratos/{id}`) | **400** `CONTATO_NAO_PERMITIDO`, nada é gravado |
 
-Os campos `*Original` já existem e já são preenchidos só quando o texto exibido difere do enviado; nada muda nessa regra.
+Os campos `*Original` já existem e nada muda na regra de cada um: `textoOriginal` só é preenchido quando o texto exibido difere do enviado; `comentarioOriginal` e `respostaOriginal` são sempre preenchidos.
 
 ### O que é contato
 
@@ -114,7 +114,7 @@ Em criar e editar, `detectorContato.contem(nomePrato)` ou `contem(descricao)` �
   - casam: cada exemplo da tabela "O que é contato", mais disfarces com emoji de número, dígitos de largura total e números circulados;
   - não casam: datas, horários, valores, CEP, "para 10 pessoas", "menu de 4 tempos", "um jantar para dois", e-mail sem arroba nem ponto;
   - máscara: posições corretas com mais de um contato na mesma frase, texto exibido nunca maior que o original, texto nulo ou em branco.
-- **`ModeracaoConteudoServiceTest`**: ódio continua bloqueando antes da máscara de contato; ofensa e contato na mesma mensagem viram dois `***`.
+- **`ModeracaoConteudoServiceIntegrationTest`**: ódio continua bloqueando antes da máscara de contato; ofensa e contato na mesma mensagem viram dois `***`.
 - **Chat (integração):** enviar e editar mascaram e gravam `textoOriginal`; `contatoOculto` true para o autor e false para o outro participante, nas rotas e no evento SSE; editar removendo o contato zera a flag; a fila de denúncia de mensagem mostra o original.
 - **Avaliações (integração):** comentário e resposta mascarados, originais gravados.
 - **Pratos (integração):** criar e editar com contato no nome ou na descrição → 400 com `codigo`, nada gravado; texto sem contato segue normal.
@@ -122,7 +122,7 @@ Em criar e editar, `detectorContato.contem(nomePrato)` ou `contem(descricao)` �
 
 ## README
 
-Na seção do chat e na de "Bloqueio automático": contatos (telefone, e-mail, @, links) viram `***` no chat e nas avaliações, o original fica só para a moderação, e a `MensagemDto` traz `contatoOculto` para o autor; pratos com contato → 400 `CONTATO_NAO_PERMITIDO`.
+Na seção do chat e na de "Bloqueio automático": contatos (telefone, e-mail, @, links) viram `***` no chat e nas avaliações, o original fica só para a moderação, e a `MensagemDto` traz `contatoOculto` para o autor; pratos com contato → 400 `CONTATO_NAO_PERMITIDO`. Na seção "Telefone verificado (parado)", o WhatsApp deixa de ser citado como próximo canal de conversa: ele só pode servir para avisos.
 
 ## Fora do escopo
 

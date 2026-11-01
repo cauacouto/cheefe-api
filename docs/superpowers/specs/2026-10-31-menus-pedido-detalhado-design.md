@@ -58,7 +58,7 @@ Todas as rotas do chef exigem conta ativa (`exigirAtivo`), como a agenda. A resp
   - `ocasiao=` (novo) filtra quem tem pelo menos um menu ativo com aquela ocasião; ocasião inválida → **400**;
   - `valorMinimo`/`valorMaximo` passam a valer sobre o preço por pessoa: o chef aparece se tem pelo menos um menu ativo nessa faixa;
   - ordenação: `valorHora` sai e entra `precoAPartirDe` (menor preço por pessoa entre os menus ativos do chef). As demais (`nome`, `anosDeExperiencia`, `notaMedia`) seguem iguais.
-- `ChefeResumoDto` e `ChefePerfilDto` ganham `precoAPartirDe` e `especialidades`.
+- `ChefeResponseDto` (o da busca) e `ChefePerfilDto` ganham `precoAPartirDe` e `especialidades`; `ChefeResumoDto` (o das listas de agendamento) troca `especialidade` por `especialidades`.
 
 ### Agendamento
 
@@ -118,7 +118,7 @@ As regras atuais continuam: endereço do cliente e da cidade do chef, conflito c
 - `menu_item`: `menu_id` (FK), `prato_id` (FK), `etapa varchar`, `ordem int`; PK `(menu_id, prato_id)`.
 - `menu_ocasiao`: `menu_id` (FK), `ocasiao varchar`; PK `(menu_id, ocasiao)`; índice em `ocasiao`.
 - `chefe_especialidade`: `chefe_id` (FK), `especialidade varchar`; PK `(chefe_id, especialidade)`. Copia `chefe.especialidade` atual.
-- `agendamento`: `chefe_id` (FK), `menu_id` (FK, nulo nos antigos), `menu_nome varchar(100)`, `preco_por_pessoa numeric(10,2)`, `duracao_minutos int`, `ingredientes_inclusos boolean` (nulos nos antigos), `ocasiao varchar` (nulo nos antigos), `observacoes varchar(1000)`, `observacoes_original varchar(1000)`.
+- `agendamentos`: `chefe_id` (FK), `menu_id` (FK, nulo nos antigos), `menu_nome varchar(100)`, `preco_por_pessoa numeric(10,2)`, `duracao_minutos int`, `ingredientes_inclusos boolean` (nulos nos antigos), `ocasiao varchar` (nulo nos antigos), `observacoes varchar(1000)`, `observacoes_original varchar(1000)`.
 - `agendamento_restricao`: `agendamento_id` (FK), `tipo varchar`, `quantidade int`; PK `(agendamento_id, tipo)`.
 - Migração dos dados (o projeto ainda não está em produção): `agendamento.chefe_id` recebe o chef de `agendamento_chefe` (o de menor id quando houver mais de um); depois `chefe_id` vira `NOT NULL` e `agendamento_chefe` é apagada. Agendamentos antigos ficam com menu nulo e mantêm o `valorTotal`. Por fim saem `chefe.valor_hora` e `chefe.especialidade`.
 - Enums por nome, como o resto do schema (V5). Grants do `chefhome_app` nas tabelas novas no mesmo padrão das migrations anteriores. Entidades com o mesmo schema (`MigracoesPostgresTest`).

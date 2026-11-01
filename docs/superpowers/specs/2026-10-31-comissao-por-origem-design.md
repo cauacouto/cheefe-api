@@ -16,8 +16,8 @@ Tirar do chef o motivo para fugir da plataforma: clientes que **ele** traz pagam
 ### Taxas
 
 - `chefhome.comissao.taxa-plataforma` (padrão 15) e `chefhome.comissao.taxa-chef` (padrão 5), cada uma de 0 a 50; fora disso a API não sobe. Substituem `chefhome.pagamento.taxa-percentual` do spec de pagamento.
-- Ao criar o repasse, a taxa vem da origem do vínculo do par (cliente do agendamento, chef do agendamento). O repasse grava `origemCliente` e `taxaPercentual`; mudar a configuração depois não altera repasses existentes.
-- Agendamento sem cliente (conta apagada e anonimizada, spec de pagamento) usa a origem gravada no vínculo antes da exclusão: o repasse já nasce com a taxa calculada, então não há leitura posterior.
+- **O agendamento grava `origemCliente` ao ser criado**, copiada do vínculo do par. Ao criar o repasse, a taxa vem dessa cópia, nunca do vínculo: assim o repasse não depende de o cliente ou o vínculo ainda existirem (conta apagada e anonimizada, spec de pagamento).
+- O repasse grava `origemCliente` e `taxaPercentual`; mudar a configuração depois não altera repasses existentes.
 
 ### Vínculo cliente e chef
 
@@ -71,6 +71,7 @@ Tirar do chef o motivo para fugir da plataforma: clientes que **ele** traz pagam
 
 - `chefe`: `apelido varchar(30)`, índice único em `lower(apelido)` onde não nulo.
 - `cliente_chefe_vinculo`: `cliente_id` (FK), `chefe_id` (FK), `origem varchar NOT NULL`, `criado_em timestamp(6) NOT NULL`; PK `(cliente_id, chefe_id)`; índice em `(chefe_id, origem)`.
+- `agendamentos`: `origem_cliente varchar` (backfill pelo vínculo do par; `PLATAFORMA` nos anonimizados).
 - `repasse`: `origem_cliente varchar NOT NULL` (backfill `PLATAFORMA` nos existentes).
 - Backfill: um vínculo `PLATAFORMA` para cada par que já tem conversa ou agendamento, com `criado_em` = o primeiro deles.
 - Apelido dos chefs existentes: gerado pela mesma regra da sugestão durante a migração (SQL equivalente: nome sem acento, minúsculas, hífens, sufixo numérico em colisão), para ninguém sumir da busca.

@@ -46,7 +46,7 @@ Dar ao cliente um motivo para reservar e pagar pelo ChefHome em vez de mandar Pi
 
 ### Retorno do gateway
 
-- Real: `POST /webhooks/pagamentos/{gateway}` (público, autenticado pela assinatura do provedor; inválida → **401**). Simulado em desenvolvimento: `POST /dev/pagamentos/{id}/aprovar` e `POST /dev/pagamentos/{id}/recusar` (só existem com o gateway simulado ativo).
+- Real: `POST /webhooks/pagamentos/{gateway}` (público, autenticado pela assinatura do provedor; inválida → **401**). Simulado: `POST /dev/pagamentos/{id}/aprovar` e `POST /dev/pagamentos/{id}/recusar`: só existem com o gateway simulado ativo, exigem login e só valem para o cliente dono do agendamento (de outra pessoa → **404**). Isso vale também na demo em `prod` (`CHEFHOME_PAGAMENTO_SIMULADO=true`), onde nenhum dinheiro real circula.
 - Os dois chamam o mesmo `PagamentoService.processarRetorno(gatewayId, status)`, **idempotente**: o mesmo aprovado duas vezes confirma uma vez só.
 - Aprovado com o agendamento ainda em `AGUARDANDO_PAGAMENTO` → `CONFIRMADO`. Aprovado **depois** da expiração ou do cancelamento (corrida) → reembolso automático de 100% (`motivo = PAGAMENTO_APOS_EXPIRACAO`), agendamento não volta.
 - Recusado → cobrança `RECUSADA`, agendamento continua em `AGUARDANDO_PAGAMENTO` até o prazo.
@@ -59,12 +59,12 @@ Dar ao cliente um motivo para reservar e pagar pelo ChefHome em vez de mandar Pi
 | Cliente | menos de 168h e 48h ou mais | 50% | 50% |
 | Cliente | menos de 48h | 0 | 100% |
 | Chef desiste | qualquer | 100% | 0 |
-| Moderação (garantia) | — | o que a moderação decidir: 100% | 0 |
+| Moderação (garantia) | — | o saldo retido do repasse (`valorBruto`) | 0 |
 
 - A antecedência é medida no momento do `PATCH /cancelar`, com o relógio do servidor (`RelogioConfig`).
 - Valores com 2 casas, `HALF_UP`; o reembolso arredonda a favor do cliente quando a divisão não fecha (50% de R$ 100,01 → R$ 50,01 ao cliente).
 - O reembolso é pedido ao gateway na mesma operação do cancelamento (chave de idempotência = agendamento + motivo). Falha do gateway → o agendamento é cancelado mesmo assim e o reembolso fica `PENDENTE` para a rotina tentar de novo (máximo de 10 tentativas, com intervalo crescente; depois `FALHOU` e entra na fila da moderação).
-- Quando sobra valor para o chef (50% ou 100%), é criado um repasse `RETIDO` com `liberarEm = agora + 48h` (a garantia vale também aqui).
+- Quando sobra valor para o chef (50% ou 100%), é criado um repasse `RETIDO` com `liberarEm = agora + 48h`. Agendamento `CANCELADO` não aceita denúncia (regra atual: só `CONFIRMADO` ou `CONCLUIDO`), então esse repasse não é suspenso: a retenção de 48h só iguala o prazo de liberação.
 - A resposta do `PATCH /cancelar` passa a trazer `{ reembolso: { valor, percentual } }` e a notificação ao chef cita o valor que ele vai receber.
 
 ### Repasse ao chef
@@ -80,7 +80,7 @@ Dar ao cliente um motivo para reservar e pagar pelo ChefHome em vez de mandar Pi
 
 - `GET /moderacao/repasses-suspensos` (com a denúncia e o agendamento) e `GET /moderacao/reembolsos-falhos`.
 - `PATCH /moderacao/repasses/{id}/liberar`: `SUSPENSO` → `LIBERADO` (repassa na hora); a denúncia segue o fluxo normal dela.
-- `PATCH /moderacao/repasses/{id}/reembolsar`: `SUSPENSO` → `CANCELADO` e reembolso de 100% do valor pago ao cliente (`motivo = GARANTIA`).
+- `PATCH /moderacao/repasses/{id}/reembolsar`: `SUSPENSO` → `CANCELADO` e reembolso do `valorBruto` do repasse ao cliente (`motivo = GARANTIA`). Nunca "100% do pago": a soma dos reembolsos de um pagamento não pode passar do valor pago.
 - `PATCH /moderacao/reembolsos/{id}/tentar-novamente`.
 - Todas entram no histórico `GET /moderacao/acoes` (`TipoAcaoModeracao` ganha `REPASSE_LIBERADO`, `REPASSE_REEMBOLSADO`, `REEMBOLSO_REPROCESSADO`).
 
@@ -111,12 +111,15 @@ public interface GatewayPagamento {
 
 ## Dados (V17)
 
-- `agendamento`: `pagamento_ate timestamp(6)`, `lembrete_pagamento_em timestamp(6)`; status aceita `AGUARDANDO_PAGAMENTO`.
+- `agendamentos`: `pagamento_ate timestamp(6)`, `lembrete_pagamento_em timestamp(6)`.
+- CHECKs recriados com todos os valores atuais mais os novos: status de `agendamentos` (`AGUARDANDO_PAGAMENTO`), `notificacao_evento_check` (eventos novos desta seção), `acao_moderacao_acao_check` (`REPASSE_LIBERADO`, `REPASSE_REEMBOLSADO`, `REEMBOLSO_REPROCESSADO`).
 - `pagamento`: `id`, `agendamento_id` (FK), `gateway_id varchar(100)`, `valor numeric(10,2)`, `parcelas int`, `status varchar`, `chave_idempotencia varchar(100) UNIQUE`, `criado_em`, `aprovado_em`; índice único parcial: uma cobrança `CRIADA` ou `APROVADA` por agendamento.
 - `reembolso`: `id`, `pagamento_id` (FK), `valor numeric(10,2)`, `percentual int`, `motivo varchar`, `status varchar`, `tentativas int`, `proxima_tentativa_em`, `chave_idempotencia UNIQUE`, `criado_em`, `realizado_em`.
 - `repasse`: `id`, `agendamento_id` (FK, único), `chefe_id` (FK), `valor_bruto`, `taxa_percentual numeric(5,2)`, `taxa`, `valor_liquido` (`numeric(10,2)`), `status varchar`, `liberar_em`, `liberado_em`, `tentativas`, `chave_idempotencia UNIQUE`, `criado_em`.
 - **Sem exclusão:** o `chefhome_app` só tem `SELECT`/`INSERT`/`UPDATE` nessas três tabelas (sem `DELETE`), verificado no `MigracoesPostgresTest`, como o histórico de moderação.
-- **Conta apagada:** hoje o agendamento some com a conta do cliente. Com pagamento, agendamentos com `pagamento` ficam, com o cliente desvinculado (`user_id` nulo, endereço desvinculado, observações apagadas) para manter o rastro financeiro; `UsuarioService.deletar` passa a anonimizar em vez de apagar esses agendamentos. O README e a seção de LGPD documentam a base (obrigação legal e exercício regular de direitos).
+- **Conta apagada:** hoje o agendamento some com a conta do cliente. Com pagamento, agendamentos com `pagamento` ficam, com o cliente desvinculado (`user_id` nulo, endereço desvinculado, observações apagadas) para manter o rastro financeiro; `UsuarioService.deletar` passa a anonimizar em vez de apagar esses agendamentos (`UserModel.agendamento` deixa de ter `CascadeType.ALL` para esses casos). O README e a seção de LGPD documentam a base (obrigação legal e exercício regular de direitos).
+  - **Avaliações desses agendamentos não ficam:** sem a cascata do agendamento, `deletar` apaga explicitamente as avaliações das duas direções (com tags e denúncias), mantendo o desconto nos contadores dos chefs. Vale também para a linha do tempo com o autor cliente.
+  - **Agendamento em andamento:** conta com agendamento `AGUARDANDO_PAGAMENTO` ou `CONFIRMADO` que ainda não aconteceu não pode ser apagada: **409** "Cancele seus agendamentos antes de apagar a conta" (o chef não atenderia um endereço desvinculado, e o cancelamento aplica a tabela de reembolso).
 
 ## Erros
 
@@ -126,6 +129,7 @@ public interface GatewayPagamento {
 | assinatura inválida no webhook | 401 |
 | pagar fora de `AGUARDANDO_PAGAMENTO` ou depois do prazo | 409 |
 | ação de moderação em repasse fora de `SUSPENSO` | 409 |
+| apagar conta com agendamento `AGUARDANDO_PAGAMENTO` ou `CONFIRMADO` futuro | 409 |
 | gateway indisponível ao criar cobrança | 503 (o cliente tenta de novo; o prazo continua correndo) |
 
 ## Testes
@@ -137,7 +141,7 @@ public interface GatewayPagamento {
 - **Corrida (Postgres):** aprovação e cancelamento simultâneos; aprovação depois da expiração gera reembolso de 100%.
 - **Repasse:** criado na conclusão e no cancelamento com saldo para o chef; taxa gravada; liberado em 48h pela rotina; suspenso por denúncia dentro do prazo e intocado depois; moderação libera e reembolsa; falha do gateway com nova tentativa.
 - **Moderação:** filas, ações e histórico.
-- **Conta apagada:** agendamento com pagamento anonimizado, sem pagamento apagado como hoje; registros financeiros intactos.
+- **Conta apagada:** agendamento com pagamento anonimizado, sem pagamento apagado como hoje; registros financeiros intactos; avaliações do cliente apagadas e contadores do chef descontados; 409 com agendamento em andamento.
 - **Privilégios:** `chefhome_app` sem `DELETE` nas tabelas financeiras (`MigracoesPostgresTest`, com a V17).
 - **Inicialização:** `prod` sem gateway real e sem `CHEFHOME_PAGAMENTO_SIMULADO` não sobe.
 
