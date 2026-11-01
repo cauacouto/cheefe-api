@@ -22,6 +22,9 @@ public interface AgendamentoRepository extends JpaRepository<Agendamento,Long> {
 
     Optional<Agendamento> findByIdAndUsuario_Id(Long id, UUID usuarioId);
 
+    /** Só a existência, sem carregar a entidade (ver atualizarAgendamento). */
+    boolean existsByIdAndUsuario_Id(Long id, UUID usuarioId);
+
     /** O chef tem (ou teve) algum agendamento com o cliente: pode ver a reputação dele. */
     boolean existsByUsuario_IdAndChefe_Id(UUID clienteId, UUID chefeId);
 

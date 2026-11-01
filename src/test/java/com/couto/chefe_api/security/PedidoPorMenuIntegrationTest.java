@@ -245,6 +245,19 @@ class PedidoPorMenuIntegrationTest {
     }
 
     @Test
+    void putDeQuemNaoEDonoDa404SemModerarNemBloquear() throws Exception {
+        Menu menu = menuDe(bia, "100.00", 1, 10);
+        long id = idDe(pedir(ana, menu.getId(), BASE, 4, "FAMILIA", null, null).andExpect(status().isCreated()));
+        UserModel caio = novoCliente("Caio");
+
+        editar(caio, id, "{\"observacoes\":\"seu odiento\"}").andExpect(status().isNotFound());
+
+        assertThat(usuarioRepository.findById(caio.getId()).orElseThrow().getBloqueadoEm()).isNull();
+        assertThat(bloqueioContaRepository.count()).isZero();
+        assertThat(agendamentoRepository.findById(id).orElseThrow().getObservacoes()).isNull();
+    }
+
+    @Test
     void ocasiaoDoPedidoNaoPrecisaSerDoMenu() throws Exception {
         Menu menu = menus.ativo(bia, new BigDecimal("100.00"), OcasiaoMenu.EMPRESA);
 

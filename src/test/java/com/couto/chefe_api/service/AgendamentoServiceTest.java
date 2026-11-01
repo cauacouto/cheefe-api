@@ -52,7 +52,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -213,6 +215,7 @@ class AgendamentoServiceTest {
             agenda.setDataHoraInicial(DIA.withHour(18));
             agenda.aplicarMenu(menu, 2);
             when(agendamentoRepository.travarPorId(7L)).thenReturn(Optional.of(agenda));
+            when(agendamentoRepository.existsByIdAndUsuario_Id(7L, USUARIO_ID)).thenReturn(true);
         }
 
         @Test
@@ -288,6 +291,19 @@ class AgendamentoServiceTest {
 
             assertThat(agenda.getStatus()).isEqualTo(StatusAgendamento.CONFIRMADO);
             verify(publisher).publishEvent(new AgendamentoConfirmadoEvent(9L, chefeB.getId()));
+        }
+
+        @Test
+        void confirmarLeOChefDepoisDeTravarLo() {
+            ChefeModel chefe = spy(chefeB);
+            agenda.setChefe(chefe);
+
+            service.confirmarAgendamento(9L, chefeB.getId());
+
+            // a conta do chef é lida com a trava já tomada, não antes
+            var ordem = inOrder(chefeRepository, chefe);
+            ordem.verify(chefeRepository).travar(java.util.List.of(chefeB.getId()));
+            ordem.verify(chefe).exigirAtivo();
         }
 
         @Test

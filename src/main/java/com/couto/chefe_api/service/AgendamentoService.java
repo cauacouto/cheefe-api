@@ -144,6 +144,11 @@ public class AgendamentoService {
     public AgendamentoResponseDto atualizarAgendamento(AtualizarAgendamentoRequestDto dto, Long agendamentoId,
                                                        UsuarioAutenticado cliente) {
         UUID usuarioId = cliente.id();
+        // o dono vem antes da moderação: quem não é dono recebe 404 e não é bloqueado. Só um exists, sem carregar a
+        // entidade: carregá-la antes de travarPorId faria a trava devolver uma instância já lida, possivelmente velha
+        if (!agendamentoRepository.existsByIdAndUsuario_Id(agendamentoId, usuarioId)) {
+            throw new AgendamentoException();
+        }
         // antes de travar o agendamento (ver criarAgendamento)
         Observacoes observacoes = dto.observacoes() == null ? null : verificarObservacoes(dto.observacoes(), cliente);
         // agendamento de outro cliente é tratado como inexistente
@@ -208,12 +213,12 @@ public class AgendamentoService {
     public void confirmarAgendamento(Long idAgendamento, UUID chefeId) {
         // só o chef do agendamento o enxerga; para os demais ele não existe
         Agendamento agendamento = doChef(idAgendamento, chefeId);
-        agendamento.getChefe().exigirAtivo();
         if (agendamento.getStatus() != StatusAgendamento.PENDENTE) {
             throw new AgendamentoNaoConfirmavelException(agendamento.getStatus());
         }
-        // trava o chef e confere a agenda dele
+        // trava o chef (agendamento primeiro, depois chef) e só então lê a conta dele: ainda não carregada, vem do banco já sob a trava
         chefeRepository.travar(List.of(chefeId));
+        agendamento.getChefe().exigirAtivo();
         agendamento.confirmar(agora());
         // o chef pode ter mudado de cidade depois do pedido
         exigirMesmaCidade(agendamento.getChefe(), agendamento.getEndereco());
