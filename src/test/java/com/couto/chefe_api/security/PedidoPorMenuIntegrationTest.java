@@ -314,6 +314,37 @@ class PedidoPorMenuIntegrationTest {
     }
 
     @Test
+    void putComOsMesmosValoresNaoRecopiaNemDa409ComMenuRepreciadoEPausado() throws Exception {
+        Menu menu = menuDe(bia, "100.00", 1, 10);
+        long id = idDe(pedir(ana, menu.getId(), BASE, 4, "FAMILIA", null, null).andExpect(status().isCreated()));
+        // o formulário inteiro volta igual, mas o menu mudou de preço e foi pausado: o pedido não muda
+        menu.setPrecoPorPessoa(new BigDecimal("300.00"));
+        menu.setAtivo(false);
+        menuRepository.save(menu);
+
+        editar(ana, id, "{\"menuId\":" + menu.getId() + ",\"quantidadePessoas\":4}").andExpect(status().isOk())
+                .andExpect(jsonPath("$.valorTotal").value(400.00))
+                .andExpect(jsonPath("$.menu.precoPorPessoa").value(100.00));
+        long outroEndereco = novoEndereco(ana).getId();
+        editar(ana, id, "{\"enderecoId\":" + outroEndereco + "}").andExpect(status().isOk())
+                .andExpect(jsonPath("$.valorTotal").value(400.00))
+                .andExpect(jsonPath("$.menu.precoPorPessoa").value(100.00));
+        assertThat(agendamentoRepository.findById(id).orElseThrow().getPrecoPorPessoa()).isEqualByComparingTo("100.00");
+    }
+
+    @Test
+    void putComQuantidadeRealmenteTrocadaRecopiaOMenu() throws Exception {
+        Menu menu = menuDe(bia, "100.00", 1, 10);
+        long id = idDe(pedir(ana, menu.getId(), BASE, 4, "FAMILIA", null, null).andExpect(status().isCreated()));
+        menu.setPrecoPorPessoa(new BigDecimal("300.00"));
+        menuRepository.save(menu);
+
+        editar(ana, id, "{\"menuId\":" + menu.getId() + ",\"quantidadePessoas\":5}").andExpect(status().isOk())
+                .andExpect(jsonPath("$.valorTotal").value(1500.00))
+                .andExpect(jsonPath("$.menu.precoPorPessoa").value(300.00));
+    }
+
+    @Test
     void putHorarioMantemADuracaoDaCopia() throws Exception {
         Menu menu = menuDe(bia, "100.00", 1, 10);
         long id = idDe(pedir(ana, menu.getId(), BASE, 4, "FAMILIA", null, null).andExpect(status().isCreated()));

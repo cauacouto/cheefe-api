@@ -137,7 +137,7 @@ public class AgendamentoService {
 
     /**
      * Atualização parcial: só os campos não nulos do DTO são aplicados. Trocar o menu (do mesmo chef) ou a
-     * quantidade recarrega o menu e recalcula a cópia, o fim e o valor, com as validações da criação; trocar
+     * quantidade (valor diferente do atual; mandar o mesmo não conta) recarrega o menu e recalcula a cópia, o fim e o valor, com as validações da criação; trocar
      * só o horário mantém a duração da cópia. Cidade, horário e agenda são sempre revalidados.
      */
     @Transactional
@@ -165,7 +165,11 @@ public class AgendamentoService {
         if (dto.dataHoraInicial() != null) {
             agenda.mudarInicio(dto.dataHoraInicial());
         }
-        if (dto.menuId() != null || dto.quantidadePessoas() != null) {
+        // só recopia quando algo mudou: o formulário inteiro volta igual e não pode repreciar nem dar 409 por menu pausado
+        boolean trocouMenu = dto.menuId() != null && !dto.menuId().equals(agenda.getMenu().getId());
+        boolean trocouQuantidade = dto.quantidadePessoas() != null
+                && !dto.quantidadePessoas().equals(agenda.getQuantidadePessoas());
+        if (trocouMenu || trocouQuantidade) {
             Menu menu = dto.menuId() != null
                     ? menuRepository.findById(dto.menuId()).orElseThrow(MenuNaoEncontradoException::new)
                     : agenda.getMenu();
