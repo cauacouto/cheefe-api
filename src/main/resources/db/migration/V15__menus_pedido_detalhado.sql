@@ -60,3 +60,26 @@ DELETE FROM agendamentos WHERE chefe_id IS NULL;
 ALTER TABLE agendamentos ALTER COLUMN chefe_id SET NOT NULL;
 CREATE INDEX idx_agendamentos_chefe_status ON agendamentos (chefe_id, status);
 DROP TABLE agendamento_chefe;
+
+-- O pedido por menu: cópia do menu no agendamento (editar o menu não muda o pedido), ocasião, restrições e observações.
+-- Agendamentos antigos ficam com tudo isso nulo.
+ALTER TABLE agendamentos ADD COLUMN menu_id bigint;
+ALTER TABLE agendamentos ADD CONSTRAINT fk_agendamentos_menu FOREIGN KEY (menu_id) REFERENCES menu ON DELETE SET NULL;
+ALTER TABLE agendamentos ADD COLUMN menu_nome varchar(100);
+ALTER TABLE agendamentos ADD COLUMN preco_por_pessoa numeric(10,2);
+ALTER TABLE agendamentos ADD COLUMN duracao_minutos integer;
+ALTER TABLE agendamentos ADD COLUMN ingredientes_inclusos boolean;
+ALTER TABLE agendamentos ADD COLUMN ocasiao varchar(255) CHECK (ocasiao IN (
+    'JANTAR_ROMANTICO','ANIVERSARIO','FAMILIA','AMIGOS','EMPRESA','CELEBRACAO','OUTRA'));
+ALTER TABLE agendamentos ADD COLUMN observacoes varchar(1000);
+ALTER TABLE agendamentos ADD COLUMN observacoes_original varchar(1000);
+
+CREATE TABLE agendamento_restricao (
+    agendamento_id bigint      NOT NULL,
+    tipo           varchar(32) NOT NULL CHECK (tipo IN (
+        'VEGETARIANO','VEGANO','SEM_GLUTEN','SEM_LACTOSE',
+        'ALERGIA_FRUTOS_DO_MAR','ALERGIA_AMENDOIM','ALERGIA_CASTANHAS','ALERGIA_OVO')),
+    quantidade     integer     NOT NULL,
+    PRIMARY KEY (agendamento_id, tipo),
+    CONSTRAINT fk_agendamento_restricao_agendamento FOREIGN KEY (agendamento_id) REFERENCES agendamentos ON DELETE CASCADE
+);

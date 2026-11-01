@@ -1,6 +1,9 @@
 package com.couto.chefe_api.security;
 
+import com.couto.chefe_api.MenuDeTeste;
 import com.couto.chefe_api.TelefoneDeTeste;
+import com.couto.chefe_api.domain.Menu;
+import com.couto.chefe_api.repository.MenuRepository;
 import com.couto.chefe_api.domain.UserModel;
 import com.couto.chefe_api.repository.UsuarioRepository;
 import com.couto.chefe_api.domain.Agendamento;
@@ -67,6 +70,8 @@ class ConflitoHorarioIntegrationTest {
     @Autowired EnderecoRepository enderecoRepository;
     @Autowired AgendamentoRepository agendamentoRepository;
     @Autowired PratosRepository pratosRepository;
+    @Autowired MenuRepository menuRepository;
+    @Autowired MenuDeTeste menus;
 
     MockMvc mockMvc;
 
@@ -92,11 +97,12 @@ class ConflitoHorarioIntegrationTest {
         UserModel ana = novoCliente("Ana");
         long endereco = novoEndereco(ana).getId();
 
-        pedir(ana, endereco, BASE.plusHours(1), BASE.plusHours(3), bia).andExpect(status().isConflict());
-        pedir(ana, endereco, BASE.minusHours(1), BASE.plusHours(3), bia).andExpect(status().isConflict());
+        // o menu dura 2h: o fim é calculado
+        pedir(ana, endereco, BASE.plusHours(1), bia).andExpect(status().isConflict());
+        pedir(ana, endereco, BASE.minusHours(1), bia).andExpect(status().isConflict());
         // encostar não conflita, e outro chef no mesmo horário pode
-        pedir(ana, endereco, BASE.plusHours(2), BASE.plusHours(4), bia).andExpect(status().isCreated());
-        pedir(ana, endereco, BASE.plusHours(1), BASE.plusHours(3), caio).andExpect(status().isCreated());
+        pedir(ana, endereco, BASE.plusHours(2), bia).andExpect(status().isCreated());
+        pedir(ana, endereco, BASE.plusHours(1), caio).andExpect(status().isCreated());
     }
 
     @Test
@@ -104,8 +110,8 @@ class ConflitoHorarioIntegrationTest {
         ChefeModel bia = novoChefe("Bia");
         UserModel ana = novoCliente("Ana");
         UserModel edu = novoCliente("Edu");
-        long daAna = idDe(pedir(ana, novoEndereco(ana).getId(), BASE, BASE.plusHours(2), bia).andExpect(status().isCreated()));
-        long doEdu = idDe(pedir(edu, novoEndereco(edu).getId(), BASE.plusHours(1), BASE.plusHours(3), bia)
+        long daAna = idDe(pedir(ana, novoEndereco(ana).getId(), BASE, bia).andExpect(status().isCreated()));
+        long doEdu = idDe(pedir(edu, novoEndereco(edu).getId(), BASE.plusHours(1), bia)
                 .andExpect(status().isCreated()));
 
         mockMvc.perform(patch("/agendamentos/" + daAna + "/confirmar").cookie(cookieDe(bia))).andExpect(status().isOk());
@@ -121,14 +127,13 @@ class ConflitoHorarioIntegrationTest {
         ChefeModel bia = novoChefe("Bia");
         confirmar(novoAgendamento(novoCliente("Edu"), BASE, bia));
         UserModel ana = novoCliente("Ana");
-        Agendamento daAna = novoAgendamento(ana, BASE.plusDays(1), bia);
+        long daAna = idDe(pedir(ana, novoEndereco(ana).getId(), BASE.plusDays(1), bia).andExpect(status().isCreated()));
 
-        mockMvc.perform(put("/agendamentos/" + daAna.getId()).cookie(cookieDe(ana)).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"dataHoraInicial\":\"" + BASE.plusMinutes(30).format(FORMATO) + "\","
-                                + "\"dataHoraFinal\":\"" + BASE.plusHours(1).format(FORMATO) + "\"}"))
+        mockMvc.perform(put("/agendamentos/" + daAna).cookie(cookieDe(ana)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"dataHoraInicial\":\"" + BASE.plusMinutes(30).format(FORMATO) + "\"}"))
                 .andExpect(status().isConflict());
-        // mudar só a quantidade de pessoas não reavalia o horário
-        mockMvc.perform(put("/agendamentos/" + daAna.getId()).cookie(cookieDe(ana)).contentType(MediaType.APPLICATION_JSON)
+        // mudar só a quantidade de pessoas mantém o horário, que está livre
+        mockMvc.perform(put("/agendamentos/" + daAna).cookie(cookieDe(ana)).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"quantidadePessoas\":4}"))
                 .andExpect(status().isOk());
     }
@@ -168,12 +173,12 @@ class ConflitoHorarioIntegrationTest {
         agendamentoRepository.save(agendamento);
     }
 
-    private ResultActions pedir(UserModel cliente, long enderecoId, LocalDateTime inicio, LocalDateTime fim,
-                                ChefeModel... chefes) throws Exception {
-        String ids = String.join(",", java.util.Arrays.stream(chefes).map(c -> "\"" + c.getId() + "\"").toList());
+    private ResultActions pedir(UserModel cliente, long enderecoId, LocalDateTime inicio, ChefeModel chefe) throws Exception {
+        Menu menu = menuRepository.findByChefe_IdOrderByIdAsc(chefe.getId()).stream().findFirst()
+                .orElseGet(() -> menus.ativo(chefe));
         return mockMvc.perform(post("/agendamentos").cookie(cookieDe(cliente)).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"dataHoraInicial\":\"" + inicio.format(FORMATO) + "\",\"dataHoraFinal\":\"" + fim.format(FORMATO)
-                        + "\",\"enderecoId\":" + enderecoId + ",\"chefeIds\":[" + ids + "],\"quantidadePessoas\":2}"));
+                .content("{\"menuId\":" + menu.getId() + ",\"dataHoraInicial\":\"" + inicio.format(FORMATO)
+                        + "\",\"enderecoId\":" + enderecoId + ",\"quantidadePessoas\":2,\"ocasiao\":\"FAMILIA\"}"));
     }
 
     private static long idDe(ResultActions resposta) throws Exception {

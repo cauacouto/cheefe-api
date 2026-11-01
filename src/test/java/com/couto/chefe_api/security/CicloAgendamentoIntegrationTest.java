@@ -69,6 +69,7 @@ class CicloAgendamentoIntegrationTest {
     @Autowired EnderecoRepository enderecoRepository;
     @Autowired AgendamentoRepository agendamentoRepository;
     @Autowired PratosRepository pratosRepository;
+    @Autowired com.couto.chefe_api.MenuDeTeste menus;
     @Autowired AgendamentoHistoricoRepository historicoRepository;
     @Autowired com.couto.chefe_api.repository.NotificacaoRepository notificacaoRepository;
 
@@ -220,9 +221,9 @@ class CicloAgendamentoIntegrationTest {
         ChefeModel bia = novoChefe("Bia");
         long id = tools.jackson.databind.json.JsonMapper.builder().build().readTree(mockMvc.perform(post("/agendamentos")
                         .cookie(cookieDe(ana)).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"dataHoraInicial\":\"" + BASE.format(FORMATO) + "\",\"dataHoraFinal\":\""
-                                + BASE.plusHours(2).format(FORMATO) + "\",\"enderecoId\":" + novoEndereco(ana).getId()
-                                + ",\"chefeIds\":[\"" + bia.getId() + "\"],\"quantidadePessoas\":2}"))
+                        .content("{\"menuId\":" + menus.ativo(bia).getId() + ",\"dataHoraInicial\":\"" + BASE.format(FORMATO)
+                                + "\",\"enderecoId\":" + novoEndereco(ana).getId()
+                                + ",\"ocasiao\":\"FAMILIA\",\"quantidadePessoas\":2}"))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString()).get("id").asLong();
         mockMvc.perform(put("/agendamentos/" + id).cookie(cookieDe(ana)).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"quantidadePessoas\":4}")).andExpect(status().isOk());
@@ -360,14 +361,6 @@ class CicloAgendamentoIntegrationTest {
     private void confirmar(Agendamento agendamento) {
         agendamento.setStatus(com.couto.chefe_api.enums.StatusAgendamento.CONFIRMADO);
         agendamentoRepository.save(agendamento);
-    }
-
-    private ResultActions pedir(UserModel cliente, long enderecoId, LocalDateTime inicio, LocalDateTime fim,
-                                ChefeModel... chefes) throws Exception {
-        String ids = String.join(",", java.util.Arrays.stream(chefes).map(c -> "\"" + c.getId() + "\"").toList());
-        return mockMvc.perform(post("/agendamentos").cookie(cookieDe(cliente)).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"dataHoraInicial\":\"" + inicio.format(FORMATO) + "\",\"dataHoraFinal\":\"" + fim.format(FORMATO)
-                        + "\",\"enderecoId\":" + enderecoId + ",\"chefeIds\":[" + ids + "],\"quantidadePessoas\":2}"));
     }
 
     private static long idDe(ResultActions resposta) throws Exception {

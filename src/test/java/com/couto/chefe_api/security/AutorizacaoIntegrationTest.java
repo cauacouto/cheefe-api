@@ -71,6 +71,8 @@ class AutorizacaoIntegrationTest {
     private EnderecoRepository enderecoRepository;
     @Autowired
     private AgendamentoRepository agendamentoRepository;
+    @Autowired
+    private com.couto.chefe_api.MenuDeTeste menus;
 
     private MockMvc mockMvc;
 
@@ -307,7 +309,7 @@ class AutorizacaoIntegrationTest {
         EnderecoModel enderecoDaBia = novoEndereco(novoCliente());
 
         mockMvc.perform(post("/agendamentos").cookie(cookieDe(ana)).contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonAgendamento(enderecoDaBia.getId(), novoChefe(), "")))
+                        .content(jsonAgendamento(enderecoDaBia.getId(), menus.ativo(novoChefe()), "")))
                 .andExpect(status().isNotFound());
     }
 
@@ -319,7 +321,7 @@ class AutorizacaoIntegrationTest {
         String extras = ",\"email\":\"" + bia.getEmail() + "\",\"usuarioId\":\"" + bia.getId() + "\"";
 
         mockMvc.perform(post("/agendamentos").cookie(cookieDe(ana)).contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonAgendamento(enderecoDaAna.getId(), novoChefe(), extras)))
+                        .content(jsonAgendamento(enderecoDaAna.getId(), menus.ativo(novoChefe()), extras)))
                 .andExpect(status().isCreated());
 
         assertThat(agendamentoRepository.findAllByUsuario_Id(ana.getId())).hasSize(1);
@@ -435,13 +437,13 @@ class AutorizacaoIntegrationTest {
         return agendamentoRepository.save(agendamento);
     }
 
-    private static String jsonAgendamento(Long enderecoId, ChefeModel chefe, String extras) {
+    private static String jsonAgendamento(Long enderecoId, com.couto.chefe_api.domain.Menu menu, String extras) {
         DateTimeFormatter formato = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
         LocalDateTime dia = LocalDateTime.now().plusDays(10).withHour(0).withMinute(0);
-        return "{\"dataHoraInicial\":\"" + dia.withHour(18).format(formato) + "\","
-                + "\"dataHoraFinal\":\"" + dia.withHour(21).format(formato) + "\","
+        return "{\"menuId\":" + menu.getId() + ","
+                + "\"dataHoraInicial\":\"" + dia.withHour(18).format(formato) + "\","
                 + "\"enderecoId\":" + enderecoId + ","
-                + "\"chefeIds\":[\"" + chefe.getId() + "\"],"
+                + "\"ocasiao\":\"FAMILIA\","
                 + "\"quantidadePessoas\":2" + extras + "}";
     }
 

@@ -32,7 +32,7 @@ public class AgendamentoController {
     @PostMapping
     public ResponseEntity<AgendamentoResponseDto> criarAgendamento(@Valid @RequestBody AgendamentoRequestDto dto,
                                                                    @AuthenticationPrincipal UsuarioAutenticado cliente) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.criarAgendamento(dto, cliente.id()));
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.criarAgendamento(dto, cliente));
     }
 
     @GetMapping("/meus")
@@ -45,7 +45,7 @@ public class AgendamentoController {
     public ResponseEntity<AgendamentoResponseDto> atualizarAgendamento(@Valid @RequestBody AtualizarAgendamentoRequestDto dto,
                                                                        @PathVariable Long id,
                                                                        @AuthenticationPrincipal UsuarioAutenticado cliente) {
-        return ResponseEntity.ok(service.atualizarAgendamento(dto, id, cliente.id()));
+        return ResponseEntity.ok(service.atualizarAgendamento(dto, id, cliente));
     }
 
     @GetMapping("/recebidos")

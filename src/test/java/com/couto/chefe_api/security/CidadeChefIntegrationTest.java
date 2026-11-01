@@ -64,6 +64,8 @@ class CidadeChefIntegrationTest {
     @Autowired ChefeRepository chefeRepository;
     @Autowired EnderecoRepository enderecoRepository;
     @Autowired AgendamentoRepository agendamentoRepository;
+    @Autowired com.couto.chefe_api.repository.PratosRepository pratosRepository;
+    @Autowired com.couto.chefe_api.MenuDeTeste menus;
 
     MockMvc mockMvc;
 
@@ -75,6 +77,7 @@ class CidadeChefIntegrationTest {
     @AfterEach
     void limparBanco() {
         agendamentoRepository.deleteAll();
+        pratosRepository.deleteAll();
         enderecoRepository.deleteAll();
         usuarioRepository.deleteAll();
         chefeRepository.deleteAll();
@@ -183,9 +186,8 @@ class CidadeChefIntegrationTest {
     }
 
     @Test
-    void editarParaEnderecoOuChefDeOutraCidadeDa409() throws Exception {
+    void editarParaEnderecoDeOutraCidadeDa409() throws Exception {
         ChefeModel bia = novoChefe("Bia", "São Paulo", "SP", Especialidades.BRASILEIRA);
-        ChefeModel caio = novoChefe("Caio", "Campinas", "SP", Especialidades.ITALIANA);
         UserModel ana = novoCliente("Ana");
         long emSaoPaulo = endereco(ana, "São Paulo", "SP").getId();
         long emCampinas = endereco(ana, "Campinas", "SP").getId();
@@ -194,10 +196,8 @@ class CidadeChefIntegrationTest {
 
         editar(ana, pedido, "{\"enderecoId\":" + emCampinas + "}").andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail").value("Chef Bia não atende em Campinas"));
-        editar(ana, pedido, "{\"chefeIds\":[\"" + caio.getId() + "\"]}").andExpect(status().isConflict())
-                .andExpect(jsonPath("$.detail").value("Chef Caio não atende em São Paulo"));
-        editar(ana, pedido, "{\"enderecoId\":" + emCampinas + ",\"chefeIds\":[\"" + caio.getId() + "\"]}")
-                .andExpect(status().isOk());
+        // outro endereço na cidade do chef passa
+        editar(ana, pedido, "{\"enderecoId\":" + endereco(ana, "São Paulo", "SP").getId() + "}").andExpect(status().isOk());
     }
 
     @Test
@@ -218,12 +218,11 @@ class CidadeChefIntegrationTest {
 
     // ---------------------------------------------------------------------
 
-    ResultActions pedir(UserModel cliente, long enderecoId, ChefeModel... chefes) throws Exception {
-        String ids = String.join(",", java.util.Arrays.stream(chefes).map(c -> "\"" + c.getId() + "\"").toList());
+    ResultActions pedir(UserModel cliente, long enderecoId, ChefeModel chefe) throws Exception {
+        long menuId = menus.ativo(chefe).getId();
         return mockMvc.perform(post("/agendamentos").cookie(cookieDe(cliente)).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"dataHoraInicial\":\"" + BASE.format(FORMATO) + "\",\"dataHoraFinal\":\""
-                        + BASE.plusHours(2).format(FORMATO) + "\",\"enderecoId\":" + enderecoId + ",\"chefeIds\":[" + ids
-                        + "],\"quantidadePessoas\":2}"));
+                .content("{\"menuId\":" + menuId + ",\"dataHoraInicial\":\"" + BASE.format(FORMATO)
+                        + "\",\"enderecoId\":" + enderecoId + ",\"quantidadePessoas\":2,\"ocasiao\":\"FAMILIA\"}"));
     }
 
     ResultActions editar(UserModel cliente, long agendamentoId, String corpo) throws Exception {

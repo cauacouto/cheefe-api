@@ -34,20 +34,25 @@ import com.couto.chefe_api.exception.AgendamentoException;
 import com.couto.chefe_api.exception.AgendamentoInvalidoException;
 import com.couto.chefe_api.exception.AgendamentoNaoConfirmavelException;
 import com.couto.chefe_api.exception.AgendamentoNaoEditavelException;
-import com.couto.chefe_api.exception.ChefeIndisponivelException;
-import com.couto.chefe_api.exception.ChefeNaoEncontradoException;
+import com.couto.chefe_api.exception.AgendamentoSemMenuException;
+import com.couto.chefe_api.exception.ConvidadosForaDoLimiteException;
 import com.couto.chefe_api.exception.EnderecoException;
+import com.couto.chefe_api.exception.MenuIndisponivelException;
+import com.couto.chefe_api.exception.MenuNaoEncontradoException;
+import com.couto.chefe_api.exception.TrocaDeChefException;
 import com.couto.chefe_api.exception.UsuarioException;
 import com.couto.chefe_api.mapper.AgendamentoMapper;
 import com.couto.chefe_api.repository.UsuarioRepository;
 import com.couto.chefe_api.domain.Agendamento;
 import com.couto.chefe_api.domain.ChefeModel;
 import com.couto.chefe_api.domain.EnderecoModel;
+import com.couto.chefe_api.domain.Menu;
+import com.couto.chefe_api.domain.RestricaoAgendamento;
+import com.couto.chefe_api.dto.RestricaoDto;
+import com.couto.chefe_api.repository.MenuRepository;
 import com.couto.chefe_api.enums.StatusAgendamento;
 import com.couto.chefe_api.repository.AgendamentoRepository;
-import com.couto.chefe_api.enums.StatusDenuncia;
 import com.couto.chefe_api.repository.ChefeRepository;
-import com.couto.chefe_api.repository.DenunciaRepository;
 import com.couto.chefe_api.repository.EnderecoRepository;
 import com.couto.chefe_api.service.eventos.AgendamentoConfirmadoEvent;
 import com.couto.chefe_api.service.eventos.AgendamentoCriadoEvent;
@@ -57,7 +62,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -76,32 +80,39 @@ public class AgendamentoService {
     private final EnderecoRepository enderecoRepository;
     private final AgendamentoRepository agendamentoRepository;
     private final ApplicationEventPublisher eventPublisher;
-    private final DenunciaRepository denunciaRepository;
+    private final MenuRepository menuRepository;
+    private final ModeracaoConteudoService moderacaoConteudo;
     private final HistoricoAgendamentoService historico;
     private final AgendamentoHistoricoRepository historicoRepository;
     private final AgendaService agendaService;
     private final Clock clock;
 
     @Transactional
-    public AgendamentoResponseDto criarAgendamento(AgendamentoRequestDto dto, UUID usuarioId) {
+    public AgendamentoResponseDto criarAgendamento(AgendamentoRequestDto dto, UsuarioAutenticado cliente) {
+        UUID usuarioId = cliente.id();
+        // antes de qualquer trava ou gravação: o bloqueio por ódio é commitado em transação própria
+        Observacoes observacoes = verificarObservacoes(dto.getObservacoes(), cliente);
         var user = usuarioRepository.findById(usuarioId).orElseThrow(UsuarioException::new);
 
-        validarPeriodo(dto.getDataHoraInicial(), dto.getDataHoraFinal());
-        ChefeModel chefe = validarChefe(dto.getChefeIds());
+        Menu menu = menuRepository.findById(dto.getMenuId()).orElseThrow(MenuNaoEncontradoException::new);
+        exigirReservavel(menu, dto.getQuantidadePessoas());
+        Set<RestricaoAgendamento> restricoes = restricoesDe(dto.getRestricoes(), dto.getQuantidadePessoas());
         EnderecoModel endereco = buscarEndereco(dto.getEnderecoId(), usuarioId);
 
+        ChefeModel chefe = menu.getChefe();
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(user);
         agendamento.setEndereco(endereco);
         agendamento.setChefe(chefe);
         agendamento.setDataHoraInicial(dto.getDataHoraInicial());
-        agendamento.setDataHoraFinal(dto.getDataHoraFinal());
-        agendamento.setQuantidadePessoas(dto.getQuantidadePessoas());
         agendamento.setCriadoEm(agora());
-        agendamento.setValorTotal(Agendamento.calcularValor(chefe, dto.getDataHoraInicial(), dto.getDataHoraFinal()));
+        agendamento.aplicarMenu(menu, dto.getQuantidadePessoas());
+        agendamento.setOcasiao(dto.getOcasiao());
+        agendamento.getRestricoes().addAll(restricoes);
+        observacoes.aplicarEm(agendamento);
         exigirMesmaCidade(chefe, endereco);
         exigirHorarioLivre(agendamento);
-        agendaService.exigirDisponivel(chefe, dto.getDataHoraInicial(), dto.getDataHoraFinal());
+        agendaService.exigirDisponivel(chefe, agendamento.getDataHoraInicial(), agendamento.getDataHoraFinal());
         Agendamento salvo = agendamentoRepository.save(agendamento);
         historico.registrar(salvo, AcaoAgendamento.CRIADO, usuarioId, TipoUsuario.CLIENTE, null, null);
         eventPublisher.publishEvent(new AgendamentoCriadoEvent(salvo.getId()));
@@ -125,11 +136,16 @@ public class AgendamentoService {
     }
 
     /**
-     * Atualização parcial: só os campos não nulos do DTO são aplicados.
-     * Uma lista de chefes vazia é ignorada (não remove o chef).
+     * Atualização parcial: só os campos não nulos do DTO são aplicados. Trocar o menu (do mesmo chef) ou a
+     * quantidade recarrega o menu e recalcula a cópia, o fim e o valor, com as validações da criação; trocar
+     * só o horário mantém a duração da cópia. Cidade, horário e agenda são sempre revalidados.
      */
     @Transactional
-    public AgendamentoResponseDto atualizarAgendamento(AtualizarAgendamentoRequestDto dto, Long agendamentoId, UUID usuarioId) {
+    public AgendamentoResponseDto atualizarAgendamento(AtualizarAgendamentoRequestDto dto, Long agendamentoId,
+                                                       UsuarioAutenticado cliente) {
+        UUID usuarioId = cliente.id();
+        // antes de travar o agendamento (ver criarAgendamento)
+        Observacoes observacoes = dto.observacoes() == null ? null : verificarObservacoes(dto.observacoes(), cliente);
         // agendamento de outro cliente é tratado como inexistente
         Agendamento agenda = agendamentoRepository.travarPorId(agendamentoId)
                 .filter(a -> a.getUsuario() != null && a.getUsuario().getId().equals(usuarioId))
@@ -139,40 +155,44 @@ public class AgendamentoService {
             throw new AgendamentoNaoEditavelException(agenda.getStatus());
         }
         agenda.exigirEditavel(agora());
+        if (agenda.getMenu() == null) {
+            throw new AgendamentoSemMenuException();
+        }
 
         if (dto.enderecoId() != null) {
             agenda.setEndereco(buscarEndereco(dto.enderecoId(), usuarioId));
         }
-
-        boolean recalcular = false;
-
-        if (dto.chefeIds() != null && !dto.chefeIds().isEmpty()) {
-            agenda.setChefe(validarChefe(dto.chefeIds()));
-            recalcular = true;
+        if (dto.dataHoraInicial() != null) {
+            agenda.mudarInicio(dto.dataHoraInicial());
+        }
+        if (dto.menuId() != null || dto.quantidadePessoas() != null) {
+            Menu menu = dto.menuId() != null
+                    ? menuRepository.findById(dto.menuId()).orElseThrow(MenuNaoEncontradoException::new)
+                    : agenda.getMenu();
+            if (!menu.getChefe().getId().equals(agenda.getChefe().getId())) {
+                throw new TrocaDeChefException();
+            }
+            int pessoas = dto.quantidadePessoas() != null ? dto.quantidadePessoas() : agenda.getQuantidadePessoas();
+            exigirReservavel(menu, pessoas);
+            agenda.aplicarMenu(menu, pessoas);
+        }
+        if (dto.restricoes() != null) {
+            agenda.getRestricoes().clear();
+            agenda.getRestricoes().addAll(restricoesDe(dto.restricoes(), agenda.getQuantidadePessoas()));
+        } else {
+            // a quantidade pode ter diminuído abaixo de uma restrição já gravada
+            validarRestricoes(agenda.getRestricoes(), agenda.getQuantidadePessoas());
+        }
+        if (dto.ocasiao() != null) {
+            agenda.setOcasiao(dto.ocasiao());
+        }
+        if (observacoes != null) {
+            observacoes.aplicarEm(agenda);
         }
 
-        if (dto.dataHoraInicial() != null || dto.dataHoraFinal() != null) {
-            LocalDateTime inicio = dto.dataHoraInicial() != null ? dto.dataHoraInicial() : agenda.getDataHoraInicial();
-            LocalDateTime fim = dto.dataHoraFinal() != null ? dto.dataHoraFinal() : agenda.getDataHoraFinal();
-            validarPeriodo(inicio, fim);
-            agenda.setDataHoraInicial(inicio);
-            agenda.setDataHoraFinal(fim);
-            recalcular = true;
-        }
-
-        if (dto.quantidadePessoas() != null) {
-            agenda.setQuantidadePessoas(dto.quantidadePessoas());
-        }
-
-        if (dto.enderecoId() != null || (dto.chefeIds() != null && !dto.chefeIds().isEmpty())) {
-            exigirMesmaCidade(agenda.getChefe(), agenda.getEndereco());
-        }
-
-        if (recalcular) {
-            agenda.setValorTotal(Agendamento.calcularValor(agenda.getChefe(), agenda.getDataHoraInicial(), agenda.getDataHoraFinal()));
-            exigirHorarioLivre(agenda);
-            agendaService.exigirDisponivel(agenda.getChefe(), agenda.getDataHoraInicial(), agenda.getDataHoraFinal());
-        }
+        exigirMesmaCidade(agenda.getChefe(), agenda.getEndereco());
+        exigirHorarioLivre(agenda);
+        agendaService.exigirDisponivel(agenda.getChefe(), agenda.getDataHoraInicial(), agenda.getDataHoraFinal());
 
         Agendamento salvo = agendamentoRepository.save(agenda);
         historico.registrar(salvo, AcaoAgendamento.EDITADO, usuarioId, TipoUsuario.CLIENTE, null, null);
@@ -355,41 +375,51 @@ public class AgendamentoService {
         return enderecoRepository.findByIdAndUsuario_Id(enderecoId, usuarioId).orElseThrow(EnderecoException::new);
     }
 
-    private static void validarPeriodo(LocalDateTime inicio, LocalDateTime fim) {
-        if (inicio == null || fim == null) {
-            throw new AgendamentoInvalidoException("Informe a data/hora inicial e final");
+    /** Menu ativo de chef visível, e a quantidade de pessoas dentro do que o menu atende (409 nos dois casos). */
+    private void exigirReservavel(Menu menu, int pessoas) {
+        if (!menu.isAtivo() || !chefeRepository.visivel(menu.getChefe().getId())) {
+            throw new MenuIndisponivelException();
         }
-        if (!fim.isAfter(inicio)) {
-            throw new AgendamentoInvalidoException("data/hora final deve ser maior que a inicial");
+        if (pessoas < menu.getMinimoConvidados() || pessoas > menu.getMaximoConvidados()) {
+            throw new ConvidadosForaDoLimiteException(menu.getMinimoConvidados(), menu.getMaximoConvidados());
         }
     }
 
-    /**
-     * O agendamento tem um chef só: ids repetidos contam uma vez, mais de um id distinto é rejeitado.
-     * Garante que o chef existe, está ativo e disponível.
-     */
-    private ChefeModel validarChefe(List<UUID> chefeIds) {
-        if (chefeIds == null || chefeIds.isEmpty()) {
-            throw new AgendamentoInvalidoException("Informe o chefe");
+    /** Converte e valida as restrições do pedido (400); sem a lista, não há restrições. */
+    private static Set<RestricaoAgendamento> restricoesDe(List<RestricaoDto> dtos, int pessoas) {
+        Set<RestricaoAgendamento> restricoes = new LinkedHashSet<>();
+        if (dtos != null) {
+            if (dtos.stream().map(RestricaoDto::tipo).distinct().count() != dtos.size()) {
+                throw new AgendamentoInvalidoException("Restrições repetidas no pedido");
+            }
+            dtos.forEach(r -> restricoes.add(new RestricaoAgendamento(r.tipo(), r.quantidade())));
         }
+        validarRestricoes(restricoes, pessoas);
+        return restricoes;
+    }
 
-        Set<UUID> idsUnicos = new LinkedHashSet<>(chefeIds);
-        if (idsUnicos.size() > 1) {
-            throw new AgendamentoInvalidoException("Um agendamento é feito com um chef só");
+    /** Cada restrição afeta de 1 até o total de pessoas; a soma pode passar do total (uma pessoa pode ter duas). */
+    private static void validarRestricoes(Set<RestricaoAgendamento> restricoes, int pessoas) {
+        if (restricoes.stream().anyMatch(r -> r.quantidade() < 1 || r.quantidade() > pessoas)) {
+            throw new AgendamentoInvalidoException("A quantidade de cada restrição deve ser de 1 até " + pessoas);
         }
-        ChefeModel chefe = chefeRepository.findAllById(idsUnicos).stream().findFirst()
-                .orElseThrow(() -> new ChefeNaoEncontradoException("chefe não encontrado: " + idsUnicos));
+    }
 
-        boolean valido = chefe.isDisponivel() && Boolean.TRUE.equals(chefe.getAtivo()) && !chefe.isSuspenso()
-                && chefe.getBloqueadoEm() == null
-                && denunciaRepository.countDistinctClienteByChefeIdAndStatus(chefe.getId(), StatusDenuncia.ABERTA)
-                < DenunciaService.LIMITE_OCULTACAO;
-        if (!valido) {
-            throw new ChefeIndisponivelException();
+    /** Observações já moderadas; em branco viram nulo. */
+    private Observacoes verificarObservacoes(String texto, UsuarioAutenticado autor) {
+        if (texto == null || texto.isBlank()) {
+            return new Observacoes(null, null);
         }
-        if (!chefe.isPerfilCompleto()) {
-            throw new AgendamentoInvalidoException("chef com perfil incompleto");
+        String enviado = texto.strip();
+        String exibido = moderacaoConteudo.verificar(enviado, autor).texto();
+        return new Observacoes(exibido, exibido.equals(enviado) ? null : enviado);
+    }
+
+    /** O texto exibido e, só quando foi mascarado, o que o cliente escreveu. */
+    private record Observacoes(String exibido, String original) {
+        void aplicarEm(Agendamento agendamento) {
+            agendamento.setObservacoes(exibido);
+            agendamento.setObservacoesOriginal(original);
         }
-        return chefe;
     }
 }

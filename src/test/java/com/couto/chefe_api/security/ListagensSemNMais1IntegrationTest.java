@@ -54,6 +54,7 @@ class ListagensSemNMais1IntegrationTest {
     @Autowired EnderecoRepository enderecoRepository;
     @Autowired AgendamentoRepository agendamentoRepository;
     @Autowired PratosRepository pratosRepository;
+    @Autowired com.couto.chefe_api.MenuDeTeste menus;
     @Autowired EntityManagerFactory entityManagerFactory;
 
     MockMvc mockMvc;
@@ -121,9 +122,11 @@ class ListagensSemNMais1IntegrationTest {
         agendamento.setEndereco(novoEndereco(cliente));
         agendamento.setChefe(chefe);
         agendamento.setDataHoraInicial(inicio);
-        agendamento.setDataHoraFinal(inicio.plusHours(2));
-        agendamento.setQuantidadePessoas(2);
-        agendamento.setValorTotal(new BigDecimal("200.00"));
+        // com menu (a cópia mora na linha) e restrições: nenhum dos dois pode custar uma consulta por agendamento
+        agendamento.aplicarMenu(menus.ativo(chefe), 2);
+        agendamento.setOcasiao(com.couto.chefe_api.enums.OcasiaoMenu.FAMILIA);
+        agendamento.getRestricoes().add(new com.couto.chefe_api.domain.RestricaoAgendamento(
+                com.couto.chefe_api.enums.TipoRestricao.VEGANO, 1));
         return agendamentoRepository.save(agendamento);
     }
 

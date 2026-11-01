@@ -60,6 +60,10 @@ class NotificacaoIntegrationTest {
     private EnderecoRepository enderecoRepository;
     @Autowired
     private AgendamentoRepository agendamentoRepository;
+    @Autowired
+    private com.couto.chefe_api.repository.PratosRepository pratosRepository;
+    @Autowired
+    private com.couto.chefe_api.MenuDeTeste menus;
 
     private MockMvc mockMvc;
     private final UUID ana = UUID.randomUUID();
@@ -73,6 +77,7 @@ class NotificacaoIntegrationTest {
     @AfterEach
     void limparBanco() {
         agendamentoRepository.deleteAll();
+        pratosRepository.deleteAll();
         enderecoRepository.deleteAll();
         usuarioRepository.deleteAll();
         chefeRepository.deleteAll();
@@ -167,19 +172,18 @@ class NotificacaoIntegrationTest {
     }
 
     @Test
-    void editarNotificaOsChefsDepoisDaEdicao() throws Exception {
+    void editarNotificaOChefDepoisDaEdicao() throws Exception {
         UserModel cliente = novoCliente();
         ChefeModel x = novoChefe(true);
-        ChefeModel y = novoChefe(true);
         criarAgendamento(cliente, x).andExpect(status().isCreated());
         Long id = agendamentoRepository.findAllByUsuario_Id(cliente.getId()).get(0).getId();
 
         mockMvc.perform(put("/agendamentos/" + id).cookie(cookieDe(cliente)).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"chefeIds\":[\"" + y.getId() + "\"]}"))
+                        .content("{\"quantidadePessoas\":3}"))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/notificacoes").cookie(cookieDe(y)))
-                .andExpect(jsonPath("$.content.length()").value(1))
+        mockMvc.perform(get("/notificacoes").cookie(cookieDe(x)))
+                .andExpect(jsonPath("$.content.length()").value(2))
                 .andExpect(jsonPath("$.content[0].evento").value("AGENDAMENTO_EDITADO"));
     }
 
@@ -203,7 +207,8 @@ class NotificacaoIntegrationTest {
         UserModel cliente = novoCliente();
         ChefeModel incompleto = novoChefe(false);
 
-        criarAgendamento(cliente, incompleto).andExpect(status().isBadRequest());
+        // fora da busca (perfil incompleto): o menu dele não pode ser reservado
+        criarAgendamento(cliente, incompleto).andExpect(status().isConflict());
 
         assertThat(notificacaoRepository.countByDestinatarioIdAndLidaFalse(incompleto.getId())).isZero();
     }
@@ -221,9 +226,9 @@ class NotificacaoIntegrationTest {
         endereco = enderecoRepository.save(endereco);
         DateTimeFormatter formato = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
         LocalDateTime dia = LocalDateTime.now().plusDays(10);
-        String json = "{\"dataHoraInicial\":\"" + dia.withHour(18).withMinute(0).format(formato) + "\","
-                + "\"dataHoraFinal\":\"" + dia.withHour(21).withMinute(0).format(formato) + "\","
-                + "\"enderecoId\":" + endereco.getId() + ",\"chefeIds\":[\"" + chef.getId() + "\"],\"quantidadePessoas\":2}";
+        String json = "{\"menuId\":" + menus.ativo(chef).getId() + ","
+                + "\"dataHoraInicial\":\"" + dia.withHour(18).withMinute(0).format(formato) + "\","
+                + "\"enderecoId\":" + endereco.getId() + ",\"ocasiao\":\"FAMILIA\",\"quantidadePessoas\":2}";
         return mockMvc.perform(post("/agendamentos").cookie(cookie(cliente.getId(), cliente.getEmail(), TipoUsuario.CLIENTE))
                 .contentType(MediaType.APPLICATION_JSON).content(json));
     }

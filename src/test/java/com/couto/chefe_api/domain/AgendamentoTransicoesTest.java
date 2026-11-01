@@ -158,10 +158,10 @@ class AgendamentoTransicoesTest {
 
     @Test
     void valorJaSaiComDuasCasasArredondadoParaCima() {
-        // 100,25 x 2,5h = 250,625: o mesmo valor na notificação e no banco (numeric(10,2))
-        BigDecimal valor = Agendamento.calcularValor(chefe("Bia", "100.25"), INICIO, INICIO.plusMinutes(150));
+        // 33,335 x 3 pessoas = 100,005: o mesmo valor na notificação e no banco (numeric(10,2))
+        BigDecimal valor = Agendamento.calcularValor(new BigDecimal("33.335"), 3);
 
-        assertThat(valor).isEqualTo(new BigDecimal("250.63"));
+        assertThat(valor).isEqualTo(new BigDecimal("100.01"));
     }
 
     // ---------------------------------------------------------------------
@@ -172,7 +172,7 @@ class AgendamentoTransicoesTest {
         a.setChefe(chefe);
         a.setDataHoraInicial(INICIO);
         a.setDataHoraFinal(FIM);
-        a.setValorTotal(Agendamento.calcularValor(chefe, INICIO, FIM));
+        a.setValorTotal(new BigDecimal("200.00"));
         return a;
     }
 

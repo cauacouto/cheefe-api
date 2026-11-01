@@ -75,6 +75,7 @@ class TelefoneParadoIntegrationTest {
     @Autowired MensagemRepository mensagemRepository;
     @Autowired AvaliacaoRepository avaliacaoRepository;
     @Autowired PratosRepository pratosRepository;
+    @Autowired com.couto.chefe_api.MenuDeTeste menus;
     @Autowired NotificacaoRepository notificacaoRepository;
     @Autowired BloqueioContaRepository bloqueioContaRepository;
 
@@ -173,12 +174,11 @@ class TelefoneParadoIntegrationTest {
                 .andExpect(jsonPath("$.camposPendentes").isEmpty());
     }
 
-    ResultActions agendar(UserModel cliente, EnderecoModel endereco, ChefeModel... chefes) throws Exception {
-        String ids = String.join(",", java.util.Arrays.stream(chefes).map(c -> "\"" + c.getId() + "\"").toList());
+    ResultActions agendar(UserModel cliente, EnderecoModel endereco, ChefeModel chefe) throws Exception {
         return mockMvc.perform(post("/agendamentos").cookie(cookie(cliente)).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"dataHoraInicial\":\"" + FUTURO.format(FORMATO) + "\",\"dataHoraFinal\":\""
-                        + FUTURO.plusHours(2).format(FORMATO) + "\",\"enderecoId\":" + endereco.getId()
-                        + ",\"chefeIds\":[" + ids + "],\"quantidadePessoas\":2}"));
+                .content("{\"menuId\":" + menus.ativo(chefe).getId() + ",\"dataHoraInicial\":\"" + FUTURO.format(FORMATO)
+                        + "\",\"enderecoId\":" + endereco.getId()
+                        + ",\"ocasiao\":\"FAMILIA\",\"quantidadePessoas\":2}"));
     }
 
     ResultActions enviar(Cookie quem, Conversa conversa, String texto) throws Exception {
