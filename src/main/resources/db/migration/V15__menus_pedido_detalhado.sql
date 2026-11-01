@@ -83,3 +83,18 @@ CREATE TABLE agendamento_restricao (
     PRIMARY KEY (agendamento_id, tipo),
     CONSTRAINT fk_agendamento_restricao_agendamento FOREIGN KEY (agendamento_id) REFERENCES agendamentos ON DELETE CASCADE
 );
+
+-- Perfil do chef: de uma especialidade para uma lista (1 a 3, validado pela API) e sem valor_hora (o preço agora é do menu).
+CREATE TABLE chefe_especialidade (
+    chefe_id      uuid        NOT NULL,
+    especialidade varchar(32) NOT NULL CHECK (especialidade IN (
+        'FRANCESA','ITALIANA','JAPONESA','CHINESA','ARABE','MEXICANA','INDIANA','BRASILEIRA',
+        'CONFEITARIA','CHURRASCO','FRUTOS_DO_MAR','VEGANA','FINE_DINING','PANIFICACAO')),
+    PRIMARY KEY (chefe_id, especialidade),
+    CONSTRAINT fk_chefe_especialidade_chefe FOREIGN KEY (chefe_id) REFERENCES chefe ON DELETE CASCADE
+);
+
+INSERT INTO chefe_especialidade (chefe_id, especialidade) SELECT id, especialidade FROM chefe WHERE especialidade IS NOT NULL;
+
+ALTER TABLE chefe DROP COLUMN valor_hora;
+ALTER TABLE chefe DROP COLUMN especialidade;

@@ -42,6 +42,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -569,15 +570,16 @@ class AgendaChefIntegrationTest {
         chefe.setEmail(nome.toLowerCase() + "-" + UUID.randomUUID() + "@x.com");
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
-        chefe.setValorHora(new BigDecimal("100"));
         chefe.setCidade("São Paulo");
         chefe.setEstado("SP");
-        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setEspecialidades(Set.of(Especialidades.BRASILEIRA));
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
         chefe.setDisponivel(true);
         chefe.setAtivo(true);
-        return chefeRepository.save(TelefoneDeTeste.verificado(chefe));
+        chefe = chefeRepository.save(TelefoneDeTeste.verificado(chefe));
+        menus.ativo(chefe); // a consulta pública só vale para chef visível, e visível exige menu ativo
+        return chefe;
     }
 
     Cookie cookieDe(UserModel usuario) {

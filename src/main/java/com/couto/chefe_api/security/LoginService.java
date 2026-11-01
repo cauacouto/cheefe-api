@@ -5,6 +5,7 @@ import com.couto.chefe_api.exception.ContaBloqueadaException;
 import com.couto.chefe_api.exception.EmailJaCadastradoException;
 import com.couto.chefe_api.exception.RegistroTokenInvalidoException;
 import com.couto.chefe_api.exception.RegraDeNegocioException;
+import com.couto.chefe_api.service.ChefeService;
 import com.couto.chefe_api.mapper.ChefeMapper;
 import com.couto.chefe_api.mapper.UsuarioMapper;
 import com.couto.chefe_api.domain.UserModel;
@@ -117,6 +118,7 @@ public class LoginService {
     }
 
     private RegisterResult registerChefe(RegisterRequestDto dto, String email, String imageUrl) {
+        ChefeService.exigirSemRepeticao(dto.getEspecialidades());
         ChefeModel chefe = chefeMapper.toModel(dto);
         chefe.setEmail(email);
         chefe.setImageUrl(imageUrl);

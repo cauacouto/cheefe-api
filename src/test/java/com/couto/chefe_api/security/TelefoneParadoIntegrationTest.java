@@ -39,6 +39,7 @@ import org.springframework.web.context.WebApplicationContext;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -94,6 +95,8 @@ class TelefoneParadoIntegrationTest {
         caio = usuarioRepository.save(cliente("Caio"));
         bia = chefeRepository.save(TelefoneDeTeste.verificado(chefe("Bia")));
         duda = chefeRepository.save(chefe("Duda"));
+        menus.ativo(bia); // sem menu ativo o chef não é visível (busca, destaque, agenda)
+        menus.ativo(duda);
     }
 
     @AfterEach
@@ -159,7 +162,7 @@ class TelefoneParadoIntegrationTest {
         mockMvc.perform(get("/chefe/destaque").cookie(cookie(ana)))
                 .andExpect(jsonPath("$.content[*].id", containsInAnyOrder(bia.getId().toString(), duda.getId().toString())));
         mockMvc.perform(get("/pratos").cookie(cookie(ana)))
-                .andExpect(jsonPath("$.content[*].nomePrato", containsInAnyOrder("Moqueca", "Feijoada")));
+                .andExpect(jsonPath("$.content[*].nomePrato", containsInAnyOrder("Moqueca", "Feijoada", "Prato do menu", "Prato do menu")));
         mockMvc.perform(get("/chefe/" + duda.getId() + "/agenda").cookie(cookie(ana))).andExpect(status().isOk());
     }
 
@@ -257,10 +260,9 @@ class TelefoneParadoIntegrationTest {
         chefe.setEmail(nome.toLowerCase() + "-" + UUID.randomUUID() + "@x.com");
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
-        chefe.setValorHora(new BigDecimal("100"));
         chefe.setCidade("São Paulo");
         chefe.setEstado("SP");
-        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setEspecialidades(Set.of(Especialidades.BRASILEIRA));
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
         return chefe;

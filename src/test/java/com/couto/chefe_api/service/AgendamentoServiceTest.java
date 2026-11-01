@@ -45,6 +45,7 @@ import org.mockito.quality.Strictness;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Set;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -313,12 +314,11 @@ class AgendamentoServiceTest {
         ChefeModel chefe = new ChefeModel();
         chefe.setId(UUID.randomUUID());
         chefe.setNome(nome);
-        chefe.setValorHora(new BigDecimal("100"));
         chefe.setCidade("São Paulo");
         chefe.setEstado("SP");
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
-        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setEspecialidades(Set.of(Especialidades.BRASILEIRA));
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
         chefe.setDisponivel(true);

@@ -18,6 +18,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -79,10 +80,9 @@ class GravacaoParcialPostgresTest {
         chefe.setEmail("bia-" + UUID.randomUUID() + "@x.com");
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
-        chefe.setValorHora(new BigDecimal("100"));
         chefe.setCidade("São Paulo");
         chefe.setEstado("SP");
-        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setEspecialidades(Set.of(Especialidades.BRASILEIRA));
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
         chefe.setDisponivel(true);

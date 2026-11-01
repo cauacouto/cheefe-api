@@ -6,7 +6,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.Test;
 
-import java.math.BigDecimal;
+import java.util.Set;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -22,16 +22,15 @@ class ChefeModelTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"nacionalidade", "especialidade", "senioridade", "anosDeExperiencia", "idiomas", "valorHora"})
+    @ValueSource(strings = {"nacionalidade", "especialidades", "senioridade", "anosDeExperiencia", "idiomas"})
     void incompletoSemCadaCampo(String campo) {
         ChefeModel chefe = completo();
         switch (campo) {
             case "nacionalidade" -> chefe.setNacionalidade(null);
-            case "especialidade" -> chefe.setEspecialidade(null);
+            case "especialidades" -> chefe.setEspecialidades(Set.of());
             case "senioridade" -> chefe.setSenioridade(null);
             case "anosDeExperiencia" -> chefe.setAnosDeExperiencia(null);
             case "idiomas" -> chefe.setIdiomas(null);
-            case "valorHora" -> chefe.setValorHora(null);
             default -> throw new IllegalArgumentException(campo);
         }
 
@@ -59,19 +58,17 @@ class ChefeModelTest {
     @Test
     void pendentesNaOrdemDoContrato() {
         assertThat(new ChefeModel().camposPendentes()).isEqualTo(List.of(
-                "nacionalidade", "especialidade", "senioridade", "anosDeExperiencia", "idiomas", "valorHora",
-                "cidade", "estado"));
+                "nacionalidade", "especialidades", "senioridade", "anosDeExperiencia", "idiomas", "cidade", "estado"));
     }
 
     private static ChefeModel completo() {
         ChefeModel chefe = new ChefeModel();
         chefe.setNome("Bia");
         chefe.setNacionalidade("Brasileira");
-        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setEspecialidades(Set.of(Especialidades.BRASILEIRA));
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
         chefe.setIdiomas("pt");
-        chefe.setValorHora(new BigDecimal("150"));
         chefe.setCidade("São Paulo");
         chefe.setEstado("SP");
         return chefe;

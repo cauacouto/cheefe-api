@@ -3,6 +3,8 @@ package com.couto.chefe_api.service;
 import com.couto.chefe_api.exception.RegraDeNegocioException;
 
 import com.couto.chefe_api.enums.Especialidades;
+import com.couto.chefe_api.enums.OcasiaoMenu;
+import com.couto.chefe_api.repository.MenuRepository;
 
 import com.couto.chefe_api.domain.Cidade;
 
@@ -28,7 +30,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -36,30 +42,37 @@ public class ChefeService {
 
     static final int TAMANHO_MAXIMO_PAGINA = 50;
     static final String NOTA_MEDIA = "notaMedia";
-    static final Set<String> ORDENAVEIS = Set.of("nome", "valorHora", "anosDeExperiencia", NOTA_MEDIA);
+    static final String PRECO_A_PARTIR_DE = "precoAPartirDe";
+    static final Set<String> ORDENAVEIS = Set.of("nome", PRECO_A_PARTIR_DE, "anosDeExperiencia", NOTA_MEDIA);
 
     private final ChefeRepository chefeRepository;
     private final ChefeMapper chefeMapper;
     private final DenunciaRepository denunciaRepository;
+    private final MenuRepository menuRepository;
 
     @Transactional
     public ChefeResponseDto atualizarDados(ChefeRequestDto dto, UUID id) {
         ChefeModel chefe = chefeRepository.findById(id).orElseThrow(ChefeNaoEncontradoException::new);
         chefe.exigirAtivo();
+        exigirSemRepeticao(dto.especialidades());
         chefeMapper.updateModelFromDto(dto, chefe);
-        return chefeMapper.toDto(chefeRepository.save(chefe));
+        ChefeResponseDto resposta = chefeMapper.toDto(chefeRepository.save(chefe));
+        return ChefeResponseDto.comPrecoAPartirDe(resposta, menoresPrecos(List.of(id)).get(id));
     }
 
     @Transactional(readOnly = true)
     public ChefePerfilDto buscarPerfil(UUID chefeId) {
         ChefeModel chefe = chefeRepository.findById(chefeId).orElseThrow(ChefeNaoEncontradoException::new);
         long denunciantes = denunciaRepository.countDistinctClienteByChefeIdAndStatus(chefeId, StatusDenuncia.ABERTA);
-        return ChefePerfilDto.de(chefe, denunciantes >= DenunciaService.LIMITE_OCULTACAO);
+        BigDecimal precoAPartirDe = menoresPrecos(List.of(chefeId)).get(chefeId);
+        return ChefePerfilDto.de(chefe, denunciantes >= DenunciaService.LIMITE_OCULTACAO,
+                menuRepository.existsByChefe_IdAndAtivoTrue(chefeId), precoAPartirDe);
     }
 
     @Transactional(readOnly = true)
     public Page<ChefeResponseDto> mostrarChefes(Pageable pageable, BigDecimal valorMinimo, BigDecimal valorMaximo,
-                                                String cidade, String estado, Especialidades especialidade) {
+                                                String cidade, String estado, Especialidades especialidade,
+                                                OcasiaoMenu ocasiao) {
         String cidadeBusca = Cidade.normalizar(cidade);
         if (cidadeBusca != null && Cidade.uf(estado) == null) {
             // há cidades com o mesmo nome em estados diferentes
@@ -71,8 +84,7 @@ public class ChefeService {
                 .and(ChefeSpecification.naoSuspenso())
                 .and(ChefeSpecification.naoBloqueado())
                 .and(ChefeSpecification.semDenunciasEmExcesso())
-                .and(ChefeSpecification.valorMinimoMaior(valorMinimo))
-                .and(ChefeSpecification.valorMaximoMenor(valorMaximo))
+                .and(ChefeSpecification.comMenuAtivo(ocasiao, valorMinimo, valorMaximo))
                 .and(ChefeSpecification.naCidade(cidadeBusca))
                 .and(ChefeSpecification.noEstado(Cidade.uf(estado)))
                 .and(ChefeSpecification.daEspecialidade(especialidade));
@@ -80,19 +92,47 @@ public class ChefeService {
         PageRequest pagina = paginaDaBusca(pageable);
         if (pagina.getSort().getOrderFor(NOTA_MEDIA) != null) {
             // a média não é coluna: a ordem inteira vai para a Specification (sempre desc, "Novo" por último)
-            Sort demais = Sort.by(pagina.getSort().stream().filter(o -> !NOTA_MEDIA.equals(o.getProperty())).toList());
+            // com os dois juntos, a nota vale e o preço é ignorado
+            Sort demais = Sort.by(pagina.getSort().stream()
+                    .filter(o -> !NOTA_MEDIA.equals(o.getProperty()) && !PRECO_A_PARTIR_DE.equals(o.getProperty())).toList());
             spec = spec.and(ChefeSpecification.ordenadoPorNotaMedia(demais));
             pagina = PageRequest.of(pagina.getPageNumber(), pagina.getPageSize());
+        } else if (pagina.getSort().getOrderFor(PRECO_A_PARTIR_DE) != null) {
+            // o preço também não é coluna do chef: a ordem inteira vai para a Specification
+            Sort.Direction direcao = pagina.getSort().getOrderFor(PRECO_A_PARTIR_DE).getDirection();
+            Sort demais = Sort.by(pagina.getSort().stream().filter(o -> !PRECO_A_PARTIR_DE.equals(o.getProperty())).toList());
+            spec = spec.and(ChefeSpecification.ordenadoPorPreco(direcao, demais));
+            pagina = PageRequest.of(pagina.getPageNumber(), pagina.getPageSize());
         }
-        return chefeRepository.findAll(spec, pagina)
-                .map(chefeMapper::toDto);
+        return comPrecos(chefeRepository.findAll(spec, pagina).map(chefeMapper::toDto));
     }
 
     @Transactional(readOnly = true)
     public Page<ChefeResponseDto> chefesMaisAgendados(Pageable pageable) {
         // a ordem é a da query (mais agendados primeiro); a do cliente é ignorada
-        return chefeRepository.findMaisAgendados(PageRequest.of(pageable.getPageNumber(), tamanho(pageable)))
-                .map(chefeMapper::toDto);
+        return comPrecos(chefeRepository.findMaisAgendados(PageRequest.of(pageable.getPageNumber(), tamanho(pageable)))
+                .map(chefeMapper::toDto));
+    }
+
+    /** O preço a partir de vem dos menus, numa consulta só para a página inteira. */
+    private Page<ChefeResponseDto> comPrecos(Page<ChefeResponseDto> pagina) {
+        Map<UUID, BigDecimal> precos = menoresPrecos(pagina.getContent().stream().map(ChefeResponseDto::id).toList());
+        return pagina.map(chefe -> ChefeResponseDto.comPrecoAPartirDe(chefe, precos.get(chefe.id())));
+    }
+
+    private Map<UUID, BigDecimal> menoresPrecos(Collection<UUID> chefes) {
+        if (chefes.isEmpty()) {
+            return Map.of();
+        }
+        return menuRepository.menoresPrecos(chefes).stream()
+                .collect(Collectors.toMap(MenuRepository.MenorPreco::getChefeId, MenuRepository.MenorPreco::getMinimo));
+    }
+
+    /** Especialidade repetida na lista é erro do pedido, não algo para o Set engolir em silêncio. */
+    public static void exigirSemRepeticao(List<Especialidades> especialidades) {
+        if (especialidades != null && new HashSet<>(especialidades).size() != especialidades.size()) {
+            throw new RegraDeNegocioException("Especialidade repetida");
+        }
     }
 
     /** Ordenação só por campos que a própria resposta mostra; qualquer outro (ex.: e-mail) é descartado. */

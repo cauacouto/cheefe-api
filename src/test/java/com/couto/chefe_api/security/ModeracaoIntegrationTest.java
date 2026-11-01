@@ -16,6 +16,7 @@ import com.couto.chefe_api.repository.DenunciaRepository;
 import com.couto.chefe_api.repository.NotificacaoRepository;
 import org.springframework.http.MediaType;
 import java.math.BigDecimal;
+import java.util.Set;
 import java.util.List;
 import com.couto.chefe_api.domain.UserModel;
 import com.couto.chefe_api.repository.UsuarioRepository;
@@ -53,6 +54,8 @@ class ModeracaoIntegrationTest {
 
     static final String EMAIL_MODERACAO = "moderacao@chefhome.test";
 
+    @Autowired com.couto.chefe_api.repository.PratosRepository pratosRepository;
+    @Autowired com.couto.chefe_api.MenuDeTeste menus;
     @Autowired
     private WebApplicationContext context;
     @Autowired
@@ -86,6 +89,7 @@ class ModeracaoIntegrationTest {
         acaoModeracaoRepository.deleteAll();
         denunciaRepository.deleteAll();
         agendamentoRepository.deleteAll();
+        pratosRepository.deleteAll();
         usuarioRepository.deleteAll();
         chefeRepository.deleteAll();
         notificacaoRepository.deleteAll();
@@ -185,13 +189,14 @@ class ModeracaoIntegrationTest {
         chefe.setEmail("chef-" + UUID.randomUUID() + "@x.com");
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
-        chefe.setValorHora(new BigDecimal("100"));
         chefe.setCidade("São Paulo");
         chefe.setEstado("SP");
-        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setEspecialidades(Set.of(Especialidades.BRASILEIRA));
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
-        return chefeRepository.save(TelefoneDeTeste.verificado(chefe));
+        chefe = chefeRepository.save(TelefoneDeTeste.verificado(chefe));
+        menus.ativo(chefe);
+        return chefe;
     }
 
     Denuncia denunciar(ChefeModel chefe, StatusDenuncia status) {

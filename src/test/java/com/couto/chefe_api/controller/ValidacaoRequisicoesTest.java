@@ -160,9 +160,9 @@ class ValidacaoRequisicoesTest {
         UUID id = UUID.randomUUID();
         mvc.perform(patch("/chefe/me")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"nome\":\"  \",\"anosDeExperiencia\":-1,\"valorHora\":0}"))
+                        .content("{\"nome\":\"  \",\"anosDeExperiencia\":-1,\"especialidades\":[]}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.campos[*].campo").value(hasItems("nome", "anosDeExperiencia", "valorHora")));
+                .andExpect(jsonPath("$.campos[*].campo").value(hasItems("nome", "anosDeExperiencia", "especialidades")));
 
         mvc.perform(patch("/chefe/me")
                         .contentType(MediaType.APPLICATION_JSON)

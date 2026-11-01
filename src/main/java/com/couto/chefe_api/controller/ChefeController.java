@@ -1,6 +1,7 @@
 package com.couto.chefe_api.controller;
 
 import com.couto.chefe_api.enums.Especialidades;
+import com.couto.chefe_api.enums.OcasiaoMenu;
 
 import com.couto.chefe_api.dto.ChefePerfilDto;
 import com.couto.chefe_api.dto.FotoPerfilDto;
@@ -38,8 +39,9 @@ public class ChefeController {
                                                                @RequestParam(required = false) BigDecimal valorMaximo,
                                                                @RequestParam(required = false) String cidade,
                                                                @RequestParam(required = false) String estado,
-                                                               @RequestParam(required = false) Especialidades especialidade) {
-        return ResponseEntity.ok().body(service.mostrarChefes(pageable, valorMinimo, valorMaximo, cidade, estado, especialidade));
+                                                               @RequestParam(required = false) Especialidades especialidade,
+                                                               @RequestParam(required = false) OcasiaoMenu ocasiao) {
+        return ResponseEntity.ok().body(service.mostrarChefes(pageable, valorMinimo, valorMaximo, cidade, estado, especialidade, ocasiao));
     }
 
     @GetMapping("/me")

@@ -33,6 +33,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -257,15 +258,16 @@ class CidadeChefIntegrationTest {
         chefe.setEmail(nome.toLowerCase() + "-" + UUID.randomUUID() + "@x.com");
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
-        chefe.setValorHora(new BigDecimal("100"));
-        chefe.setEspecialidade(especialidade);
+        chefe.setEspecialidades(Set.of(especialidade));
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
         chefe.setDisponivel(true);
         chefe.setAtivo(true);
         chefe.setCidade(cidade);
         chefe.setEstado(estado);
-        return chefeRepository.save(chefe);
+        chefe = chefeRepository.save(chefe);
+        menus.ativo(chefe);
+        return chefe;
     }
 
     Cookie cookieDe(UserModel usuario) {

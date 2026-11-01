@@ -15,6 +15,7 @@ import org.springframework.http.MediaType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Set;
 import java.util.ArrayList;
 import com.couto.chefe_api.domain.Notificacao;
 import com.couto.chefe_api.enums.EventoNotificacao;
@@ -247,10 +248,9 @@ class NotificacaoIntegrationTest {
         chefe.setEmail("chef-" + UUID.randomUUID() + "@x.com");
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
-        chefe.setValorHora(new BigDecimal("100"));
         chefe.setCidade("São Paulo");
         chefe.setEstado("SP");
-        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setEspecialidades(Set.of(Especialidades.BRASILEIRA));
         chefe.setAnosDeExperiencia(5);
         if (completo) {
             chefe.setSenioridade(Senioridade.HEAD_CHEF);

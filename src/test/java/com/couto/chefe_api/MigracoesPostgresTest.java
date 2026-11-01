@@ -31,6 +31,7 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -115,10 +116,9 @@ class MigracoesPostgresTest {
         chefe.setEmail("bia-" + UUID.randomUUID() + "@x.com");
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
-        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setEspecialidades(Set.of(Especialidades.BRASILEIRA));
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
-        chefe.setValorHora(new BigDecimal("100"));
         chefe.setCidade("São Paulo");
         chefe.setEstado("SP");
         chefe = chefeRepository.save(chefe);
@@ -346,7 +346,7 @@ class MigracoesPostgresTest {
 
     @Test
     void checksDeEnumBatemComOsEnumsJava() throws SQLException {
-        assertCheckDeTexto("chefe", "especialidade", com.couto.chefe_api.enums.Especialidades.values());
+        assertCheckDeTexto("chefe_especialidade", "especialidade", com.couto.chefe_api.enums.Especialidades.values());
         assertCheckDeTexto("chefe", "senioridade", Senioridade.values());
         assertCheckDeTexto("notificacao", "destinatario_tipo", com.couto.chefe_api.enums.TipoUsuario.values());
         assertCheckDeTexto("notificacao", "evento", com.couto.chefe_api.enums.EventoNotificacao.values());

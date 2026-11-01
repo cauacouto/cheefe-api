@@ -53,6 +53,10 @@ class OnboardingIntegrationTest {
     private ChefeRepository chefeRepository;
     @Autowired
     private EnderecoRepository enderecoRepository;
+    @Autowired
+    private com.couto.chefe_api.repository.PratosRepository pratosRepository;
+    @Autowired
+    private com.couto.chefe_api.MenuDeTeste menus;
 
     private MockMvc mockMvc;
     private String email;
@@ -65,6 +69,7 @@ class OnboardingIntegrationTest {
 
     @AfterEach
     void limparBanco() {
+        pratosRepository.deleteAll();
         enderecoRepository.deleteAll();
         usuarioRepository.deleteAll();
         chefeRepository.deleteAll();
@@ -75,14 +80,34 @@ class OnboardingIntegrationTest {
         registrar("{\"tipoUsuario\":\"CHEFE\",\"nome\":\"Bia\"}").andExpect(status().isCreated());
 
         ChefeModel chefe = chefeRepository.findByEmailIgnoreCase(email).orElseThrow();
-        assertThat(chefe.isPerfilCompleto()).isFalse();
+        mockMvc.perform(get("/chefe/me").cookie(cookieDe(chefe)))
+                .andExpect(jsonPath("$.perfilCompleto").value(false))
+                .andExpect(jsonPath("$.especialidades").isEmpty());
+    }
+
+    @Test
+    void chefComEspecialidadeRepetidaNoRegistroDa400() throws Exception {
+        registrar("{\"tipoUsuario\":\"CHEFE\",\"nome\":\"Bia\",\"especialidades\":[\"FRANCESA\",\"FRANCESA\"]}")
+                .andExpect(status().isBadRequest());
+
+        assertThat(chefeRepository.findByEmailIgnoreCase(email)).isEmpty();
+    }
+
+    @Test
+    void chefRegistraComAsEspecialidadesDaLista() throws Exception {
+        registrar("{\"tipoUsuario\":\"CHEFE\",\"nome\":\"Bia\",\"especialidades\":[\"FRANCESA\",\"ITALIANA\"]}")
+                .andExpect(status().isCreated());
+
+        ChefeModel chefe = chefeRepository.findByEmailIgnoreCase(email).orElseThrow();
+        mockMvc.perform(get("/chefe/me").cookie(cookieDe(chefe)))
+                .andExpect(jsonPath("$.especialidades", containsInAnyOrder("FRANCESA", "ITALIANA")));
     }
 
     @Test
     void chefComValoresInvalidosNoRegistroDa400() throws Exception {
-        registrar("{\"tipoUsuario\":\"CHEFE\",\"nome\":\"Bia\",\"valorHora\":-100,\"anosDeExperiencia\":-4}")
+        registrar("{\"tipoUsuario\":\"CHEFE\",\"nome\":\"Bia\",\"especialidades\":[],\"anosDeExperiencia\":-4}")
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.campos[*].campo").value(containsInAnyOrder("valorHora", "anosDeExperiencia")));
+                .andExpect(jsonPath("$.campos[*].campo").value(containsInAnyOrder("especialidades", "anosDeExperiencia")));
 
         assertThat(chefeRepository.findByEmailIgnoreCase(email)).isEmpty();
     }
@@ -127,8 +152,8 @@ class OnboardingIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.perfilCompleto").value(false))
                 .andExpect(jsonPath("$.camposPendentes").value(contains(
-                        "nacionalidade", "especialidade", "senioridade", "anosDeExperiencia", "idiomas", "valorHora",
-                        "cidade", "estado")));
+                        "nacionalidade", "especialidades", "senioridade", "anosDeExperiencia", "idiomas",
+                        "cidade", "estado", "menu")));
         // o telefone já vem verificado nos dados de teste (TelefoneDeTeste); sem ele, entraria por último na lista
     }
 
@@ -138,9 +163,15 @@ class OnboardingIntegrationTest {
         Cookie cookie = cookieDe(chefe);
 
         mockMvc.perform(patch("/chefe/me").cookie(cookie).contentType(MediaType.APPLICATION_JSON).content("""
-                        {"nacionalidade":"Brasileira","especialidade":"BRASILEIRA","senioridade":"HEAD_CHEF",
-                         "anosDeExperiencia":5,"idiomas":"pt","valorHora":150,"cidade":"São Paulo","estado":"SP"}"""))
+                        {"nacionalidade":"Brasileira","especialidades":["BRASILEIRA"],"senioridade":"HEAD_CHEF",
+                         "anosDeExperiencia":5,"idiomas":"pt","cidade":"São Paulo","estado":"SP"}"""))
                 .andExpect(status().isOk());
+
+        // a conta está completa, mas sem menu ativo o chef ainda não aparece
+        mockMvc.perform(get("/chefe/me").cookie(cookie))
+                .andExpect(jsonPath("$.perfilCompleto").value(false))
+                .andExpect(jsonPath("$.camposPendentes").value(contains("menu")));
+        menus.ativo(chefe);
 
         mockMvc.perform(get("/chefe/me").cookie(cookie))
                 .andExpect(status().isOk())

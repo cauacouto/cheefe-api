@@ -20,7 +20,7 @@ class AgendamentoTransicoesTest {
     static final LocalDateTime INICIO = LocalDateTime.of(2026, 11, 20, 19, 0);
     static final LocalDateTime FIM = INICIO.plusHours(2);
 
-    final ChefeModel bia = chefe("Bia", "100");
+    final ChefeModel bia = chefe("Bia");
 
     @Test
     void cancelarConfirmadoComExatamente24hPode() {
@@ -183,11 +183,10 @@ class AgendamentoTransicoesTest {
         return a;
     }
 
-    static ChefeModel chefe(String nome, String valorHora) {
+    static ChefeModel chefe(String nome) {
         ChefeModel chefe = new ChefeModel();
         chefe.setId(UUID.randomUUID());
         chefe.setNome(nome);
-        chefe.setValorHora(new BigDecimal(valorHora));
         chefe.setCidade("São Paulo");
         chefe.setEstado("SP");
         return chefe;

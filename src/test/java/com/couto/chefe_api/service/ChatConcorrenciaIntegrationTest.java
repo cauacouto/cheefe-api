@@ -20,6 +20,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -61,10 +62,9 @@ class ChatConcorrenciaIntegrationTest {
         bia.setEmail("bia-" + UUID.randomUUID() + "@x.com");
         bia.setNacionalidade("Brasileira");
         bia.setIdiomas("pt");
-        bia.setValorHora(new BigDecimal("100"));
         bia.setCidade("São Paulo");
         bia.setEstado("SP");
-        bia.setEspecialidade(Especialidades.BRASILEIRA);
+        bia.setEspecialidades(Set.of(Especialidades.BRASILEIRA));
         bia.setSenioridade(Senioridade.HEAD_CHEF);
         bia.setAnosDeExperiencia(5);
         bia = chefeRepository.save(TelefoneDeTeste.verificado(bia));

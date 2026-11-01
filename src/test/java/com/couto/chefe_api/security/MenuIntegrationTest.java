@@ -29,6 +29,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -235,26 +236,29 @@ class MenuIntegrationTest {
         ChefeModel bia = novoChefe("Bia");
         ChefeModel caio = novoChefe("Caio");
         Menu menu = menuDeTeste.ativo(bia);
+        // o segundo menu mantém a Bia visível: sem nenhum menu ativo ela sai da busca e a página pública dá 404
+        menuDeTeste.ativo(bia);
+        menuDeTeste.ativo(caio);
         Cookie cliente = cookieDe(novoCliente());
 
         mockMvc.perform(get("/chefe/" + bia.getId() + "/menus").cookie(cliente))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$.length()").value(2))
                 .andExpect(jsonPath("$[0].id").value(menu.getId()))
                 .andExpect(jsonPath("$[0].itens[0].nomePrato").value("Prato do menu"));
         // quem é chef também consulta
         mockMvc.perform(get("/chefe/" + bia.getId() + "/menus").cookie(cookieDe(caio)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(2));
 
         mockMvc.perform(patch("/menus/" + menu.getId() + "/pausar").cookie(cookieDe(bia)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.ativo").value(false));
         mockMvc.perform(get("/chefe/" + bia.getId() + "/menus").cookie(cliente))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1));
 
         mockMvc.perform(patch("/menus/" + menu.getId() + "/ativar").cookie(cookieDe(bia)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.ativo").value(true));
         mockMvc.perform(get("/chefe/" + bia.getId() + "/menus").cookie(cliente))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(2));
     }
 
     @Test
@@ -396,10 +400,9 @@ class MenuIntegrationTest {
         chefe.setEmail(nome.toLowerCase() + "-" + UUID.randomUUID() + "@x.com");
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
-        chefe.setValorHora(new BigDecimal("100"));
         chefe.setCidade("São Paulo");
         chefe.setEstado("SP");
-        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setEspecialidades(Set.of(Especialidades.BRASILEIRA));
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
         chefe.setDisponivel(true);
