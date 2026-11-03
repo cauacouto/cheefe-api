@@ -1,10 +1,12 @@
 package com.couto.chefe_api.service;
 
+import com.couto.chefe_api.dto.AbrirConversaDto;
 import com.couto.chefe_api.dto.ConversaDto;
 import com.couto.chefe_api.dto.MensagemDto;
 import com.couto.chefe_api.exception.ChefeIndisponivelException;
 import com.couto.chefe_api.exception.ChefeNaoEncontradoException;
 import com.couto.chefe_api.exception.ConflitoException;
+import com.couto.chefe_api.exception.ConversaNaoPermitidaException;
 import com.couto.chefe_api.exception.RecursoNaoEncontradoException;
 import com.couto.chefe_api.exception.RegraDeNegocioException;
 import com.couto.chefe_api.exception.UsuarioException;
@@ -19,7 +21,9 @@ import com.couto.chefe_api.domain.ChefeModel;
 import com.couto.chefe_api.domain.Conversa;
 import com.couto.chefe_api.domain.Mensagem;
 import com.couto.chefe_api.enums.EventoNotificacao;
+import com.couto.chefe_api.enums.StatusAgendamento;
 import com.couto.chefe_api.enums.TipoUsuario;
+import com.couto.chefe_api.repository.AgendamentoRepository;
 import com.couto.chefe_api.repository.ChefeRepository;
 import com.couto.chefe_api.repository.ConversaRepository;
 import com.couto.chefe_api.repository.MensagemRepository;
@@ -42,7 +46,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-/** Regras do chat: só participantes veem/mexem na conversa (os demais recebem 404); só o cliente inicia. */
+/** Regras do chat: só participantes veem/mexem na conversa (os demais recebem 404); o cliente inicia com qualquer chef; o chef, só com quem já atendeu. */
 @Service
 @RequiredArgsConstructor
 public class ChatService {
@@ -56,6 +60,7 @@ public class ChatService {
     private final MensagemRepository mensagemRepository;
     private final UsuarioRepository usuarioRepository;
     private final ChefeRepository chefeRepository;
+    private final AgendamentoRepository agendamentoRepository;
     private final NotificacaoService notificacaoService;
     private final ModeracaoConteudoService moderacaoConteudo;
     private final ApplicationEventPublisher eventPublisher;
@@ -66,24 +71,41 @@ public class ChatService {
     }
 
     /**
+     * Cliente abre com {@code chefeId}; chef abre com {@code clienteId}, só se já concluiu um serviço para ele.
      * Idempotente também em paralelo (duplo clique, duas abas): se outro pedido criou a conversa no meio,
      * a constraint única barra a segunda e uma nova transação devolve a que ficou.
      */
-    public ConversaAberta abrirConversa(UUID clienteId, UUID chefeId) {
+    public ConversaAberta abrirConversa(UsuarioAutenticado autor, AbrirConversaDto dto) {
+        // exatamente um dos dois ids, e o do outro lado: cliente informa o chef, chef informa o cliente
+        boolean cliente = autor.tipo() == TipoUsuario.CLIENTE;
+        UUID alvo = cliente ? dto.chefeId() : dto.clienteId();
+        UUID trocado = cliente ? dto.clienteId() : dto.chefeId();
+        if (alvo == null || trocado != null) {
+            throw new RegraDeNegocioException(cliente
+                    ? "Informe apenas o chefeId" : "Informe apenas o clienteId");
+        }
+        UUID clienteId = cliente ? autor.id() : alvo;
+        UUID chefeId = cliente ? alvo : autor.id();
         try {
-            return transacao.execute(status -> abrirOuCriar(clienteId, chefeId));
+            return transacao.execute(status -> abrirOuCriar(clienteId, chefeId, autor.tipo()));
         } catch (DataIntegrityViolationException corrida) {
-            return transacao.execute(status -> abrirOuCriar(clienteId, chefeId));
+            return transacao.execute(status -> abrirOuCriar(clienteId, chefeId, autor.tipo()));
         }
     }
 
-    private ConversaAberta abrirOuCriar(UUID clienteId, UUID chefeId) {
+    private ConversaAberta abrirOuCriar(UUID clienteId, UUID chefeId, TipoUsuario autor) {
         ChefeModel chefe = chefeRepository.findById(chefeId)
-                .filter(c -> Boolean.TRUE.equals(c.getAtivo()))
+                .filter(c -> autor == TipoUsuario.CHEFE || Boolean.TRUE.equals(c.getAtivo()))
                 .orElseThrow(ChefeNaoEncontradoException::new);
         UserModel cliente = usuarioRepository.findById(clienteId).orElseThrow(UsuarioException::new);
+        if (autor == TipoUsuario.CHEFE) {
+            chefe.exigirAtivo();
+            if (!agendamentoRepository.existsByUsuario_IdAndChefe_IdAndStatus(clienteId, chefeId, StatusAgendamento.CONCLUIDO)) {
+                throw new ConversaNaoPermitidaException();
+            }
+        }
         return conversaRepository.findByCliente_IdAndChefe_Id(clienteId, chefeId)
-                .map(existente -> new ConversaAberta(paraDto(existente, clienteId, TipoUsuario.CLIENTE), false))
+                .map(existente -> new ConversaAberta(paraDto(existente, autor == TipoUsuario.CHEFE ? chefeId : clienteId, autor), false))
                 .orElseGet(() -> {
                     LocalDateTime agora = LocalDateTime.now(clock);
                     Conversa nova = new Conversa();
@@ -92,7 +114,8 @@ public class ChatService {
                     nova.setCriadaEm(agora);
                     nova.setUltimaMensagemEm(agora);
                     // flush aqui: a violação da constraint sai dentro da transação, onde abrirConversa a trata
-                    return new ConversaAberta(paraDto(conversaRepository.saveAndFlush(nova), clienteId, TipoUsuario.CLIENTE), true);
+                    return new ConversaAberta(paraDto(conversaRepository.saveAndFlush(nova),
+                            autor == TipoUsuario.CHEFE ? chefeId : clienteId, autor), true);
                 });
     }
 

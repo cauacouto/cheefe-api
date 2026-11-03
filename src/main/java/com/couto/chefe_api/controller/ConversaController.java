@@ -30,9 +30,9 @@ public class ConversaController {
     private final DenunciaMensagemService denunciaService;
 
     @PostMapping
-    public ResponseEntity<ConversaDto> abrir(@Valid @RequestBody AbrirConversaDto dto,
-                                             @AuthenticationPrincipal UsuarioAutenticado cliente) {
-        ChatService.ConversaAberta aberta = service.abrirConversa(cliente.id(), dto.chefeId());
+    public ResponseEntity<ConversaDto> abrir(@RequestBody AbrirConversaDto dto,
+                                             @AuthenticationPrincipal UsuarioAutenticado autor) {
+        ChatService.ConversaAberta aberta = service.abrirConversa(autor, dto);
         return ResponseEntity.status(aberta.criada() ? HttpStatus.CREATED : HttpStatus.OK).body(aberta.conversa());
     }
 

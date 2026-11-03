@@ -1,5 +1,6 @@
 package com.couto.chefe_api.repository;
 
+import com.couto.chefe_api.enums.StatusAgendamento;
 import org.springframework.data.jpa.repository.Lock;
 import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
@@ -24,6 +25,9 @@ public interface AgendamentoRepository extends JpaRepository<Agendamento,Long> {
 
     /** Só a existência, sem carregar a entidade (ver atualizarAgendamento). */
     boolean existsByIdAndUsuario_Id(Long id, UUID usuarioId);
+
+    /** Só a existência: o chef só abre conversa com cliente que ele já atendeu (concluído). */
+    boolean existsByUsuario_IdAndChefe_IdAndStatus(UUID usuarioId, UUID chefeId, StatusAgendamento status);
 
     /** O chef tem (ou teve) algum agendamento com o cliente, fora os que recusou: pode ver a reputação dele. */
     @Query("SELECT COUNT(a) > 0 FROM Agendamento a WHERE a.usuario.id = :clienteId AND a.chefe.id = :chefeId "

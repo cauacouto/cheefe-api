@@ -106,9 +106,57 @@ class ConversaIntegrationTest {
         long deNovo = abrir(ana, bia).andExpect(status().isOk()).andReturnId();
 
         assertThat(deNovo).isEqualTo(id);
-        mockMvc.perform(post("/conversas").cookie(cookie(bia)).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"chefeId\":\"" + bia.getId() + "\"}"))
-                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void chefAbreConversaComClienteAtendido() throws Exception {
+        agendamentoCom(ana, bia, StatusAgendamento.CONCLUIDO);
+
+        long id = abrirComoChef(bia, ana).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.outroParticipante.nome").value("Ana")).andReturnId();
+        long deNovo = abrirComoChef(bia, ana).andExpect(status().isOk()).andReturnId();
+
+        assertThat(deNovo).isEqualTo(id);
+        // é a mesma conversa que o cliente vê, e abrir pelo lado dele devolve 200
+        assertThat(abrir(ana, bia).andExpect(status().isOk()).andReturnId()).isEqualTo(id);
+        assertThat(conversaRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void chefSemConcluidoComOClienteDa403() throws Exception {
+        agendamentoCom(ana, bia, StatusAgendamento.CONFIRMADO);
+        agendamentoCom(ana, bia, StatusAgendamento.PENDENTE);
+
+        abrirComoChef(bia, ana).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.detail").value("Você só pode iniciar conversa com clientes que já atendeu"));
+        // concluído com outro chef não vale
+        agendamentoCom(ana, novoChefe("Caio"), StatusAgendamento.CONCLUIDO);
+        abrirComoChef(bia, ana).andExpect(status().isForbidden());
+        assertThat(conversaRepository.count()).isZero();
+    }
+
+    @Test
+    void corposTrocadosDao400() throws Exception {
+        agendamentoCom(ana, bia, StatusAgendamento.CONCLUIDO);
+
+        postarConversa(cookie(bia), "{\"chefeId\":\"" + bia.getId() + "\"}").andExpect(status().isBadRequest());
+        postarConversa(cookie(ana), "{\"clienteId\":\"" + ana.getId() + "\"}").andExpect(status().isBadRequest());
+        String os2 = "{\"chefeId\":\"" + bia.getId() + "\",\"clienteId\":\"" + ana.getId() + "\"}";
+        postarConversa(cookie(bia), os2).andExpect(status().isBadRequest());
+        postarConversa(cookie(ana), os2).andExpect(status().isBadRequest());
+        postarConversa(cookie(bia), "{}").andExpect(status().isBadRequest());
+        postarConversa(cookie(ana), "{}").andExpect(status().isBadRequest());
+        assertThat(conversaRepository.count()).isZero();
+    }
+
+    @Test
+    void chefInativoNaoAbre() throws Exception {
+        agendamentoCom(ana, bia, StatusAgendamento.CONCLUIDO);
+        bia.setAtivo(false);
+        chefeRepository.save(bia);
+
+        abrirComoChef(bia, ana).andExpect(status().isForbidden());
+        assertThat(conversaRepository.count()).isZero();
     }
 
     @Test
@@ -604,6 +652,24 @@ class ConversaIntegrationTest {
     Resposta abrir(UserModel cliente, ChefeModel chefe) throws Exception {
         return new Resposta(mockMvc.perform(post("/conversas").cookie(cookie(cliente)).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"chefeId\":\"" + chefe.getId() + "\"}")));
+    }
+
+    Resposta abrirComoChef(ChefeModel chefe, UserModel cliente) throws Exception {
+        return postarConversa(cookie(chefe), "{\"clienteId\":\"" + cliente.getId() + "\"}");
+    }
+
+    Resposta postarConversa(Cookie quem, String corpo) throws Exception {
+        return new Resposta(mockMvc.perform(post("/conversas").cookie(quem)
+                .contentType(MediaType.APPLICATION_JSON).content(corpo)));
+    }
+
+    Agendamento agendamentoCom(UserModel cliente, ChefeModel chefe, StatusAgendamento status) {
+        Agendamento agendamento = new Agendamento();
+        agendamento.setUsuario(cliente);
+        agendamento.setChefe(chefe);
+        agendamento.setQuantidadePessoas(2);
+        agendamento.setStatus(status);
+        return agendamentoRepository.save(agendamento);
     }
 
     ResultActions enviar(UserModel cliente, long conversa, String texto) throws Exception {
