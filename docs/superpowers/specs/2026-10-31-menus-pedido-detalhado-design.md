@@ -96,6 +96,7 @@ As regras atuais continuam: endereço do cliente e da cidade do chef, conflito c
 - `PATCH /recusar` → `RECUSADO`; `PATCH /desistir` → `CANCELADO`. Sem recálculo nem "o chef sai do agendamento".
 - **Recusou:** para o chef, o pedido deixa de existir: some de `/agendamentos/recebidos`, histórico e ações dão **404**, não conta para `GET /clientes/{id}/reputacao` (outro agendamento com o mesmo cliente continua valendo) e os avisos do pedido, que citam o cliente, são apagados. Decisão do usuário: quem recusou não vê mais nada do cliente. O cliente continua vendo o pedido e quem recusou.
 - **Desistiu:** o chef continua vendo o agendamento e a linha do tempo (ele já tinha aceitado o serviço).
+- **Cancelado ou expirado** (qualquer lado): nos recebidos o chef vê o registro sem endereço (só cidade e UF), restrições e observações; esses dados só aparecem em `PENDENTE`, `CONFIRMADO` e `CONCLUIDO`. Decisão do usuário (LGPD: só o necessário).
 - Confirmar, concluir, cancelar, expirar, rotinas, prazos e notificações: mesmas regras, com `chefe` no lugar de `chefes`.
 
 ### Contrato da API (mudanças que quebram)

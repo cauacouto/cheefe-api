@@ -234,7 +234,7 @@ O telefone de contato do cliente (`telefone` em `PUT /usuario/me`) continua sepa
 
 - Criar, editar o horário e confirmar também dão **409** ("Chef indisponível nesse horário") quando o horário cai num bloqueio ou dia fixo da agenda do chef (veja "Agenda do chef"). A rotina nunca expira nem recusa nada por causa da agenda.
 - **Cidade:** o chef só atende na cidade de origem dele (`cidade` e `estado` do perfil). Criar, trocar endereço e confirmar dão **409** "Chef {nome} não atende em {cidade}" quando o endereço é de outra cidade ou UF; a comparação ignora acento, maiúsculas e espaços.
-- **Recusou:** para o chef o pedido deixa de existir: ele não vê mais nada do cliente (some dos recebidos, histórico e ações dão **404**, os avisos do pedido são apagados). Quem desiste de um agendamento confirmado continua vendo o agendamento e a linha do tempo.
+- **Recusou:** para o chef o pedido deixa de existir: ele não vê mais nada do cliente (some dos recebidos, histórico e ações dão **404**, os avisos do pedido são apagados). Quem desiste de um agendamento confirmado continua vendo o agendamento e a linha do tempo. Nos recebidos, agendamento `CANCELADO` (pelo chef ou pelo cliente) ou `EXPIRADO` não traz endereço (fica só cidade e UF), restrições nem observações do cliente: esses dados só aparecem em `PENDENTE`, `CONFIRMADO` e `CONCLUIDO`.
 - `CANCELADO`, `RECUSADO`, `CONCLUIDO` e `EXPIRADO` são finais. Fora do status ou do prazo → **409** com o motivo; agendamento de outra pessoa → **404**.
 - Cancelar, recusar e desistir aceitam um corpo opcional `{ "motivo": "<código>", "descricao": "<até 300 caracteres>" }`:
   - cliente (`/cancelar`): `MUDANCA_DE_PLANOS`, `DATA_OU_HORARIO`, `ENCONTREI_OUTRA_OPCAO`, `VALOR`, `OUTRO`;

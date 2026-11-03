@@ -188,6 +188,54 @@ class CicloAgendamentoIntegrationTest {
     }
 
     @Test
+    void canceladoOuExpiradoNaoMostraAoChefEnderecoNemDetalhesDoCliente() throws Exception {
+        UserModel ana = novoCliente("Ana");
+        ChefeModel bia = novoChefe("Bia");
+        Agendamento ativo = comDetalhes(novoAgendamento(ana, BASE, bia), StatusAgendamento.CONFIRMADO);
+        Agendamento desistiu = comDetalhes(novoAgendamento(ana, BASE.plusDays(1), bia), StatusAgendamento.CONFIRMADO);
+        Agendamento canceladoPeloCliente = comDetalhes(novoAgendamento(ana, BASE.plusDays(2), bia), StatusAgendamento.PENDENTE);
+        Agendamento expirado = comDetalhes(novoAgendamento(ana, BASE.plusDays(3), bia), StatusAgendamento.EXPIRADO);
+        Agendamento concluido = comDetalhes(novoAgendamento(ana, BASE.plusDays(4), bia), StatusAgendamento.CONCLUIDO);
+
+        acao(cookieDe(bia), desistiu, "desistir", null).andExpect(status().isOk());
+        acao(cookieDe(ana), canceladoPeloCliente, "cancelar", null).andExpect(status().isOk());
+
+        String recebidos = mockMvc.perform(get("/agendamentos/recebidos").cookie(cookieDe(bia)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        // o serviço pode acontecer ou aconteceu: o chef vê onde e o que o cliente pediu
+        for (Agendamento a : List.of(ativo, concluido)) {
+            String item = "$.content[?(@.id == " + a.getId() + ")]";
+            assertThat(com.jayway.jsonpath.JsonPath.<List<Object>>read(recebidos, item + ".rua")).containsExactly("Rua A");
+            assertThat(com.jayway.jsonpath.JsonPath.<List<Object>>read(recebidos, item + ".observacoes"))
+                    .containsExactly("Sem coentro");
+            assertThat(com.jayway.jsonpath.JsonPath.<List<Object>>read(recebidos, item + ".restricoes[0].tipo"))
+                    .containsExactly("VEGETARIANO");
+        }
+        // cancelado (pelo chef ou pelo cliente) ou expirado: fica o registro, sem os dados pessoais
+        for (Agendamento a : List.of(desistiu, canceladoPeloCliente, expirado)) {
+            String item = "$.content[?(@.id == " + a.getId() + ")]";
+            assertThat(com.jayway.jsonpath.JsonPath.<List<Object>>read(recebidos, item + ".status")).as("status").hasSize(1);
+            for (String campo : List.of("rua", "numero", "bairro", "complemento", "cep", "tipoDeResidencia", "observacoes")) {
+                assertThat(com.jayway.jsonpath.JsonPath.<List<Object>>read(recebidos, item + "." + campo))
+                        .as(campo).containsOnlyNulls();
+            }
+            assertThat(com.jayway.jsonpath.JsonPath.<List<Object>>read(recebidos, item + ".restricoes"))
+                    .containsExactly(List.of());
+            assertThat(com.jayway.jsonpath.JsonPath.<List<Object>>read(recebidos, item + ".cidade")).containsExactly("São Paulo");
+        }
+        // o cliente continua vendo tudo do próprio pedido
+        mockMvc.perform(get("/agendamentos/meus").cookie(cookieDe(ana))).andExpect(status().isOk());
+    }
+
+    private Agendamento comDetalhes(Agendamento agendamento, StatusAgendamento status) {
+        agendamento.setObservacoes("Sem coentro");
+        agendamento.getRestricoes().add(new com.couto.chefe_api.domain.RestricaoAgendamento(
+                com.couto.chefe_api.enums.TipoRestricao.VEGETARIANO, 1));
+        agendamento.setStatus(status);
+        return agendamentoRepository.save(agendamento);
+    }
+
+    @Test
     void outroAgendamentoComOMesmoClienteContinuaVisivelParaOChef() throws Exception {
         UserModel ana = novoCliente("Ana");
         ChefeModel bia = novoChefe("Bia");

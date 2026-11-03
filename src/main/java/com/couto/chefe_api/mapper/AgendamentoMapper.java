@@ -8,9 +8,11 @@ import com.couto.chefe_api.dto.RestricaoDto;
 import com.couto.chefe_api.domain.Agendamento;
 import com.couto.chefe_api.domain.Reputacao;
 import com.couto.chefe_api.domain.RestricaoAgendamento;
+import org.mapstruct.AfterMapping;
 import org.mapstruct.IterableMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.MappingTarget;
 import org.mapstruct.Named;
 import java.util.Comparator;
 import java.util.List;
@@ -53,6 +55,22 @@ public interface AgendamentoMapper {
 
     @IterableMapping(qualifiedByName = "toChefeDto")
     List<ListaAgendamentoChefeDto> toListChefe(List<Agendamento> agendamentos);
+
+    /** Cancelado ou expirado: o chef vê o registro, sem onde fica a casa nem o que o cliente pediu. */
+    @AfterMapping
+    default void ocultarDetalhesDoCliente(Agendamento agendamento, @MappingTarget ListaAgendamentoChefeDto dto) {
+        if (agendamento.detalhesDoClienteVisiveisAoChef()) {
+            return;
+        }
+        dto.setRua(null);
+        dto.setNumero(null);
+        dto.setBairro(null);
+        dto.setComplemento(null);
+        dto.setCep(null);
+        dto.setTipoDeResidencia(null);
+        dto.setObservacoes(null);
+        dto.setRestricoes(List.of());
+    }
 
     // ─── Usuario ──────────────────────────────────────────────────────
     @Named("toUsuarioDto")

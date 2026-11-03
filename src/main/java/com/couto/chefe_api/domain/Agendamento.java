@@ -128,6 +128,15 @@ public class Agendamento  implements Serializable {
         return chefe.getId().equals(chefeId) && status != StatusAgendamento.RECUSADO;
     }
 
+    /**
+     * Endereço, restrições e observações do cliente só enquanto o serviço pode acontecer ou já aconteceu.
+     * Cancelado ou expirado, o chef fica com o registro, sem os dados pessoais (LGPD: só o necessário).
+     */
+    public boolean detalhesDoClienteVisiveisAoChef() {
+        return status == StatusAgendamento.PENDENTE || status == StatusAgendamento.CONFIRMADO
+                || status == StatusAgendamento.CONCLUIDO;
+    }
+
     public void confirmar(LocalDateTime agora) {
         exigirStatus(StatusAgendamento.PENDENTE, "confirmar");
         exigirAntesDoInicio(agora, "confirmar");
