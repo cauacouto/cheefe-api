@@ -79,7 +79,36 @@ public interface AgendamentoRepository extends JpaRepository<Agendamento,Long> {
                     + "AND a.status <> com.couto.chefe_api.enums.StatusAgendamento.RECUSADO")
     Page<Agendamento> findRecebidos(@Param("chefeId") UUID chefeId, Pageable pageable);
 
+    /**
+     * Clientes com ao menos um confirmado ou concluído com o chef, do agendamento mais recente (qualquer data) para o
+     * mais antigo. Uma consulta agrega a página inteira: nada é carregado por cliente.
+     */
+    @Query(value = "SELECT new com.couto.chefe_api.repository.ClienteDoChefResumo(u.id, u.nome, u.imageUrl, COUNT(a), "
+            + "MAX(CASE WHEN a.dataHoraInicial <= :agora THEN a.dataHoraInicial ELSE NULL END), "
+            + "MIN(CASE WHEN a.status = com.couto.chefe_api.enums.StatusAgendamento.CONFIRMADO "
+            + "AND a.dataHoraInicial > :agora THEN a.dataHoraInicial ELSE NULL END)) "
+            + "FROM Agendamento a JOIN a.usuario u WHERE a.chefe.id = :chefeId "
+            + "AND a.status IN (com.couto.chefe_api.enums.StatusAgendamento.CONFIRMADO, "
+            + "com.couto.chefe_api.enums.StatusAgendamento.CONCLUIDO) "
+            + "GROUP BY u.id, u.nome, u.imageUrl ORDER BY MAX(a.dataHoraInicial) DESC, u.id",
+            countQuery = "SELECT COUNT(DISTINCT a.usuario.id) FROM Agendamento a WHERE a.chefe.id = :chefeId "
+                    + "AND a.status IN (com.couto.chefe_api.enums.StatusAgendamento.CONFIRMADO, "
+                    + "com.couto.chefe_api.enums.StatusAgendamento.CONCLUIDO)")
+    Page<ClienteDoChefResumo> clientesDoChef(@Param("chefeId") UUID chefeId, @Param("agora") LocalDateTime agora,
+                                             Pageable pageable);
 
+    /** Os deste chef com o cliente, sem os recusados, do mais recente para o mais antigo (o corte vem do Pageable). */
+    @Query("SELECT a FROM Agendamento a WHERE a.chefe.id = :chefeId AND a.usuario.id = :clienteId "
+            + "AND a.status <> com.couto.chefe_api.enums.StatusAgendamento.RECUSADO "
+            + "ORDER BY a.dataHoraInicial DESC, a.id DESC")
+    List<Agendamento> historicoComOCliente(@Param("chefeId") UUID chefeId, @Param("clienteId") UUID clienteId,
+                                           Pageable pageable);
 
+    /** Em quantos agendamentos confirmados ou concluídos cada tipo de restrição apareceu; o mais frequente primeiro. */
+    @Query("SELECT r.tipo, COUNT(a) FROM Agendamento a JOIN a.restricoes r WHERE a.chefe.id = :chefeId "
+            + "AND a.usuario.id = :clienteId AND a.status IN (com.couto.chefe_api.enums.StatusAgendamento.CONFIRMADO, "
+            + "com.couto.chefe_api.enums.StatusAgendamento.CONCLUIDO) "
+            + "GROUP BY r.tipo ORDER BY COUNT(a) DESC, r.tipo")
+    List<Object[]> restricoesFrequentes(@Param("chefeId") UUID chefeId, @Param("clienteId") UUID clienteId);
 
 }
