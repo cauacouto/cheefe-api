@@ -22,6 +22,9 @@ import com.couto.chefe_api.enums.TipoUsuario;
 import com.couto.chefe_api.enums.AcaoAgendamento;
 import com.couto.chefe_api.dto.RecusaRequestDto;
 import com.couto.chefe_api.dto.CancelamentoRequestDto;
+import com.couto.chefe_api.dto.DetalhesAgendamentoDto;
+import com.couto.chefe_api.exception.DetalhesForaDoPrazoException;
+import com.couto.chefe_api.service.eventos.DetalhesDoAgendamentoEvent;
 import com.couto.chefe_api.exception.HorarioIndisponivelException;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
@@ -208,6 +211,61 @@ public class AgendamentoService {
         historico.registrar(salvo, AcaoAgendamento.EDITADO, usuarioId, TipoUsuario.CLIENTE, null, null);
         eventPublisher.publishEvent(new AgendamentoEditadoEvent(salvo.getId()));
         return agendamentoMapper.toDto(salvo);
+    }
+
+    /** Substitui restrições e observações de um confirmado, até 48h antes, e avisa o chef. */
+    @Transactional
+    public AgendamentoResponseDto ajustarDetalhes(Long id, UsuarioAutenticado cliente, DetalhesAgendamentoDto dto) {
+        UUID usuarioId = cliente.id();
+        // dono primeiro (404 sem moderar), depois o filtro, e só então a trava: ver atualizarAgendamento
+        exigirDono(id, usuarioId);
+        Observacoes observacoes = verificarObservacoes(dto.observacoes(), cliente);
+        Agendamento agenda = detalhesEditaveis(id, usuarioId);
+
+        // sem a lista, o campo vale como vazio
+        agenda.getRestricoes().clear();
+        agenda.getRestricoes().addAll(restricoesDe(dto.restricoes(), agenda.getQuantidadePessoas()));
+        observacoes.aplicarEm(agenda);
+        agenda.setDetalhesConfirmadosEm(agora());
+
+        Agendamento salvo = agendamentoRepository.save(agenda);
+        historico.registrar(salvo, AcaoAgendamento.DETALHES_ALTERADOS, usuarioId, TipoUsuario.CLIENTE, null, null);
+        eventPublisher.publishEvent(new DetalhesDoAgendamentoEvent(salvo.getId(), true));
+        return agendamentoMapper.toDto(salvo);
+    }
+
+    /** O cliente diz que os detalhes estão certos; repetir não grava nem avisa de novo. */
+    @Transactional
+    public AgendamentoResponseDto confirmarDetalhes(Long id, UsuarioAutenticado cliente) {
+        UUID usuarioId = cliente.id();
+        exigirDono(id, usuarioId);
+        Agendamento agenda = detalhesEditaveis(id, usuarioId);
+
+        if (agenda.getDetalhesConfirmadosEm() == null) {
+            agenda.setDetalhesConfirmadosEm(agora());
+            agendamentoRepository.save(agenda);
+            historico.registrar(agenda, AcaoAgendamento.DETALHES_CONFIRMADOS, usuarioId, TipoUsuario.CLIENTE, null, null);
+            eventPublisher.publishEvent(new DetalhesDoAgendamentoEvent(agenda.getId(), false));
+        }
+        return agendamentoMapper.toDto(agenda);
+    }
+
+    /** Só um exists, sem carregar a entidade (ver atualizarAgendamento); de outro cliente é tratado como inexistente. */
+    private void exigirDono(Long id, UUID usuarioId) {
+        if (!agendamentoRepository.existsByIdAndUsuario_Id(id, usuarioId)) {
+            throw new AgendamentoException();
+        }
+    }
+
+    /** O agendamento com trava, desde que ainda esteja confirmado e a mais de 48h do início (senão 409). */
+    private Agendamento detalhesEditaveis(Long id, UUID usuarioId) {
+        Agendamento agenda = agendamentoRepository.travarPorId(id)
+                .filter(a -> a.getUsuario() != null && a.getUsuario().getId().equals(usuarioId))
+                .orElseThrow(AgendamentoException::new);
+        if (!agenda.detalhesEditaveis(agora())) {
+            throw new DetalhesForaDoPrazoException();
+        }
+        return agenda;
     }
 
     @Transactional

@@ -106,6 +106,13 @@ public class Agendamento  implements Serializable {
     @Column(length = 1000)
     private String observacoesOriginal;
 
+    /** Quando o cliente confirmou ou ajustou os detalhes; nulo até ele agir. */
+    private LocalDateTime detalhesConfirmadosEm;
+
+    /** Marcas das rotinas: cada lembrete, resumo e aviso sai uma vez só. */
+    private LocalDateTime lembreteClienteEm;
+    private LocalDateTime resumoChefEm;
+    private LocalDateTime avisoUmAnoEm;
 
 
     @Column(updatable = false)
@@ -122,6 +129,9 @@ public class Agendamento  implements Serializable {
 
     /** Prazo mínimo para o cliente cancelar um agendamento já confirmado. */
     public static final Duration PRAZO_CANCELAMENTO_CONFIRMADO = Duration.ofHours(24);
+
+    /** Antecedência mínima para o cliente confirmar ou ajustar os detalhes de um agendamento confirmado. */
+    public static final Duration PRAZO_DETALHES = Duration.ofHours(48);
 
     /** Pedido recusado deixa de existir para o chef: ele não vê mais nada do cliente por aqui. */
     public boolean visivelPara(UUID chefeId) {
@@ -146,6 +156,12 @@ public class Agendamento  implements Serializable {
     public void exigirEditavel(LocalDateTime agora) {
         exigirStatus(StatusAgendamento.PENDENTE, "editar");
         exigirAntesDoInicio(agora, "editar");
+    }
+
+    /** Confirmado e faltando mais de 48h: o cliente ainda pode confirmar ou ajustar restrições e observações. */
+    public boolean detalhesEditaveis(LocalDateTime agora) {
+        return status == StatusAgendamento.CONFIRMADO && dataHoraInicial != null
+                && agora.isBefore(dataHoraInicial.minus(PRAZO_DETALHES));
     }
 
     /** Pendente: até o início. Confirmado: até 24h antes do início. */

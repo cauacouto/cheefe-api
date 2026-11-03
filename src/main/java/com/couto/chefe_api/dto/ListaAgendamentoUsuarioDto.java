@@ -29,4 +29,6 @@ public class ListaAgendamentoUsuarioDto {
     private OcasiaoMenu ocasiao;
     private List<RestricaoDto> restricoes;
     private String observacoes;
+    @JsonFormat(pattern = "dd-MM-yyyy HH:mm")
+    private LocalDateTime detalhesConfirmadosEm;
 }

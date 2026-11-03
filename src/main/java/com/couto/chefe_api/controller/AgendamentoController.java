@@ -3,6 +3,7 @@ package com.couto.chefe_api.controller;
 import com.couto.chefe_api.dto.HistoricoAgendamentoDto;
 import com.couto.chefe_api.dto.RecusaRequestDto;
 import com.couto.chefe_api.dto.CancelamentoRequestDto;
+import com.couto.chefe_api.dto.DetalhesAgendamentoDto;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Page;
@@ -46,6 +47,19 @@ public class AgendamentoController {
                                                                        @PathVariable Long id,
                                                                        @AuthenticationPrincipal UsuarioAutenticado cliente) {
         return ResponseEntity.ok(service.atualizarAgendamento(dto, id, cliente));
+    }
+
+    @PatchMapping("/{id}/detalhes")
+    public ResponseEntity<AgendamentoResponseDto> ajustarDetalhes(@PathVariable Long id,
+                                                                  @Valid @RequestBody DetalhesAgendamentoDto dto,
+                                                                  @AuthenticationPrincipal UsuarioAutenticado cliente) {
+        return ResponseEntity.ok(service.ajustarDetalhes(id, cliente, dto));
+    }
+
+    @PatchMapping("/{id}/detalhes/confirmar")
+    public ResponseEntity<AgendamentoResponseDto> confirmarDetalhes(@PathVariable Long id,
+                                                                    @AuthenticationPrincipal UsuarioAutenticado cliente) {
+        return ResponseEntity.ok(service.confirmarDetalhes(id, cliente));
     }
 
     @GetMapping("/recebidos")

@@ -344,6 +344,29 @@ class MigracoesPostgresTest {
         }
     }
 
+    /** A V16 recria dois CHECKs por nome; o do histórico foi gerado pelo Postgres na V6, e o nome precisa ser este. */
+    @Test
+    void v16RecriaOsChecksPeloNomeEIndexaOsAgendamentosPendentesDasRotinas() throws SQLException {
+        try (Connection app = conectar("chefhome_app", SENHA_APP);
+             Statement st = app.createStatement()) {
+            assertThat(coluna(st, "SELECT conname FROM pg_constraint WHERE contype = 'c' AND conname IN "
+                    + "('notificacao_evento_check', 'agendamento_historico_acao_check') ORDER BY conname"))
+                    .containsExactly("agendamento_historico_acao_check", "notificacao_evento_check");
+            assertThat(coluna(st, "SELECT count(*)::text FROM pg_constraint WHERE contype = 'c' AND conrelid = "
+                    + "'chefhome.agendamento_historico'::regclass AND pg_get_constraintdef(oid) LIKE '%CRIADO%'"))
+                    .containsExactly("1");
+            assertThat(coluna(st, "SELECT indexdef FROM pg_indexes WHERE schemaname = 'chefhome' "
+                    + "AND indexname = 'idx_agendamentos_sem_lembrete'")).singleElement().asString()
+                    .contains("CONFIRMADO").contains("lembrete_cliente_em IS NULL");
+            assertThat(coluna(st, "SELECT indexdef FROM pg_indexes WHERE schemaname = 'chefhome' "
+                    + "AND indexname = 'idx_agendamentos_sem_resumo'")).singleElement().asString()
+                    .contains("CONFIRMADO").contains("resumo_chef_em IS NULL");
+            assertThat(coluna(st, "SELECT indexdef FROM pg_indexes WHERE schemaname = 'chefhome' "
+                    + "AND indexname = 'idx_agendamentos_sem_aviso_um_ano'")).singleElement().asString()
+                    .contains("CONCLUIDO").contains("aviso_um_ano_em IS NULL");
+        }
+    }
+
     @Test
     void checksDeEnumBatemComOsEnumsJava() throws SQLException {
         assertCheckDeTexto("chefe_especialidade", "especialidade", com.couto.chefe_api.enums.Especialidades.values());

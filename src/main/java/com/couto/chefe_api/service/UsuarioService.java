@@ -116,7 +116,9 @@ public class UsuarioService {
     private void apagarNotificacoes(UUID clienteId, List<Long> conversas) {
         notificacaoService.apagarDoDestinatario(clienteId);
         apagarDasReferencias(EnumSet.of(EventoNotificacao.AGENDAMENTO_CRIADO, EventoNotificacao.AGENDAMENTO_EDITADO,
-                EventoNotificacao.AGENDAMENTO_CONFIRMADO, EventoNotificacao.AGENDAMENTO_CANCELADO), agendamentoRepository.idsDoCliente(clienteId));
+                EventoNotificacao.AGENDAMENTO_CONFIRMADO, EventoNotificacao.AGENDAMENTO_CANCELADO,
+                EventoNotificacao.RESUMO_DO_SERVICO, EventoNotificacao.DETALHES_ALTERADOS,
+                EventoNotificacao.DETALHES_CONFIRMADOS), agendamentoRepository.idsDoCliente(clienteId));
         apagarDasReferencias(EnumSet.of(EventoNotificacao.MENSAGEM_RECEBIDA), conversas);
         apagarDasReferencias(EnumSet.of(EventoNotificacao.MENSAGEM_DENUNCIADA),
                 denunciaMensagemRepository.idsDasDenunciasNasConversasDoCliente(clienteId));

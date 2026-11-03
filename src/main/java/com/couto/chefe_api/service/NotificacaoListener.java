@@ -1,6 +1,8 @@
 package com.couto.chefe_api.service;
 
+import com.couto.chefe_api.dto.ClienteDoChefDto;
 import com.couto.chefe_api.enums.MotivoAgendamento;
+import com.couto.chefe_api.service.eventos.DetalhesDoAgendamentoEvent;
 import com.couto.chefe_api.service.eventos.AgendamentoExpiradoEvent;
 import com.couto.chefe_api.service.eventos.ChefSaiuDoAgendamentoEvent;
 import com.couto.chefe_api.service.eventos.AgendamentoCanceladoEvent;
@@ -52,6 +54,16 @@ public class NotificacaoListener {
         String mensagem = agendamento.getUsuario().getNome() + " alterou o agendamento de "
                 + dia(agendamento.getDataHoraInicial());
         notificarChefs(agendamento, EventoNotificacao.AGENDAMENTO_EDITADO, mensagem);
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    public void aoMexerNosDetalhes(DetalhesDoAgendamentoEvent evento) {
+        Agendamento agendamento = buscar(evento.agendamentoId());
+        String mensagem = ClienteDoChefDto.primeiroNome(agendamento.getUsuario().getNome())
+                + (evento.alterados() ? " alterou" : " confirmou") + " os detalhes do agendamento de "
+                + dia(agendamento.getDataHoraInicial());
+        notificarChefs(agendamento,
+                evento.alterados() ? EventoNotificacao.DETALHES_ALTERADOS : EventoNotificacao.DETALHES_CONFIRMADOS, mensagem);
     }
 
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
