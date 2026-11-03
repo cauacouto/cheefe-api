@@ -55,6 +55,7 @@ import com.couto.chefe_api.domain.RestricaoAgendamento;
 import com.couto.chefe_api.dto.RestricaoDto;
 import com.couto.chefe_api.repository.MenuRepository;
 import com.couto.chefe_api.enums.StatusAgendamento;
+import com.couto.chefe_api.enums.EventoNotificacao;
 import com.couto.chefe_api.repository.AgendamentoRepository;
 import com.couto.chefe_api.repository.ChefeRepository;
 import com.couto.chefe_api.repository.EnderecoRepository;
@@ -67,6 +68,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -77,6 +79,9 @@ import java.util.UUID;
 public class AgendamentoService {
 
     static final int TAMANHO_MAXIMO_PAGINA = 50;
+
+    private static final DateTimeFormatter DIA = DateTimeFormatter.ofPattern("dd/MM");
+    private static final DateTimeFormatter HORA = DateTimeFormatter.ofPattern("HH:mm");
 
     private final UsuarioRepository usuarioRepository;
     private final ChefeRepository chefeRepository;
@@ -90,6 +95,7 @@ public class AgendamentoService {
     private final AgendamentoHistoricoRepository historicoRepository;
     private final AgendaService agendaService;
     private final Clock clock;
+    private final NotificacaoService notificacaoService;
 
     @Transactional
     public AgendamentoResponseDto criarAgendamento(AgendamentoRequestDto dto, UsuarioAutenticado cliente) {
@@ -343,6 +349,51 @@ public class AgendamentoService {
                 .ifPresent(agendamento -> {
                     historico.registrar(agendamento, AcaoAgendamento.EXPIRADO, null, null, null, null);
                     eventPublisher.publishEvent(new AgendamentoExpiradoEvent(agendamento.getId()));
+                });
+    }
+
+    /** Rotina: lembra o cliente 3 dias antes; relê com trava e confere tudo de novo (cancelado no meio do caminho não recebe). */
+    @Transactional
+    public void lembrarCliente(Long id) {
+        LocalDateTime agora = agora();
+        agendamentoRepository.travarPorId(id)
+                .filter(a -> a.getStatus() == StatusAgendamento.CONFIRMADO && a.getLembreteClienteEm() == null
+                        && a.getUsuario() != null && a.getDataHoraInicial() != null
+                        && !a.getDataHoraInicial().isAfter(agora.plusHours(72))
+                        && a.getDataHoraInicial().isAfter(agora.plusHours(48)))
+                .ifPresent(a -> {
+                    LocalDateTime inicio = a.getDataHoraInicial();
+                    LocalDateTime prazo = inicio.minusHours(48);
+                    notificacaoService.notificar(a.getUsuario().getId(), TipoUsuario.CLIENTE, EventoNotificacao.LEMBRETE_DETALHES,
+                            "Seu agendamento de " + inicio.format(DIA) + " às " + inicio.format(HORA)
+                                    + " é em 3 dias: confirme as restrições e observações até "
+                                    + prazo.format(DIA) + " às " + prazo.format(HORA),
+                            String.valueOf(a.getId()));
+                    a.setLembreteClienteEm(agora);
+                });
+    }
+
+    /** Rotina: resume o serviço ao chef 1 dia antes; mesma releitura com trava e nova checagem. */
+    @Transactional
+    public void resumirAoChef(Long id) {
+        LocalDateTime agora = agora();
+        agendamentoRepository.travarPorId(id)
+                .filter(a -> a.getStatus() == StatusAgendamento.CONFIRMADO && a.getResumoChefEm() == null
+                        && a.getDataHoraInicial() != null
+                        && !a.getDataHoraInicial().isAfter(agora.plusHours(24))
+                        && a.getDataHoraInicial().isAfter(agora))
+                .ifPresent(a -> {
+                    LocalDateTime inicio = a.getDataHoraInicial();
+                    String quando = inicio.toLocalDate().equals(agora.toLocalDate()) ? "Hoje" : "Amanhã";
+                    // agendamentos de antes dos menus não têm menuNome
+                    String menu = a.getMenuNome() != null ? a.getMenuNome() : "seu agendamento";
+                    int tipos = a.getRestricoes().size();
+                    notificacaoService.notificar(a.getChefe().getId(), TipoUsuario.CHEFE, EventoNotificacao.RESUMO_DO_SERVICO,
+                            quando + " às " + inicio.format(HORA) + ": " + menu + " para "
+                                    + (a.getQuantidadePessoas() != null ? a.getQuantidadePessoas() : 0) + " pessoas, "
+                                    + tipos + (tipos == 1 ? " restrição" : " restrições"),
+                            String.valueOf(a.getId()));
+                    a.setResumoChefEm(agora);
                 });
     }
 

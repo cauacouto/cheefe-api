@@ -10,7 +10,8 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 
 /**
- * Conclui os confirmados que já terminaram e expira os pendentes que já começaram. Cada agendamento
+ * Conclui os confirmados que já terminaram, expira os pendentes que já começaram e manda os lembretes
+ * (cliente 3 dias antes, resumo ao chef 1 dia antes). Cada agendamento
  * numa transação própria (no AgendamentoService): uma falha é logada e não impede os demais.
  */
 @Slf4j
@@ -38,6 +39,20 @@ public class AgendamentoRotina {
                 agendamentoService.expirarPeloSistema(id);
             } catch (RuntimeException e) {
                 log.warn("rotina: não expirou o agendamento {}: {}", id, e.getMessage());
+            }
+        }
+        for (Long id : agendamentoRepository.idsParaLembrarCliente(agora)) {
+            try {
+                agendamentoService.lembrarCliente(id);
+            } catch (RuntimeException e) {
+                log.warn("rotina: não lembrou o cliente do agendamento {}: {}", id, e.getMessage());
+            }
+        }
+        for (Long id : agendamentoRepository.idsParaResumirAoChef(agora)) {
+            try {
+                agendamentoService.resumirAoChef(id);
+            } catch (RuntimeException e) {
+                log.warn("rotina: não resumiu o agendamento {} ao chef: {}", id, e.getMessage());
             }
         }
     }

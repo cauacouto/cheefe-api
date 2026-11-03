@@ -45,6 +45,25 @@ public interface AgendamentoRepository extends JpaRepository<Agendamento,Long> {
             + "AND a.dataHoraInicial <= :agora")
     List<Long> idsParaExpirar(@Param("agora") LocalDateTime agora);
 
+    // as duas consultas seguem os índices parciais da V16 (status CONFIRMADO e marca nula)
+    @Query("SELECT a.id FROM Agendamento a WHERE a.status = com.couto.chefe_api.enums.StatusAgendamento.CONFIRMADO "
+            + "AND a.lembreteClienteEm IS NULL AND a.dataHoraInicial <= :limite72h AND a.dataHoraInicial > :limite48h")
+    List<Long> buscarSemLembrete(@Param("limite72h") LocalDateTime limite72h, @Param("limite48h") LocalDateTime limite48h);
+
+    /** Confirmados que começam entre 48h (exclusive) e 72h (inclusive) a partir de agora e ainda sem lembrete. */
+    default List<Long> idsParaLembrarCliente(LocalDateTime agora) {
+        return buscarSemLembrete(agora.plusHours(72), agora.plusHours(48));
+    }
+
+    @Query("SELECT a.id FROM Agendamento a WHERE a.status = com.couto.chefe_api.enums.StatusAgendamento.CONFIRMADO "
+            + "AND a.resumoChefEm IS NULL AND a.dataHoraInicial <= :limite AND a.dataHoraInicial > :agora")
+    List<Long> buscarSemResumo(@Param("agora") LocalDateTime agora, @Param("limite") LocalDateTime limite);
+
+    /** Confirmados que começam dentro das próximas 24h e ainda sem resumo. */
+    default List<Long> idsParaResumirAoChef(LocalDateTime agora) {
+        return buscarSemResumo(agora, agora.plusHours(24));
+    }
+
     /** SELECT ... FOR UPDATE: a rotina e o chef não concluem o mesmo agendamento ao mesmo tempo. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT a FROM Agendamento a WHERE a.id = :id")

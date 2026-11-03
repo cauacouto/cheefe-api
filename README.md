@@ -242,6 +242,7 @@ O telefone de contato do cliente (`telefone` em `PUT /usuario/me`) continua sepa
   - chef (`/recusar`, `/desistir`): `AGENDA_INDISPONIVEL`, `LOCAL_FORA_DA_AREA`, `NUMERO_DE_PESSOAS`, `IMPREVISTO`, `OUTRO`.
 - Cada mudança entra na linha do tempo (`GET /agendamentos/{id}/historico`), que a API só consegue acrescentar, nunca alterar; ela some junto com o agendamento quando a conta do cliente é apagada.
 - O outro lado é notificado (cancelamento, recusa, desistência, expiração), com o motivo.
+- Lembretes (mesma rotina, só notificação no app): o cliente recebe "confirme os detalhes" quando faltam 3 dias para um agendamento `CONFIRMADO` (pulado se foi confirmado com menos de 48h de antecedência) e o chef recebe o resumo do serviço (menu, pessoas e restrições) quando falta 1 dia. Cada um sai uma vez só.
 - Uma rotina roda a cada 15 minutos para concluir e expirar; os prazos usam o relógio do servidor, então o fuso de produção precisa ser o dos horários informados pelos clientes.
 - O app é intermediador: registra e avisa, sem multa nem reembolso; para quem não comparece existe a denúncia, que vale para agendamento confirmado ou concluído que já aconteceu.
 
