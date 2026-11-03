@@ -38,6 +38,7 @@ import org.springframework.web.context.WebApplicationContext;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.UUID;
 
@@ -528,7 +529,7 @@ class ConversaIntegrationTest {
 
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(ana);
-        agendamento.setChefes(new ArrayList<>(java.util.List.of(bia)));
+        agendamento.setChefe(bia);
         agendamento.setQuantidadePessoas(2);
         agendamento.setStatus(StatusAgendamento.CONFIRMADO);
         agendamento = agendamentoRepository.save(agendamento);
@@ -632,10 +633,9 @@ class ConversaIntegrationTest {
         chefe.setEmail(nome.toLowerCase() + "-" + UUID.randomUUID() + "@x.com");
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
-        chefe.setValorHora(new BigDecimal("100"));
         chefe.setCidade("São Paulo");
         chefe.setEstado("SP");
-        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setEspecialidades(Set.of(Especialidades.BRASILEIRA));
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
         return chefeRepository.save(TelefoneDeTeste.verificado(chefe));

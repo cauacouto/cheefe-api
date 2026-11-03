@@ -1,6 +1,9 @@
 package com.couto.chefe_api.security;
 
+import com.couto.chefe_api.MenuDeTeste;
 import com.couto.chefe_api.TelefoneDeTeste;
+import com.couto.chefe_api.domain.Menu;
+import com.couto.chefe_api.repository.MenuRepository;
 import com.couto.chefe_api.domain.UserModel;
 import com.couto.chefe_api.repository.UsuarioRepository;
 import com.couto.chefe_api.domain.Agendamento;
@@ -30,6 +33,7 @@ import org.springframework.web.context.WebApplicationContext;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -67,6 +71,8 @@ class ConflitoHorarioIntegrationTest {
     @Autowired EnderecoRepository enderecoRepository;
     @Autowired AgendamentoRepository agendamentoRepository;
     @Autowired PratosRepository pratosRepository;
+    @Autowired MenuRepository menuRepository;
+    @Autowired MenuDeTeste menus;
 
     MockMvc mockMvc;
 
@@ -92,12 +98,12 @@ class ConflitoHorarioIntegrationTest {
         UserModel ana = novoCliente("Ana");
         long endereco = novoEndereco(ana).getId();
 
-        pedir(ana, endereco, BASE.plusHours(1), BASE.plusHours(3), bia).andExpect(status().isConflict());
-        pedir(ana, endereco, BASE.minusHours(1), BASE.plusHours(3), bia).andExpect(status().isConflict());
-        pedir(ana, endereco, BASE.plusHours(1), BASE.plusHours(3), caio, bia).andExpect(status().isConflict());
+        // o menu dura 2h: o fim é calculado
+        pedir(ana, endereco, BASE.plusHours(1), bia).andExpect(status().isConflict());
+        pedir(ana, endereco, BASE.minusHours(1), bia).andExpect(status().isConflict());
         // encostar não conflita, e outro chef no mesmo horário pode
-        pedir(ana, endereco, BASE.plusHours(2), BASE.plusHours(4), bia).andExpect(status().isCreated());
-        pedir(ana, endereco, BASE.plusHours(1), BASE.plusHours(3), caio).andExpect(status().isCreated());
+        pedir(ana, endereco, BASE.plusHours(2), bia).andExpect(status().isCreated());
+        pedir(ana, endereco, BASE.plusHours(1), caio).andExpect(status().isCreated());
     }
 
     @Test
@@ -105,8 +111,8 @@ class ConflitoHorarioIntegrationTest {
         ChefeModel bia = novoChefe("Bia");
         UserModel ana = novoCliente("Ana");
         UserModel edu = novoCliente("Edu");
-        long daAna = idDe(pedir(ana, novoEndereco(ana).getId(), BASE, BASE.plusHours(2), bia).andExpect(status().isCreated()));
-        long doEdu = idDe(pedir(edu, novoEndereco(edu).getId(), BASE.plusHours(1), BASE.plusHours(3), bia)
+        long daAna = idDe(pedir(ana, novoEndereco(ana).getId(), BASE, bia).andExpect(status().isCreated()));
+        long doEdu = idDe(pedir(edu, novoEndereco(edu).getId(), BASE.plusHours(1), bia)
                 .andExpect(status().isCreated()));
 
         mockMvc.perform(patch("/agendamentos/" + daAna + "/confirmar").cookie(cookieDe(bia))).andExpect(status().isOk());
@@ -122,29 +128,27 @@ class ConflitoHorarioIntegrationTest {
         ChefeModel bia = novoChefe("Bia");
         confirmar(novoAgendamento(novoCliente("Edu"), BASE, bia));
         UserModel ana = novoCliente("Ana");
-        Agendamento daAna = novoAgendamento(ana, BASE.plusDays(1), bia);
+        long daAna = idDe(pedir(ana, novoEndereco(ana).getId(), BASE.plusDays(1), bia).andExpect(status().isCreated()));
 
-        mockMvc.perform(put("/agendamentos/" + daAna.getId()).cookie(cookieDe(ana)).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"dataHoraInicial\":\"" + BASE.plusMinutes(30).format(FORMATO) + "\","
-                                + "\"dataHoraFinal\":\"" + BASE.plusHours(1).format(FORMATO) + "\"}"))
+        mockMvc.perform(put("/agendamentos/" + daAna).cookie(cookieDe(ana)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"dataHoraInicial\":\"" + BASE.plusMinutes(30).format(FORMATO) + "\"}"))
                 .andExpect(status().isConflict());
-        // mudar só a quantidade de pessoas não reavalia o horário
-        mockMvc.perform(put("/agendamentos/" + daAna.getId()).cookie(cookieDe(ana)).contentType(MediaType.APPLICATION_JSON)
+        // mudar só a quantidade de pessoas mantém o horário, que está livre
+        mockMvc.perform(put("/agendamentos/" + daAna).cookie(cookieDe(ana)).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"quantidadePessoas\":4}"))
                 .andExpect(status().isOk());
     }
 
     @Test
-    void confirmarChecaTodosOsChefsDoAgendamento() throws Exception {
-        ChefeModel bia = novoChefe("Bia");
+    void confirmarSobrepostoAUmConfirmadoDoChefDa409() throws Exception {
         ChefeModel caio = novoChefe("Caio");
         confirmar(novoAgendamento(novoCliente("Edu"), BASE, caio));
-        // pendente com Bia e Caio no mesmo horário em que o Caio já está confirmado
-        Agendamento comOsDois = novoAgendamento(novoCliente("Ana"), BASE.plusHours(1), bia, caio);
+        // pendente no mesmo horário em que o Caio já está confirmado
+        Agendamento pendente = novoAgendamento(novoCliente("Ana"), BASE.plusHours(1), caio);
 
-        mockMvc.perform(patch("/agendamentos/" + comOsDois.getId() + "/confirmar").cookie(cookieDe(bia)))
+        mockMvc.perform(patch("/agendamentos/" + pendente.getId() + "/confirmar").cookie(cookieDe(caio)))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("Caio")));
+                .andExpect(jsonPath("$.detail").value("O chef Caio já tem um agendamento confirmado nesse horário"));
     }
 
     @Test
@@ -170,12 +174,12 @@ class ConflitoHorarioIntegrationTest {
         agendamentoRepository.save(agendamento);
     }
 
-    private ResultActions pedir(UserModel cliente, long enderecoId, LocalDateTime inicio, LocalDateTime fim,
-                                ChefeModel... chefes) throws Exception {
-        String ids = String.join(",", java.util.Arrays.stream(chefes).map(c -> "\"" + c.getId() + "\"").toList());
+    private ResultActions pedir(UserModel cliente, long enderecoId, LocalDateTime inicio, ChefeModel chefe) throws Exception {
+        Menu menu = menuRepository.findByChefe_IdOrderByIdAsc(chefe.getId()).stream().findFirst()
+                .orElseGet(() -> menus.ativo(chefe));
         return mockMvc.perform(post("/agendamentos").cookie(cookieDe(cliente)).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"dataHoraInicial\":\"" + inicio.format(FORMATO) + "\",\"dataHoraFinal\":\"" + fim.format(FORMATO)
-                        + "\",\"enderecoId\":" + enderecoId + ",\"chefeIds\":[" + ids + "],\"quantidadePessoas\":2}"));
+                .content("{\"menuId\":" + menu.getId() + ",\"dataHoraInicial\":\"" + inicio.format(FORMATO)
+                        + "\",\"enderecoId\":" + enderecoId + ",\"quantidadePessoas\":2,\"ocasiao\":\"FAMILIA\"}"));
     }
 
     private static long idDe(ResultActions resposta) throws Exception {
@@ -207,11 +211,11 @@ class ConflitoHorarioIntegrationTest {
 
     // ---------------------------------------------------------------------
 
-    Agendamento novoAgendamento(UserModel cliente, LocalDateTime inicio, ChefeModel... chefes) {
+    Agendamento novoAgendamento(UserModel cliente, LocalDateTime inicio, ChefeModel chefe) {
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(cliente);
         agendamento.setEndereco(novoEndereco(cliente));
-        agendamento.setChefes(new ArrayList<>(List.of(chefes)));
+        agendamento.setChefe(chefe);
         agendamento.setDataHoraInicial(inicio);
         agendamento.setDataHoraFinal(inicio.plusHours(2));
         agendamento.setQuantidadePessoas(2);
@@ -255,10 +259,9 @@ class ConflitoHorarioIntegrationTest {
         chefe.setEmail(nome.toLowerCase() + "-" + UUID.randomUUID() + "@x.com");
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
-        chefe.setValorHora(new BigDecimal("100"));
         chefe.setCidade("São Paulo");
         chefe.setEstado("SP");
-        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setEspecialidades(Set.of(Especialidades.BRASILEIRA));
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
         chefe.setDisponivel(true);

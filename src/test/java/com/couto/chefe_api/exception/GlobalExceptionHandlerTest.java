@@ -54,7 +54,7 @@ class GlobalExceptionHandlerTest {
     void conflitoVira409() throws Exception {
         mvc.perform(get("/teste/chefe-indisponivel"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.detail").value("Um ou mais chefes não estão disponíveis ou ativos"));
+                .andExpect(jsonPath("$.detail").value("O chef não está disponível ou ativo"));
     }
 
     @Test

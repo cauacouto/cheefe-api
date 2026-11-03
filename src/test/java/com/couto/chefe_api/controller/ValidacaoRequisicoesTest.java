@@ -25,6 +25,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasItems;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -78,10 +79,10 @@ class ValidacaoRequisicoesTest {
     void criarAgendamentoSemCamposObrigatoriosDa400() throws Exception {
         mvc.perform(post("/agendamentos")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"chefeIds\":[]}"))
+                        .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.campos[*].campo").value(hasItems(
-                        "dataHoraInicial", "dataHoraFinal", "enderecoId", "chefeIds", "quantidadePessoas")));
+                        "menuId", "dataHoraInicial", "enderecoId", "quantidadePessoas", "ocasiao")));
         verifyNoInteractions(agendamentoService);
     }
 
@@ -89,15 +90,15 @@ class ValidacaoRequisicoesTest {
     void criarAgendamentoNoPassadoOuSemPessoasDa400() throws Exception {
         String passado = LocalDateTime.now().minusDays(1).format(FORMATO);
         String json = """
-                {"dataHoraInicial":"%s","dataHoraFinal":"%s","enderecoId":1,
-                 "chefeIds":["%s"],"quantidadePessoas":0}
-                """.formatted(passado, passado, UUID.randomUUID());
+                {"menuId":1,"dataHoraInicial":"%s","enderecoId":1,"ocasiao":"FAMILIA","quantidadePessoas":0,
+                 "restricoes":[{"tipo":"VEGANO","quantidade":0}],"observacoes":"%s"}
+                """.formatted(passado, "x".repeat(1001));
 
         mvc.perform(post("/agendamentos")
                         .contentType(MediaType.APPLICATION_JSON).content(json))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.campos[*].campo").value(hasItems(
-                        "dataHoraInicial", "dataHoraFinal", "quantidadePessoas")));
+                        "dataHoraInicial", "quantidadePessoas", "restricoes[0].quantidade", "observacoes")));
         verifyNoInteractions(agendamentoService);
     }
 
@@ -105,9 +106,8 @@ class ValidacaoRequisicoesTest {
     void criarAgendamentoValidoChegaNoServico() throws Exception {
         LocalDateTime inicio = LocalDateTime.now().plusDays(3);
         String json = """
-                {"dataHoraInicial":"%s","dataHoraFinal":"%s","enderecoId":1,
-                 "chefeIds":["%s"],"quantidadePessoas":4}
-                """.formatted(inicio.format(FORMATO), inicio.plusHours(3).format(FORMATO), UUID.randomUUID());
+                {"menuId":1,"dataHoraInicial":"%s","enderecoId":1,"ocasiao":"FAMILIA","quantidadePessoas":4}
+                """.formatted(inicio.format(FORMATO));
 
         mvc.perform(post("/agendamentos")
                         .contentType(MediaType.APPLICATION_JSON).content(json))
@@ -119,15 +119,42 @@ class ValidacaoRequisicoesTest {
     void atualizarAgendamentoAceitaParcialMasValidaOsCamposEnviados() throws Exception {
         mvc.perform(put("/agendamentos/7")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"quantidadePessoas\":0,\"chefeIds\":[]}"))
+                        .content("{\"quantidadePessoas\":0,\"restricoes\":[{\"quantidade\":1}]}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.campos[*].campo").value(hasItems("quantidadePessoas", "chefeIds")));
+                .andExpect(jsonPath("$.campos[*].campo").value(hasItems("quantidadePessoas", "restricoes[0].tipo")));
 
         mvc.perform(put("/agendamentos/7")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"quantidadePessoas\":3}"))
                 .andExpect(status().isOk());
         verify(agendamentoService).atualizarAgendamento(any(), anyLong(), any());
+    }
+
+    @Test
+    void listasComElementoNuloDao400() throws Exception {
+        String inicio = LocalDateTime.now().plusDays(3).format(FORMATO);
+        mvc.perform(post("/agendamentos").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"menuId\":1,\"dataHoraInicial\":\"" + inicio + "\",\"enderecoId\":1,"
+                                + "\"ocasiao\":\"FAMILIA\",\"quantidadePessoas\":4,\"restricoes\":[null]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.campos[*].campo").value(hasItems("restricoes[0]")));
+        mvc.perform(put("/agendamentos/7").contentType(MediaType.APPLICATION_JSON).content("{\"restricoes\":[null]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.campos[*].campo").value(hasItems("restricoes[0]")));
+        mvc.perform(patch("/chefe/me").contentType(MediaType.APPLICATION_JSON).content("{\"especialidades\":[null]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.campos[*].campo").value(hasItems("especialidades[0]")));
+        verifyNoInteractions(agendamentoService, chefeService);
+
+        // o cadastro não passa por estes controllers: valida o DTO direto
+        var cadastro = new com.couto.chefe_api.dto.RegisterRequestDto();
+        cadastro.setTipoUsuario(TipoUsuario.CHEFE);
+        cadastro.setNome("Bia");
+        cadastro.setEspecialidades(java.util.Collections.singletonList(null));
+        try (var fabrica = jakarta.validation.Validation.buildDefaultValidatorFactory()) {
+            assertThat(fabrica.getValidator().validate(cadastro))
+                    .anyMatch(v -> v.getPropertyPath().toString().startsWith("especialidades"));
+        }
     }
 
     @Test
@@ -161,9 +188,9 @@ class ValidacaoRequisicoesTest {
         UUID id = UUID.randomUUID();
         mvc.perform(patch("/chefe/me")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"nome\":\"  \",\"anosDeExperiencia\":-1,\"valorHora\":0}"))
+                        .content("{\"nome\":\"  \",\"anosDeExperiencia\":-1,\"especialidades\":[]}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.campos[*].campo").value(hasItems("nome", "anosDeExperiencia", "valorHora")));
+                .andExpect(jsonPath("$.campos[*].campo").value(hasItems("nome", "anosDeExperiencia", "especialidades")));
 
         mvc.perform(patch("/chefe/me")
                         .contentType(MediaType.APPLICATION_JSON)

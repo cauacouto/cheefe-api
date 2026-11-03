@@ -15,7 +15,11 @@ import com.couto.chefe_api.enums.TipoUsuario;
 import com.couto.chefe_api.repository.AgendaBloqueioRepository;
 import com.couto.chefe_api.repository.AgendaDiaFixoRepository;
 import com.couto.chefe_api.repository.AgendamentoRepository;
+import com.couto.chefe_api.MenuDeTeste;
+import com.couto.chefe_api.domain.Menu;
 import com.couto.chefe_api.repository.ChefeRepository;
+import com.couto.chefe_api.repository.MenuRepository;
+import com.couto.chefe_api.repository.PratosRepository;
 import com.couto.chefe_api.repository.EnderecoRepository;
 import com.couto.chefe_api.repository.UsuarioRepository;
 import jakarta.servlet.http.Cookie;
@@ -38,6 +42,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -72,6 +77,9 @@ class AgendaChefIntegrationTest {
     @Autowired AgendamentoRepository agendamentoRepository;
     @Autowired AgendaBloqueioRepository bloqueioRepository;
     @Autowired AgendaDiaFixoRepository diaFixoRepository;
+    @Autowired MenuRepository menuRepository;
+    @Autowired PratosRepository pratosRepository;
+    @Autowired MenuDeTeste menus;
 
     MockMvc mockMvc;
 
@@ -83,6 +91,7 @@ class AgendaChefIntegrationTest {
     @AfterEach
     void limparBanco() {
         agendamentoRepository.deleteAll();
+        pratosRepository.deleteAll();
         enderecoRepository.deleteAll();
         usuarioRepository.deleteAll();
         chefeRepository.deleteAll(); // a agenda sai junto (ON DELETE CASCADE)
@@ -311,27 +320,15 @@ class AgendaChefIntegrationTest {
         UserModel ana = novoCliente("Ana");
         long endereco = novoEndereco(ana).getId();
 
-        pedir(ana, endereco, BASE.plusHours(1), BASE.plusHours(2), bia)
+        // o menu dura 2h: o fim é calculado
+        pedir(ana, endereco, BASE.plusHours(1), bia)
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.detail").value(INDISPONIVEL));
-        pedir(ana, endereco, BASE.minusHours(1), BASE.plusHours(1), bia).andExpect(status().isConflict());
-        pedir(ana, endereco, BASE.minusHours(1), BASE.plusHours(4), bia).andExpect(status().isConflict());
+        pedir(ana, endereco, BASE.minusHours(1), bia).andExpect(status().isConflict());
+        pedir(ana, endereco, BASE.plusHours(2), bia).andExpect(status().isConflict());
         // encostando nos dois lados, ou com outro chef, passa
-        pedir(ana, endereco, BASE.minusHours(2), BASE, bia).andExpect(status().isCreated());
-        pedir(ana, endereco, BASE.plusHours(3), BASE.plusHours(5), bia).andExpect(status().isCreated());
-        pedir(ana, endereco, BASE.plusHours(1), BASE.plusHours(2), caio).andExpect(status().isCreated());
-    }
-
-    @Test
-    void comVariosChefsOErroCitaQuemEstaIndisponivel() throws Exception {
-        ChefeModel bia = novoChefe("Bia");
-        ChefeModel caio = novoChefe("Caio");
-        gravarBloqueio(caio, BASE, BASE.plusHours(3));
-        UserModel ana = novoCliente("Ana");
-
-        pedir(ana, novoEndereco(ana).getId(), BASE.plusHours(1), BASE.plusHours(2), bia, caio)
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.detail").value(containsString("Caio")))
-                .andExpect(jsonPath("$.detail").value(containsString("indisponível nesse horário")));
+        pedir(ana, endereco, BASE.minusHours(2), bia).andExpect(status().isCreated());
+        pedir(ana, endereco, BASE.plusHours(3), bia).andExpect(status().isCreated());
+        pedir(ana, endereco, BASE.plusHours(1), caio).andExpect(status().isCreated());
     }
 
     @Test
@@ -341,13 +338,13 @@ class AgendaChefIntegrationTest {
         UserModel ana = novoCliente("Ana");
         long endereco = novoEndereco(ana).getId();
 
-        pedir(ana, endereco, BASE, BASE.plusHours(2), bia)
+        pedir(ana, endereco, BASE, bia)
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.detail").value(INDISPONIVEL));
-        // só a parte final cai no dia fixo: começa no dia anterior e passa da meia-noite
-        pedir(ana, endereco, BASE.minusDays(1).withHour(23), BASE.withHour(1), bia).andExpect(status().isConflict());
+        // só a parte final cai no dia fixo: começa no dia anterior e passa da meia-noite (23h + 2h)
+        pedir(ana, endereco, BASE.minusDays(1).withHour(23), bia).andExpect(status().isConflict());
         // termina exatamente à meia-noite do dia fixo: não toca nele
-        pedir(ana, endereco, BASE.minusDays(1).withHour(22), BASE.withHour(0), bia).andExpect(status().isCreated());
-        pedir(ana, endereco, BASE.plusDays(1), BASE.plusDays(1).plusHours(2), bia).andExpect(status().isCreated());
+        pedir(ana, endereco, BASE.minusDays(1).withHour(22), bia).andExpect(status().isCreated());
+        pedir(ana, endereco, BASE.plusDays(1), bia).andExpect(status().isCreated());
     }
 
     @Test
@@ -355,20 +352,18 @@ class AgendaChefIntegrationTest {
         ChefeModel bia = novoChefe("Bia");
         gravarBloqueio(bia, BASE, BASE.plusHours(3));
         UserModel ana = novoCliente("Ana");
-        Agendamento daAna = novoAgendamento(ana, BASE.plusDays(1), StatusAgendamento.PENDENTE, bia);
+        long daAna = idDe(pedir(ana, novoEndereco(ana).getId(), BASE.plusDays(1), bia).andExpect(status().isCreated()));
 
-        mockMvc.perform(put("/agendamentos/" + daAna.getId()).cookie(cookieDe(ana)).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"dataHoraInicial\":\"" + BASE.plusHours(1).format(FORMATO) + "\","
-                                + "\"dataHoraFinal\":\"" + BASE.plusHours(2).format(FORMATO) + "\"}"))
+        mockMvc.perform(put("/agendamentos/" + daAna).cookie(cookieDe(ana)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"dataHoraInicial\":\"" + BASE.plusHours(1).format(FORMATO) + "\"}"))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.detail").value(INDISPONIVEL));
-        // sem mexer no horário a agenda não é reavaliada
-        mockMvc.perform(put("/agendamentos/" + daAna.getId()).cookie(cookieDe(ana)).contentType(MediaType.APPLICATION_JSON)
+        // sem mexer no horário (o atual está livre) a edição passa
+        mockMvc.perform(put("/agendamentos/" + daAna).cookie(cookieDe(ana)).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"quantidadePessoas\":4}"))
                 .andExpect(status().isOk());
         // e um horário livre é aceito
-        mockMvc.perform(put("/agendamentos/" + daAna.getId()).cookie(cookieDe(ana)).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"dataHoraInicial\":\"" + BASE.plusHours(3).format(FORMATO) + "\","
-                                + "\"dataHoraFinal\":\"" + BASE.plusHours(5).format(FORMATO) + "\"}"))
+        mockMvc.perform(put("/agendamentos/" + daAna).cookie(cookieDe(ana)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"dataHoraInicial\":\"" + BASE.plusHours(3).format(FORMATO) + "\"}"))
                 .andExpect(status().isOk());
     }
 
@@ -396,16 +391,15 @@ class AgendaChefIntegrationTest {
     }
 
     @Test
-    void confirmarConfereAAgendaDeTodosOsChefsDoAgendamento() throws Exception {
+    void confirmarConfereAAgendaDoChef() throws Exception {
         ChefeModel bia = novoChefe("Bia");
-        ChefeModel caio = novoChefe("Caio");
-        gravarBloqueio(caio, BASE, BASE.plusHours(3));
-        Agendamento pedido = novoAgendamento(novoCliente("Ana"), BASE.plusHours(1), StatusAgendamento.PENDENTE, bia, caio);
+        Agendamento pedido = novoAgendamento(novoCliente("Ana"), BASE.plusHours(1), StatusAgendamento.PENDENTE, bia);
+        // a Bia bloqueou o horário depois do pedido
+        gravarBloqueio(bia, BASE, BASE.plusHours(3));
 
-        // confirmar vale para os dois chefs: Caio bloqueou depois do pedido, então Bia não confirma por ele
         mockMvc.perform(patch("/agendamentos/" + pedido.getId() + "/confirmar").cookie(cookieDe(bia)))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.detail").value(containsString("Caio")));
+                .andExpect(jsonPath("$.detail").value(INDISPONIVEL));
         assertThat(agendamentoRepository.findById(pedido.getId()).orElseThrow().getStatus()).isEqualTo(StatusAgendamento.PENDENTE);
     }
 
@@ -511,12 +505,20 @@ class AgendaChefIntegrationTest {
                 .content("{\"dias\":[" + lista + "]}"));
     }
 
-    ResultActions pedir(UserModel cliente, long enderecoId, LocalDateTime inicio, LocalDateTime fim, ChefeModel... chefes)
-            throws Exception {
-        String ids = String.join(",", java.util.Arrays.stream(chefes).map(c -> "\"" + c.getId() + "\"").toList());
+    ResultActions pedir(UserModel cliente, long enderecoId, LocalDateTime inicio, ChefeModel chefe) throws Exception {
         return mockMvc.perform(post("/agendamentos").cookie(cookieDe(cliente)).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"dataHoraInicial\":\"" + inicio.format(FORMATO) + "\",\"dataHoraFinal\":\"" + fim.format(FORMATO)
-                        + "\",\"enderecoId\":" + enderecoId + ",\"chefeIds\":[" + ids + "],\"quantidadePessoas\":2}"));
+                .content("{\"menuId\":" + menuDe(chefe).getId() + ",\"dataHoraInicial\":\"" + inicio.format(FORMATO)
+                        + "\",\"enderecoId\":" + enderecoId + ",\"quantidadePessoas\":2,\"ocasiao\":\"FAMILIA\"}"));
+    }
+
+    /** O menu de 2h do chef (criado na primeira vez). */
+    Menu menuDe(ChefeModel chefe) {
+        return menuRepository.findByChefe_IdOrderByIdAsc(chefe.getId()).stream().findFirst()
+                .orElseGet(() -> menus.ativo(chefe));
+    }
+
+    static long idDe(ResultActions resposta) throws Exception {
+        return JSON.readTree(resposta.andReturn().getResponse().getContentAsString()).get("id").asLong();
     }
 
     AgendaBloqueio gravarBloqueio(ChefeModel chefe, LocalDateTime inicio, LocalDateTime fim) {
@@ -528,11 +530,11 @@ class AgendaChefIntegrationTest {
         return bloqueioRepository.save(bloqueio);
     }
 
-    Agendamento novoAgendamento(UserModel cliente, LocalDateTime inicio, StatusAgendamento status, ChefeModel... chefes) {
+    Agendamento novoAgendamento(UserModel cliente, LocalDateTime inicio, StatusAgendamento status, ChefeModel chefe) {
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(cliente);
         agendamento.setEndereco(novoEndereco(cliente));
-        agendamento.setChefes(new ArrayList<>(List.of(chefes)));
+        agendamento.setChefe(chefe);
         agendamento.setDataHoraInicial(inicio);
         agendamento.setDataHoraFinal(inicio.plusHours(2));
         agendamento.setQuantidadePessoas(2);
@@ -568,15 +570,16 @@ class AgendaChefIntegrationTest {
         chefe.setEmail(nome.toLowerCase() + "-" + UUID.randomUUID() + "@x.com");
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
-        chefe.setValorHora(new BigDecimal("100"));
         chefe.setCidade("São Paulo");
         chefe.setEstado("SP");
-        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setEspecialidades(Set.of(Especialidades.BRASILEIRA));
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
         chefe.setDisponivel(true);
         chefe.setAtivo(true);
-        return chefeRepository.save(TelefoneDeTeste.verificado(chefe));
+        chefe = chefeRepository.save(TelefoneDeTeste.verificado(chefe));
+        menus.ativo(chefe); // a consulta pública só vale para chef visível, e visível exige menu ativo
+        return chefe;
     }
 
     Cookie cookieDe(UserModel usuario) {

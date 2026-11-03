@@ -1,9 +1,13 @@
 package com.couto.chefe_api.domain;
 
 import com.couto.chefe_api.domain.UserModel;
+import com.couto.chefe_api.enums.OcasiaoMenu;
 import com.couto.chefe_api.enums.StatusAgendamento;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.DynamicUpdate;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -17,10 +21,12 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.Objects;
+import java.util.UUID;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
+// só as colunas que mudaram vão no UPDATE: salvar o agendamento não sobrescreve o que outra transação gravou
+@DynamicUpdate
 @Entity()
 @Table(name = "agendamentos")
 @Getter
@@ -41,15 +47,10 @@ public class Agendamento  implements Serializable {
     @JoinColumn(name = "user_id")
     private UserModel usuario;
 
-    // listas paginadas: os chefs de todos os agendamentos da página vêm numa query só
-    @ManyToMany
-    @BatchSize(size = 50)
-    @JoinTable(
-            name = "agendamento_chefe",
-            joinColumns = @JoinColumn(name = "agendamento_id"),
-            inverseJoinColumns = @JoinColumn(name = "chefe_id")
-    )
-    private List<ChefeModel> chefes;
+    /** O chef continua no agendamento mesmo depois de recusar ou desistir. */
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "chefe_id")
+    private ChefeModel chefe;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "endereco_id")
@@ -71,6 +72,40 @@ public class Agendamento  implements Serializable {
     @Enumerated(EnumType.STRING)
     private StatusAgendamento status = StatusAgendamento.PENDENTE;
 
+    /** O menu pedido; nulo nos agendamentos de antes dos menus. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @OnDelete(action = OnDeleteAction.SET_NULL)
+    @JoinColumn(name = "menu_id")
+    private Menu menu;
+
+    // cópia do menu no momento do pedido: editar o menu depois não muda o que o cliente contratou
+    @Column(length = 100)
+    private String menuNome;
+
+    @Column(precision = 10, scale = 2)
+    private BigDecimal precoPorPessoa;
+
+    private Integer duracaoMinutos;
+
+    private Boolean ingredientesInclusos;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 255)
+    private OcasiaoMenu ocasiao;
+
+    @ElementCollection
+    @CollectionTable(name = "agendamento_restricao", joinColumns = @JoinColumn(name = "agendamento_id"))
+    @OnDelete(action = OnDeleteAction.CASCADE)
+    @BatchSize(size = 50) // as listagens carregam as restrições da página de uma vez
+    private Set<RestricaoAgendamento> restricoes = new LinkedHashSet<>();
+
+    @Column(length = 1000)
+    private String observacoes;
+
+    /** O que o cliente escreveu, quando o exibido em {@link #observacoes} foi mascarado. Nunca vai para a API. */
+    @Column(length = 1000)
+    private String observacoesOriginal;
+
 
 
     @Column(updatable = false)
@@ -87,6 +122,20 @@ public class Agendamento  implements Serializable {
 
     /** Prazo mínimo para o cliente cancelar um agendamento já confirmado. */
     public static final Duration PRAZO_CANCELAMENTO_CONFIRMADO = Duration.ofHours(24);
+
+    /** Pedido recusado deixa de existir para o chef: ele não vê mais nada do cliente por aqui. */
+    public boolean visivelPara(UUID chefeId) {
+        return chefe.getId().equals(chefeId) && status != StatusAgendamento.RECUSADO;
+    }
+
+    /**
+     * Endereço, restrições e observações do cliente só enquanto o serviço pode acontecer ou já aconteceu.
+     * Cancelado ou expirado, o chef fica com o registro, sem os dados pessoais (LGPD: só o necessário).
+     */
+    public boolean detalhesDoClienteVisiveisAoChef() {
+        return status == StatusAgendamento.PENDENTE || status == StatusAgendamento.CONFIRMADO
+                || status == StatusAgendamento.CONCLUIDO;
+    }
 
     public void confirmar(LocalDateTime agora) {
         exigirStatus(StatusAgendamento.PENDENTE, "confirmar");
@@ -114,18 +163,16 @@ public class Agendamento  implements Serializable {
         status = StatusAgendamento.CANCELADO;
     }
 
-    /** O chef sai do pedido; devolve se ainda restam chefs (senão o pedido vira RECUSADO). */
-    public boolean recusar(ChefeModel chefe, LocalDateTime agora) {
+    public void recusar(LocalDateTime agora) {
         exigirStatus(StatusAgendamento.PENDENTE, "recusar");
         exigirAntesDoInicio(agora, "recusar");
-        return retirar(chefe, StatusAgendamento.RECUSADO);
+        status = StatusAgendamento.RECUSADO;
     }
 
-    /** O chef sai do agendamento confirmado; devolve se ainda restam chefs (senão ele vira CANCELADO). */
-    public boolean desistir(ChefeModel chefe, LocalDateTime agora) {
+    public void desistir(LocalDateTime agora) {
         exigirStatus(StatusAgendamento.CONFIRMADO, "desistir de");
         exigirAntesDoInicio(agora, "desistir de");
-        return retirar(chefe, StatusAgendamento.CANCELADO);
+        status = StatusAgendamento.CANCELADO;
     }
 
     public void concluirPeloChef(LocalDateTime agora) {
@@ -156,28 +203,34 @@ public class Agendamento  implements Serializable {
         return true;
     }
 
-    /** Soma do valor/hora dos chefs vezes a duração, já em reais com 2 casas (o mesmo valor que vai para o banco). */
-    public static BigDecimal calcularValor(List<ChefeModel> chefes, LocalDateTime inicio, LocalDateTime fim) {
-        BigDecimal horas = BigDecimal.valueOf(ChronoUnit.MINUTES.between(inicio, fim))
-                .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
-        return chefes.stream()
-                .map(ChefeModel::getValorHora)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .multiply(horas)
-                .setScale(2, RoundingMode.HALF_UP);
+    /**
+     * Pedido de um menu: guarda a cópia dele e calcula o fim e o valor. O início já precisa estar definido.
+     * A cópia é o contrato do pedido; o menu pode mudar depois.
+     */
+    public void aplicarMenu(Menu menu, int pessoas) {
+        this.menu = menu;
+        this.menuNome = menu.getNome();
+        this.precoPorPessoa = menu.getPrecoPorPessoa();
+        this.duracaoMinutos = menu.getDuracaoMinutos();
+        this.ingredientesInclusos = menu.isIngredientesInclusos();
+        this.quantidadePessoas = pessoas;
+        this.valorTotal = calcularValor(precoPorPessoa, pessoas);
+        reposicionarFim();
     }
 
-    private boolean retirar(ChefeModel chefe, StatusAgendamento seNaoSobrarNinguem) {
-        chefes.removeIf(c -> c.getId().equals(chefe.getId()));
-        if (chefes.isEmpty()) {
-            status = seNaoSobrarNinguem;
-            return false;
-        }
-        if (dataHoraInicial != null && dataHoraFinal != null) {
-            valorTotal = calcularValor(chefes, dataHoraInicial, dataHoraFinal);
-        }
-        return true;
+    /** Muda o início mantendo a duração da cópia do menu. */
+    public void mudarInicio(LocalDateTime inicio) {
+        this.dataHoraInicial = inicio;
+        reposicionarFim();
+    }
+
+    private void reposicionarFim() {
+        this.dataHoraFinal = dataHoraInicial.plusMinutes(duracaoMinutos);
+    }
+
+    /** Preço por pessoa vezes a quantidade, em reais com 2 casas (o mesmo valor que vai para o banco). */
+    public static BigDecimal calcularValor(BigDecimal precoPorPessoa, int pessoas) {
+        return precoPorPessoa.multiply(BigDecimal.valueOf(pessoas)).setScale(2, RoundingMode.HALF_UP);
     }
 
     private void exigirStatus(StatusAgendamento esperado, String acao) {

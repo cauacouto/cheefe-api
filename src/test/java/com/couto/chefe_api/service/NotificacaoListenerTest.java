@@ -36,7 +36,6 @@ class NotificacaoListenerTest {
     private final NotificacaoListener listener = new NotificacaoListener(agendamentoRepository, notificacaoService);
 
     private final ChefeModel bia = chefe("Bia");
-    private final ChefeModel caio = chefe("Caio");
     private final UserModel ana = new UserModel();
     private final Agendamento agendamento = new Agendamento();
 
@@ -46,36 +45,34 @@ class NotificacaoListenerTest {
         ana.setNome("Ana");
         agendamento.setId(42L);
         agendamento.setUsuario(ana);
-        agendamento.setChefes(new ArrayList<>(List.of(bia, caio)));
+        agendamento.setChefe(bia);
         agendamento.setDataHoraInicial(LocalDateTime.of(2026, 10, 25, 18, 0));
         when(agendamentoRepository.findById(42L)).thenReturn(Optional.of(agendamento));
     }
 
     @Test
-    void criadoNotificaCadaChef() {
+    void criadoNotificaOChef() {
         listener.aoCriar(new AgendamentoCriadoEvent(42L));
 
         String mensagem = "Ana pediu um agendamento para 25/10 às 18:00";
         verify(notificacaoService).notificar(bia.getId(), TipoUsuario.CHEFE, EventoNotificacao.AGENDAMENTO_CRIADO, mensagem, "42");
-        verify(notificacaoService).notificar(caio.getId(), TipoUsuario.CHEFE, EventoNotificacao.AGENDAMENTO_CRIADO, mensagem, "42");
         verifyNoMoreInteractions(notificacaoService);
     }
 
     @Test
-    void editadoNotificaCadaChef() {
+    void editadoNotificaOChef() {
         listener.aoEditar(new AgendamentoEditadoEvent(42L));
 
         String mensagem = "Ana alterou o agendamento de 25/10";
         verify(notificacaoService).notificar(bia.getId(), TipoUsuario.CHEFE, EventoNotificacao.AGENDAMENTO_EDITADO, mensagem, "42");
-        verify(notificacaoService).notificar(caio.getId(), TipoUsuario.CHEFE, EventoNotificacao.AGENDAMENTO_EDITADO, mensagem, "42");
     }
 
     @Test
     void confirmadoNotificaClienteComNomeDeQuemConfirmou() {
-        listener.aoConfirmar(new AgendamentoConfirmadoEvent(42L, caio.getId()));
+        listener.aoConfirmar(new AgendamentoConfirmadoEvent(42L, bia.getId()));
 
         verify(notificacaoService).notificar(ana.getId(), TipoUsuario.CLIENTE, EventoNotificacao.AGENDAMENTO_CONFIRMADO,
-                "Chef Caio confirmou seu agendamento de 25/10", "42");
+                "Chef Bia confirmou seu agendamento de 25/10", "42");
         verifyNoMoreInteractions(notificacaoService);
     }
 
@@ -103,32 +100,18 @@ class NotificacaoListenerTest {
     }
 
     @Test
-    void cancelamentoAvisaCadaChef() {
+    void cancelamentoAvisaOChef() {
         listener.aoCancelar(new AgendamentoCanceladoEvent(42L, MotivoCancelamento.MUDANCA_DE_PLANOS, null));
 
         String mensagem = "Ana cancelou o agendamento de 25/10: Mudança de planos";
         verify(notificacaoService).notificar(bia.getId(), TipoUsuario.CHEFE, EventoNotificacao.AGENDAMENTO_CANCELADO, mensagem, "42");
-        verify(notificacaoService).notificar(caio.getId(), TipoUsuario.CHEFE, EventoNotificacao.AGENDAMENTO_CANCELADO, mensagem, "42");
         verifyNoMoreInteractions(notificacaoService);
     }
 
     @Test
-    void recusaParcialAvisaOClienteComONovoValor() {
-        agendamento.setValorTotal(new java.math.BigDecimal("300.00"));
-
-        listener.aoChefSair(new ChefSaiuDoAgendamentoEvent(42L, "Bia", true, true,
-                MotivoRecusa.LOCAL_FORA_DA_AREA, "fico em Santo André"));
-
-        verify(notificacaoService).notificar(ana.getId(), TipoUsuario.CLIENTE, EventoNotificacao.AGENDAMENTO_RECUSADO,
-                "Chef Bia recusou seu pedido de 25/10. Novo valor: R$ 300,00: O local fica fora da minha área de atendimento"
-                        + " — fico em Santo André", "42");
-        verifyNoMoreInteractions(notificacaoService);
-    }
-
-    @Test
-    void recusaEDesistenciaTotais() {
-        listener.aoChefSair(new ChefSaiuDoAgendamentoEvent(42L, "Bia", true, false, null, null));
-        listener.aoChefSair(new ChefSaiuDoAgendamentoEvent(42L, "Bia", false, false, MotivoRecusa.IMPREVISTO, null));
+    void recusaEDesistenciaAvisamOCliente() {
+        listener.aoChefSair(new ChefSaiuDoAgendamentoEvent(42L, "Bia", true, null, null));
+        listener.aoChefSair(new ChefSaiuDoAgendamentoEvent(42L, "Bia", false, MotivoRecusa.IMPREVISTO, null));
 
         verify(notificacaoService).notificar(ana.getId(), TipoUsuario.CLIENTE, EventoNotificacao.AGENDAMENTO_RECUSADO,
                 "Seu pedido de 25/10 foi recusado", "42");
@@ -137,13 +120,18 @@ class NotificacaoListenerTest {
     }
 
     @Test
-    void desistenciaParcialComValorEmMilhar() {
-        agendamento.setValorTotal(new java.math.BigDecimal("1200.5"));
+    void recusaComMotivoEDescricaoVaiNoFimDaMensagem() {
+        listener.aoChefSair(new ChefSaiuDoAgendamentoEvent(42L, "Bia", true,
+                MotivoRecusa.LOCAL_FORA_DA_AREA, "fico em Santo André"));
 
-        listener.aoChefSair(new ChefSaiuDoAgendamentoEvent(42L, "Bia", false, true, null, null));
-
-        verify(notificacaoService).notificar(ana.getId(), TipoUsuario.CLIENTE, EventoNotificacao.CHEF_DESISTIU,
-                "Chef Bia desistiu do agendamento de 25/10. Novo valor: R$ 1.200,50", "42");
+        verify(notificacaoService).notificar(ana.getId(), TipoUsuario.CLIENTE, EventoNotificacao.AGENDAMENTO_RECUSADO,
+                "Seu pedido de 25/10 foi recusado: O local fica fora da minha área de atendimento"
+                        + " — fico em Santo André", "42");
+        // os avisos do pedido citam o cliente: quem recusou não vê mais nada dele
+        verify(notificacaoService).apagarDasReferencias(
+                java.util.EnumSet.of(EventoNotificacao.AGENDAMENTO_CRIADO, EventoNotificacao.AGENDAMENTO_EDITADO),
+                java.util.List.of("42"));
+        verifyNoMoreInteractions(notificacaoService);
     }
 
     @Test

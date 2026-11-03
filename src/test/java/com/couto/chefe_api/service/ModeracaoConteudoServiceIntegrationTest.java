@@ -25,6 +25,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
+import java.util.Set;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -233,10 +234,9 @@ class ModeracaoConteudoServiceIntegrationTest {
         c.setEmail("chef-" + UUID.randomUUID() + "@x.com");
         c.setNacionalidade("Brasileira");
         c.setIdiomas("pt");
-        c.setValorHora(new BigDecimal("100.00"));
         c.setCidade("São Paulo");
         c.setEstado("SP");
-        c.setEspecialidade(Especialidades.BRASILEIRA);
+        c.setEspecialidades(Set.of(Especialidades.BRASILEIRA));
         c.setSenioridade(Senioridade.HEAD_CHEF);
         c.setAnosDeExperiencia(5);
         c.setAtivo(true);

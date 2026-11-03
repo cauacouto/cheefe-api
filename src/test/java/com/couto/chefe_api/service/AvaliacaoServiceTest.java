@@ -65,7 +65,7 @@ class AvaliacaoServiceTest {
         anaLogada = new UsuarioAutenticado(ana.getId(), "ana@x.com", TipoUsuario.CLIENTE);
         agendamento.setId(1L);
         agendamento.setUsuario(ana);
-        agendamento.setChefes(new ArrayList<>(List.of(bia)));
+        agendamento.setChefe(bia);
         agendamento.setStatus(StatusAgendamento.CONCLUIDO);
         when(agendamentoRepository.findById(1L)).thenReturn(Optional.of(agendamento));
         when(chefeRepository.somarAvaliacao(any(), anyInt())).thenReturn(1);

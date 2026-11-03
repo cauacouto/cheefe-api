@@ -12,6 +12,8 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 public interface ChefeMapper {
 
 
+    // o menor preço dos menus ativos vem de MenuRepository.menoresPrecos, preenchido pelo ChefeService
+    @Mapping(target = "precoAPartirDe", ignore = true)
     @Mapping(target = "notaMedia", expression = "java(Reputacao.media(model.getSomaNotas(), model.getTotalAvaliacoes()))")
     ChefeResponseDto toDto(ChefeModel model);
 

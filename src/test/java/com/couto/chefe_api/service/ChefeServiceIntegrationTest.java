@@ -26,6 +26,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,6 +46,10 @@ class ChefeServiceIntegrationTest {
     private AgendamentoRepository agendamentoRepository;
     @Autowired
     private DenunciaRepository denunciaRepository;
+    @Autowired
+    private com.couto.chefe_api.repository.PratosRepository pratosRepository;
+    @Autowired
+    private com.couto.chefe_api.MenuDeTeste menus;
 
     private ChefeModel ativo;
     private ChefeModel inativo;
@@ -53,26 +58,29 @@ class ChefeServiceIntegrationTest {
     void criarChefes() {
         ativo = chefeRepository.save(chefe("Ativo", true));
         inativo = chefeRepository.save(chefe("Inativo", false));
+        menus.ativo(ativo);
+        menus.ativo(inativo);
     }
 
     @AfterEach
     void limpar() {
         denunciaRepository.deleteAll();
         agendamentoRepository.deleteAll();
+        pratosRepository.deleteAll();
         usuarioRepository.deleteAll();
         chefeRepository.deleteAll();
     }
 
     @Test
     void listagemNaoMostraChefesInativos() {
-        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null).getContent())
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null, null).getContent())
                 .extracting(ChefeResponseDto::nome)
                 .containsExactly("Ativo");
     }
 
     @Test
     void listagemComFiltroDeValorTambemEscondeInativos() {
-        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), new BigDecimal("1"), new BigDecimal("1000"), null, null, null).getContent())
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), new BigDecimal("1"), new BigDecimal("1000"), null, null, null, null).getContent())
                 .extracting(ChefeResponseDto::nome)
                 .containsExactly("Ativo");
     }
@@ -105,7 +113,7 @@ class ChefeServiceIntegrationTest {
         ChefeModel pausado = chefeRepository.findById(ativo.getId()).orElseThrow();
         assertThat(pausado.getAtivo()).isTrue();
         assertThat(pausado.isDisponivel()).isFalse();
-        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null).getContent()).isEmpty();
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null, null).getContent()).isEmpty();
         assertThat(chefeService.chefesMaisAgendados(PageRequest.of(0, 10)).getContent()).isEmpty();
     }
 
@@ -113,7 +121,7 @@ class ChefeServiceIntegrationTest {
     void chefPausadoContinuaEditandoOPerfil() {
         chefeService.inativar(ativo.getId());
 
-        chefeService.atualizarDados(new ChefeRequestDto("Renomeado", null, null, null, null, null, null, null, null), ativo.getId());
+        chefeService.atualizarDados(new ChefeRequestDto("Renomeado", null, null, null, null, null, null, null), ativo.getId());
 
         assertThat(chefeRepository.findById(ativo.getId()).orElseThrow().getNome()).isEqualTo("Renomeado");
     }
@@ -124,7 +132,7 @@ class ChefeServiceIntegrationTest {
 
         chefeService.ativar(ativo.getId());
 
-        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null).getContent())
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null, null).getContent())
                 .extracting(ChefeResponseDto::nome)
                 .containsExactly("Ativo");
     }
@@ -143,7 +151,7 @@ class ChefeServiceIntegrationTest {
         incompleto.setSenioridade(null);
         chefeRepository.save(incompleto);
 
-        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null).getContent())
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null, null).getContent())
                 .extracting(ChefeResponseDto::nome).containsExactly("Ativo");
         assertThat(chefeService.chefesMaisAgendados(PageRequest.of(0, 10)).getContent())
                 .extracting(ChefeResponseDto::nome).containsExactly("Ativo");
@@ -155,7 +163,7 @@ class ChefeServiceIntegrationTest {
         semIdiomas.setIdiomas("   ");
         chefeRepository.save(semIdiomas);
 
-        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null).getContent())
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null, null).getContent())
                 .extracting(ChefeResponseDto::nome).containsExactly("Ativo");
         assertThat(chefeService.chefesMaisAgendados(PageRequest.of(0, 10)).getContent())
                 .extracting(ChefeResponseDto::nome).containsExactly("Ativo");
@@ -165,7 +173,7 @@ class ChefeServiceIntegrationTest {
     void chefCompletoMasPausadoNaoAparece() {
         chefeService.inativar(ativo.getId());
 
-        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null).getContent()).isEmpty();
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null, null).getContent()).isEmpty();
         assertThat(chefeService.chefesMaisAgendados(PageRequest.of(0, 10)).getContent()).isEmpty();
     }
 
@@ -178,7 +186,7 @@ class ChefeServiceIntegrationTest {
         comEmSpace.setIdiomas("\u2003");
         chefeRepository.save(comEmSpace);
 
-        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null).getContent())
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null, null).getContent())
                 .extracting(ChefeResponseDto::nome).containsExactly("Ativo");
         assertThat(chefeService.chefesMaisAgendados(PageRequest.of(0, 10)).getContent())
                 .extracting(ChefeResponseDto::nome).containsExactly("Ativo");
@@ -190,7 +198,7 @@ class ChefeServiceIntegrationTest {
         ativo.setSuspenso(true);
         chefeRepository.save(ativo);
 
-        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null).getContent()).isEmpty();
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null, null).getContent()).isEmpty();
         assertThat(chefeService.chefesMaisAgendados(PageRequest.of(0, 10)).getContent()).isEmpty();
     }
 
@@ -200,7 +208,7 @@ class ChefeServiceIntegrationTest {
             denunciar(ativo, StatusDenuncia.ABERTA);
         }
 
-        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null).getContent()).isEmpty();
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null, null).getContent()).isEmpty();
         assertThat(chefeService.chefesMaisAgendados(PageRequest.of(0, 10)).getContent()).isEmpty();
     }
 
@@ -210,7 +218,7 @@ class ChefeServiceIntegrationTest {
         denunciar(ativo, StatusDenuncia.ABERTA);
         denunciar(ativo, StatusDenuncia.ARQUIVADA);
 
-        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null).getContent())
+        assertThat(chefeService.mostrarChefes(PageRequest.of(0, 10), null, null, null, null, null, null).getContent())
                 .extracting(ChefeResponseDto::nome).containsExactly("Ativo");
     }
 
@@ -221,7 +229,7 @@ class ChefeServiceIntegrationTest {
         cliente = usuarioRepository.save(cliente);
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(cliente);
-        agendamento.setChefes(new java.util.ArrayList<>(java.util.List.of(chefe)));
+        agendamento.setChefe(chefe);
         agendamento = agendamentoRepository.save(agendamento);
         Denuncia denuncia = new Denuncia();
         denuncia.setChefe(chefe);
@@ -239,10 +247,9 @@ class ChefeServiceIntegrationTest {
         chefe.setEmail(nome.toLowerCase() + "-" + UUID.randomUUID() + "@x.com");
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
-        chefe.setValorHora(new BigDecimal("100.00"));
         chefe.setCidade("São Paulo");
         chefe.setEstado("SP");
-        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setEspecialidades(Set.of(Especialidades.BRASILEIRA));
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
         chefe.setAtivo(ativo);

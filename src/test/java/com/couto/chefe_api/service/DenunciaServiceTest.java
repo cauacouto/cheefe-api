@@ -64,7 +64,7 @@ class DenunciaServiceTest {
         chefe.setNome("Bia");
         agendamento.setId(7L);
         agendamento.setUsuario(cliente);
-        agendamento.setChefes(new ArrayList<>(List.of(chefe)));
+        agendamento.setChefe(chefe);
         agendamento.setStatus(StatusAgendamento.CONFIRMADO);
         agendamento.setDataHoraInicial(AGORA.minusDays(1));
         when(agendamentoRepository.findByIdAndUsuario_Id(7L, clienteId)).thenReturn(Optional.of(agendamento));

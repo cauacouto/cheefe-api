@@ -32,6 +32,7 @@ import org.springframework.web.context.WebApplicationContext;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -71,6 +72,8 @@ class AutorizacaoIntegrationTest {
     private EnderecoRepository enderecoRepository;
     @Autowired
     private AgendamentoRepository agendamentoRepository;
+    @Autowired
+    private com.couto.chefe_api.MenuDeTeste menus;
 
     private MockMvc mockMvc;
 
@@ -307,7 +310,7 @@ class AutorizacaoIntegrationTest {
         EnderecoModel enderecoDaBia = novoEndereco(novoCliente());
 
         mockMvc.perform(post("/agendamentos").cookie(cookieDe(ana)).contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonAgendamento(enderecoDaBia.getId(), novoChefe(), "")))
+                        .content(jsonAgendamento(enderecoDaBia.getId(), menus.ativo(novoChefe()), "")))
                 .andExpect(status().isNotFound());
     }
 
@@ -319,7 +322,7 @@ class AutorizacaoIntegrationTest {
         String extras = ",\"email\":\"" + bia.getEmail() + "\",\"usuarioId\":\"" + bia.getId() + "\"";
 
         mockMvc.perform(post("/agendamentos").cookie(cookieDe(ana)).contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonAgendamento(enderecoDaAna.getId(), novoChefe(), extras)))
+                        .content(jsonAgendamento(enderecoDaAna.getId(), menus.ativo(novoChefe()), extras)))
                 .andExpect(status().isCreated());
 
         assertThat(agendamentoRepository.findAllByUsuario_Id(ana.getId())).hasSize(1);
@@ -398,19 +401,6 @@ class AutorizacaoIntegrationTest {
     }
 
     @Test
-    void segundoChefDoAgendamentoConfirma() throws Exception {
-        ChefeModel x = novoChefe();
-        ChefeModel y = novoChefe();
-        Agendamento agendamento = novoAgendamento(novoCliente(), x, y);
-
-        mockMvc.perform(patch("/agendamentos/" + agendamento.getId() + "/confirmar").cookie(cookieDe(y)))
-                .andExpect(status().isOk());
-
-        assertThat(agendamentoRepository.findById(agendamento.getId()).orElseThrow().getStatus())
-                .isEqualTo(StatusAgendamento.CONFIRMADO);
-    }
-
-    @Test
     void recebidosListaSoOsDoChef() throws Exception {
         ChefeModel x = novoChefe();
         Agendamento deX = novoAgendamento(novoCliente(), x);
@@ -436,11 +426,11 @@ class AutorizacaoIntegrationTest {
         return enderecoRepository.save(endereco);
     }
 
-    Agendamento novoAgendamento(UserModel cliente, ChefeModel... chefes) {
+    Agendamento novoAgendamento(UserModel cliente, ChefeModel chefe) {
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(cliente);
         agendamento.setEndereco(novoEndereco(cliente));
-        agendamento.setChefes(new ArrayList<>(List.of(chefes)));
+        agendamento.setChefe(chefe);
         agendamento.setDataHoraInicial(LocalDateTime.now().plusDays(10).withHour(18).withMinute(0).withSecond(0).withNano(0));
         agendamento.setDataHoraFinal(LocalDateTime.now().plusDays(10).withHour(20).withMinute(0).withSecond(0).withNano(0));
         agendamento.setQuantidadePessoas(2);
@@ -448,13 +438,13 @@ class AutorizacaoIntegrationTest {
         return agendamentoRepository.save(agendamento);
     }
 
-    private static String jsonAgendamento(Long enderecoId, ChefeModel chefe, String extras) {
+    private static String jsonAgendamento(Long enderecoId, com.couto.chefe_api.domain.Menu menu, String extras) {
         DateTimeFormatter formato = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
         LocalDateTime dia = LocalDateTime.now().plusDays(10).withHour(0).withMinute(0);
-        return "{\"dataHoraInicial\":\"" + dia.withHour(18).format(formato) + "\","
-                + "\"dataHoraFinal\":\"" + dia.withHour(21).format(formato) + "\","
+        return "{\"menuId\":" + menu.getId() + ","
+                + "\"dataHoraInicial\":\"" + dia.withHour(18).format(formato) + "\","
                 + "\"enderecoId\":" + enderecoId + ","
-                + "\"chefeIds\":[\"" + chefe.getId() + "\"],"
+                + "\"ocasiao\":\"FAMILIA\","
                 + "\"quantidadePessoas\":2" + extras + "}";
     }
 
@@ -532,10 +522,9 @@ class AutorizacaoIntegrationTest {
         chefe.setEmail("chef-" + UUID.randomUUID() + "@x.com");
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
-        chefe.setValorHora(new BigDecimal("100"));
         chefe.setCidade("São Paulo");
         chefe.setEstado("SP");
-        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setEspecialidades(Set.of(Especialidades.BRASILEIRA));
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
         chefe.setDisponivel(true);

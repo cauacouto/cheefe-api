@@ -1,9 +1,5 @@
 package com.couto.chefe_api.service;
 
-import java.util.Locale;
-import java.text.DecimalFormatSymbols;
-import java.text.DecimalFormat;
-import java.math.BigDecimal;
 import com.couto.chefe_api.enums.MotivoAgendamento;
 import com.couto.chefe_api.service.eventos.AgendamentoExpiradoEvent;
 import com.couto.chefe_api.service.eventos.ChefSaiuDoAgendamentoEvent;
@@ -12,7 +8,6 @@ import com.couto.chefe_api.service.eventos.AgendamentoConfirmadoEvent;
 import com.couto.chefe_api.service.eventos.AgendamentoCriadoEvent;
 import com.couto.chefe_api.service.eventos.AgendamentoEditadoEvent;
 import com.couto.chefe_api.domain.Agendamento;
-import com.couto.chefe_api.domain.ChefeModel;
 import com.couto.chefe_api.enums.EventoNotificacao;
 import com.couto.chefe_api.enums.TipoUsuario;
 import com.couto.chefe_api.repository.AgendamentoRepository;
@@ -23,6 +18,8 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.EnumSet;
+import java.util.List;
 
 /**
  * Grava as notificações na mesma transação da ação (BEFORE_COMMIT): se o agendamento
@@ -60,11 +57,7 @@ public class NotificacaoListener {
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
     public void aoConfirmar(AgendamentoConfirmadoEvent evento) {
         Agendamento agendamento = buscar(evento.agendamentoId());
-        String nomeChef = agendamento.getChefes().stream()
-                .filter(chefe -> chefe.getId().equals(evento.chefeId()))
-                .map(ChefeModel::getNome)
-                .findFirst()
-                .orElse("");
+        String nomeChef = agendamento.getChefe().getNome();
         notificacaoService.notificar(agendamento.getUsuario().getId(), TipoUsuario.CLIENTE,
                 EventoNotificacao.AGENDAMENTO_CONFIRMADO,
                 "Chef " + nomeChef + " confirmou seu agendamento de " + dia(agendamento.getDataHoraInicial()),
@@ -82,16 +75,16 @@ public class NotificacaoListener {
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
     public void aoChefSair(ChefSaiuDoAgendamentoEvent evento) {
         Agendamento agendamento = buscar(evento.agendamentoId());
-        String dia = dia(agendamento.getDataHoraInicial());
-        String mensagem;
-        if (evento.restamChefes()) {
-            mensagem = "Chef " + evento.nomeChef() + (evento.recusa() ? " recusou seu pedido de " : " desistiu do agendamento de ")
-                    + dia + ". Novo valor: " + reais(agendamento.getValorTotal());
-        } else if (evento.recusa()) {
-            mensagem = "Seu pedido de " + dia + " foi recusado";
-        } else {
-            mensagem = "O agendamento de " + dia + " foi cancelado: o chef " + evento.nomeChef() + " desistiu";
+        if (evento.recusa()) {
+            // os avisos do pedido citam o cliente: quem recusou não vê mais nada dele
+            notificacaoService.apagarDasReferencias(
+                    EnumSet.of(EventoNotificacao.AGENDAMENTO_CRIADO, EventoNotificacao.AGENDAMENTO_EDITADO),
+                    List.of(String.valueOf(agendamento.getId())));
         }
+        String dia = dia(agendamento.getDataHoraInicial());
+        String mensagem = evento.recusa()
+                ? "Seu pedido de " + dia + " foi recusado"
+                : "O agendamento de " + dia + " foi cancelado: o chef " + evento.nomeChef() + " desistiu";
         notificacaoService.notificar(agendamento.getUsuario().getId(), TipoUsuario.CLIENTE,
                 evento.recusa() ? EventoNotificacao.AGENDAMENTO_RECUSADO : EventoNotificacao.CHEF_DESISTIU,
                 caber(mensagem + motivo(evento.motivo(), evento.descricao())), String.valueOf(agendamento.getId()));
@@ -120,14 +113,9 @@ public class NotificacaoListener {
         return mensagem.length() <= TAMANHO_MENSAGEM ? mensagem : mensagem.substring(0, TAMANHO_MENSAGEM - 1) + "…";
     }
 
-    private static String reais(BigDecimal valor) {
-        DecimalFormat formato = new DecimalFormat("#,##0.00", DecimalFormatSymbols.getInstance(new Locale("pt", "BR")));
-        return "R$ " + formato.format(valor == null ? BigDecimal.ZERO : valor);
-    }
-
     private void notificarChefs(Agendamento agendamento, EventoNotificacao evento, String mensagem) {
-        agendamento.getChefes().forEach(chefe -> notificacaoService.notificar(
-                chefe.getId(), TipoUsuario.CHEFE, evento, caber(mensagem), String.valueOf(agendamento.getId())));
+        notificacaoService.notificar(agendamento.getChefe().getId(), TipoUsuario.CHEFE, evento, caber(mensagem),
+                String.valueOf(agendamento.getId()));
     }
 
     // agendamentos antigos podem não ter data; a notificação não pode quebrar a ação

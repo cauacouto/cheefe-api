@@ -2,13 +2,12 @@ package com.couto.chefe_api.dto;
 
 import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.enums.Senioridade;
-import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
-import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * Usado no PATCH de chefe: campos nulos são ignorados pelo mapper, então as
@@ -23,7 +22,9 @@ public record ChefeRequestDto(
         @Size(max = 100)
         String nacionalidade,
 
-        Especialidades especialidade,
+        /** De 1 a 3, sem repetir (a repetição é recusada no serviço). */
+        @Size(min = 1, max = 3)
+        List<@NotNull Especialidades> especialidades,
 
         @PositiveOrZero
         Integer anosDeExperiencia,
@@ -33,10 +34,6 @@ public record ChefeRequestDto(
         @Pattern(regexp = ".*\\S.*", message = "não pode ficar em branco")
         @Size(max = 200)
         String idiomas,
-
-        @Positive
-        @Digits(integer = 8, fraction = 2)
-        BigDecimal valorHora,
 
         /** Cidade de origem: o chef só atende nela. */
         @Pattern(regexp = ".*\\S.*", message = "não pode ficar em branco")

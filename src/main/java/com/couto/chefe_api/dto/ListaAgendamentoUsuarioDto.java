@@ -1,6 +1,6 @@
 package com.couto.chefe_api.dto;
 
-import com.couto.chefe_api.enums.Especialidades;
+import com.couto.chefe_api.enums.OcasiaoMenu;
 import com.couto.chefe_api.enums.StatusAgendamento;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Getter;
@@ -21,11 +21,12 @@ public class ListaAgendamentoUsuarioDto {
     private Integer quantidadePessoas;
     private BigDecimal valorTotal;
     private StatusAgendamento status;
-    /** Nome e especialidade do primeiro chef; mantidos por compatibilidade, use {@code chefes}. */
-    private String nomesChefes;
-    private Especialidades especialidades;
     @JsonFormat(pattern = "dd-MM-yyyy HH:mm")
     private LocalDateTime criadoEm;
 
-    private List<ChefeResumoDto> chefes;
+    private ChefeResumoDto chefe;
+    private MenuDoAgendamentoDto menu;
+    private OcasiaoMenu ocasiao;
+    private List<RestricaoDto> restricoes;
+    private String observacoes;
 }

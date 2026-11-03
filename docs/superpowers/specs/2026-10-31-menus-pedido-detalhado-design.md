@@ -94,7 +94,9 @@ As regras atuais continuam: endereço do cliente e da cidade do chef, conflito c
 **Ciclo com um chef só:**
 
 - `PATCH /recusar` → `RECUSADO`; `PATCH /desistir` → `CANCELADO`. Sem recálculo nem "o chef sai do agendamento".
-- O chef do agendamento continua vendo o agendamento e a linha do tempo depois de recusar ou desistir (antes, ao sair, deixava de ver).
+- **Recusou:** para o chef, o pedido deixa de existir: some de `/agendamentos/recebidos`, histórico e ações dão **404**, não conta para `GET /clientes/{id}/reputacao` (outro agendamento com o mesmo cliente continua valendo) e os avisos do pedido, que citam o cliente, são apagados. Decisão do usuário: quem recusou não vê mais nada do cliente. O cliente continua vendo o pedido e quem recusou.
+- **Desistiu:** o chef continua vendo o agendamento e a linha do tempo (ele já tinha aceitado o serviço).
+- **Cancelado ou expirado** (qualquer lado): nos recebidos o chef vê o registro sem endereço (só cidade e UF), restrições e observações; esses dados só aparecem em `PENDENTE`, `CONFIRMADO` e `CONCLUIDO`. Decisão do usuário (LGPD: só o necessário).
 - Confirmar, concluir, cancelar, expirar, rotinas, prazos e notificações: mesmas regras, com `chefe` no lugar de `chefes`.
 
 ### Contrato da API (mudanças que quebram)
@@ -140,7 +142,7 @@ As regras atuais continuam: endereço do cliente e da cidade do chef, conflito c
 
 - **Menu:** cada regra da tabela (400), prato de outro chef, prato repetido, contato no texto, limite de 20, pausar e ativar, menu pausado fora da página pública, menu de outro chef → 404.
 - **Busca:** filtro por ocasião e por faixa de preço; ordenação por `precoAPartirDe`; chef sem menu ativo invisível e com `menu` em `camposPendentes`; especialidades múltiplas no filtro.
-- **Agendamento:** fim e valor calculados; convidados abaixo e acima do limite; menu pausado; restrição com quantidade acima do total; observações mascaradas e original guardado; `PUT` trocando para menu do mesmo chef (recalcula) e de outro chef (409); recusar → `RECUSADO` e desistir → `CANCELADO`; chef que recusou continua vendo o histórico.
+- **Agendamento:** fim e valor calculados; convidados abaixo e acima do limite; menu pausado; restrição com quantidade acima do total; observações mascaradas e original guardado; `PUT` trocando para menu do mesmo chef (recalcula) e de outro chef (409); recusar → `RECUSADO` e desistir → `CANCELADO`; chef que recusou não vê mais nada do cliente; chef que desistiu continua vendo o histórico.
 - **Cópia do menu:** editar preço e duração do menu não altera agendamento existente.
 - **Contrato:** respostas com `chefe`, `menu`, `ocasiao`, `restricoes`, `observacoes`; avaliação sem `chefeId` e com `chefeId` errado.
 - **Migração:** `MigracoesPostgresTest` com a V15; teste em Postgres com dados no formato antigo (agendamento com dois chefs, chef com `especialidade` e `valor_hora`) migrando como descrito.

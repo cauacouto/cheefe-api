@@ -84,7 +84,7 @@ public class PratosService {
     /** Recusa em vez de mascarar: é formulário, o chef corrige na hora. Antes do upload, para não subir foto à toa. */
     private void exigirSemContato(CadastraPratosDtoRequest dto) {
         if (detectorContato.contem(dto.nomePrato()) || detectorContato.contem(dto.descricao())) {
-            throw new ContatoNaoPermitidoException();
+            throw new ContatoNaoPermitidoException("prato");
         }
     }
 }

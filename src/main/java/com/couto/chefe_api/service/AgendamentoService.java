@@ -34,20 +34,25 @@ import com.couto.chefe_api.exception.AgendamentoException;
 import com.couto.chefe_api.exception.AgendamentoInvalidoException;
 import com.couto.chefe_api.exception.AgendamentoNaoConfirmavelException;
 import com.couto.chefe_api.exception.AgendamentoNaoEditavelException;
-import com.couto.chefe_api.exception.ChefeIndisponivelException;
-import com.couto.chefe_api.exception.ChefeNaoEncontradoException;
+import com.couto.chefe_api.exception.AgendamentoSemMenuException;
+import com.couto.chefe_api.exception.ConvidadosForaDoLimiteException;
 import com.couto.chefe_api.exception.EnderecoException;
+import com.couto.chefe_api.exception.MenuIndisponivelException;
+import com.couto.chefe_api.exception.MenuNaoEncontradoException;
+import com.couto.chefe_api.exception.TrocaDeChefException;
 import com.couto.chefe_api.exception.UsuarioException;
 import com.couto.chefe_api.mapper.AgendamentoMapper;
 import com.couto.chefe_api.repository.UsuarioRepository;
 import com.couto.chefe_api.domain.Agendamento;
 import com.couto.chefe_api.domain.ChefeModel;
 import com.couto.chefe_api.domain.EnderecoModel;
+import com.couto.chefe_api.domain.Menu;
+import com.couto.chefe_api.domain.RestricaoAgendamento;
+import com.couto.chefe_api.dto.RestricaoDto;
+import com.couto.chefe_api.repository.MenuRepository;
 import com.couto.chefe_api.enums.StatusAgendamento;
 import com.couto.chefe_api.repository.AgendamentoRepository;
-import com.couto.chefe_api.enums.StatusDenuncia;
 import com.couto.chefe_api.repository.ChefeRepository;
-import com.couto.chefe_api.repository.DenunciaRepository;
 import com.couto.chefe_api.repository.EnderecoRepository;
 import com.couto.chefe_api.service.eventos.AgendamentoConfirmadoEvent;
 import com.couto.chefe_api.service.eventos.AgendamentoCriadoEvent;
@@ -57,9 +62,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -77,32 +80,39 @@ public class AgendamentoService {
     private final EnderecoRepository enderecoRepository;
     private final AgendamentoRepository agendamentoRepository;
     private final ApplicationEventPublisher eventPublisher;
-    private final DenunciaRepository denunciaRepository;
+    private final MenuRepository menuRepository;
+    private final ModeracaoConteudoService moderacaoConteudo;
     private final HistoricoAgendamentoService historico;
     private final AgendamentoHistoricoRepository historicoRepository;
     private final AgendaService agendaService;
     private final Clock clock;
 
     @Transactional
-    public AgendamentoResponseDto criarAgendamento(AgendamentoRequestDto dto, UUID usuarioId) {
+    public AgendamentoResponseDto criarAgendamento(AgendamentoRequestDto dto, UsuarioAutenticado cliente) {
+        UUID usuarioId = cliente.id();
+        // antes de qualquer trava ou gravação: o bloqueio por ódio é commitado em transação própria
+        Observacoes observacoes = verificarObservacoes(dto.getObservacoes(), cliente);
         var user = usuarioRepository.findById(usuarioId).orElseThrow(UsuarioException::new);
 
-        validarPeriodo(dto.getDataHoraInicial(), dto.getDataHoraFinal());
-        List<ChefeModel> chefes = validarChefes(dto.getChefeIds());
+        Menu menu = menuRepository.findById(dto.getMenuId()).orElseThrow(MenuNaoEncontradoException::new);
+        exigirReservavel(menu, dto.getQuantidadePessoas());
+        Set<RestricaoAgendamento> restricoes = restricoesDe(dto.getRestricoes(), dto.getQuantidadePessoas());
         EnderecoModel endereco = buscarEndereco(dto.getEnderecoId(), usuarioId);
 
+        ChefeModel chefe = menu.getChefe();
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(user);
         agendamento.setEndereco(endereco);
-        agendamento.setChefes(chefes);
+        agendamento.setChefe(chefe);
         agendamento.setDataHoraInicial(dto.getDataHoraInicial());
-        agendamento.setDataHoraFinal(dto.getDataHoraFinal());
-        agendamento.setQuantidadePessoas(dto.getQuantidadePessoas());
         agendamento.setCriadoEm(agora());
-        agendamento.setValorTotal(Agendamento.calcularValor(chefes, dto.getDataHoraInicial(), dto.getDataHoraFinal()));
-        exigirMesmaCidade(chefes, endereco);
+        agendamento.aplicarMenu(menu, dto.getQuantidadePessoas());
+        agendamento.setOcasiao(dto.getOcasiao());
+        agendamento.getRestricoes().addAll(restricoes);
+        observacoes.aplicarEm(agendamento);
+        exigirMesmaCidade(chefe, endereco);
         exigirHorarioLivre(agendamento);
-        agendaService.exigirDisponivel(chefes, dto.getDataHoraInicial(), dto.getDataHoraFinal());
+        agendaService.exigirDisponivel(chefe, agendamento.getDataHoraInicial(), agendamento.getDataHoraFinal());
         Agendamento salvo = agendamentoRepository.save(agendamento);
         historico.registrar(salvo, AcaoAgendamento.CRIADO, usuarioId, TipoUsuario.CLIENTE, null, null);
         eventPublisher.publishEvent(new AgendamentoCriadoEvent(salvo.getId()));
@@ -126,11 +136,21 @@ public class AgendamentoService {
     }
 
     /**
-     * Atualização parcial: só os campos não nulos do DTO são aplicados.
-     * Uma lista de chefes vazia é ignorada (não remove os chefes).
+     * Atualização parcial: só os campos não nulos do DTO são aplicados. Trocar o menu (do mesmo chef) ou a
+     * quantidade (valor diferente do atual; mandar o mesmo não conta) recarrega o menu e recalcula a cópia, o fim e o valor, com as validações da criação; trocar
+     * só o horário mantém a duração da cópia. Cidade, horário e agenda são sempre revalidados.
      */
     @Transactional
-    public AgendamentoResponseDto atualizarAgendamento(AtualizarAgendamentoRequestDto dto, Long agendamentoId, UUID usuarioId) {
+    public AgendamentoResponseDto atualizarAgendamento(AtualizarAgendamentoRequestDto dto, Long agendamentoId,
+                                                       UsuarioAutenticado cliente) {
+        UUID usuarioId = cliente.id();
+        // o dono vem antes da moderação: quem não é dono recebe 404 e não é bloqueado. Só um exists, sem carregar a
+        // entidade: carregá-la antes de travarPorId faria a trava devolver uma instância já lida, possivelmente velha
+        if (!agendamentoRepository.existsByIdAndUsuario_Id(agendamentoId, usuarioId)) {
+            throw new AgendamentoException();
+        }
+        // antes de travar o agendamento (ver criarAgendamento)
+        Observacoes observacoes = dto.observacoes() == null ? null : verificarObservacoes(dto.observacoes(), cliente);
         // agendamento de outro cliente é tratado como inexistente
         Agendamento agenda = agendamentoRepository.travarPorId(agendamentoId)
                 .filter(a -> a.getUsuario() != null && a.getUsuario().getId().equals(usuarioId))
@@ -140,40 +160,48 @@ public class AgendamentoService {
             throw new AgendamentoNaoEditavelException(agenda.getStatus());
         }
         agenda.exigirEditavel(agora());
+        if (agenda.getMenu() == null) {
+            throw new AgendamentoSemMenuException();
+        }
 
         if (dto.enderecoId() != null) {
             agenda.setEndereco(buscarEndereco(dto.enderecoId(), usuarioId));
         }
-
-        boolean recalcular = false;
-
-        if (dto.chefeIds() != null && !dto.chefeIds().isEmpty()) {
-            agenda.setChefes(validarChefes(dto.chefeIds()));
-            recalcular = true;
+        if (dto.dataHoraInicial() != null) {
+            agenda.mudarInicio(dto.dataHoraInicial());
+        }
+        // só recopia quando algo mudou: o formulário inteiro volta igual e não pode repreciar nem dar 409 por menu pausado
+        boolean trocouMenu = dto.menuId() != null && !dto.menuId().equals(agenda.getMenu().getId());
+        boolean trocouQuantidade = dto.quantidadePessoas() != null
+                && !dto.quantidadePessoas().equals(agenda.getQuantidadePessoas());
+        if (trocouMenu || trocouQuantidade) {
+            Menu menu = dto.menuId() != null
+                    ? menuRepository.findById(dto.menuId()).orElseThrow(MenuNaoEncontradoException::new)
+                    : agenda.getMenu();
+            if (!menu.getChefe().getId().equals(agenda.getChefe().getId())) {
+                throw new TrocaDeChefException();
+            }
+            int pessoas = dto.quantidadePessoas() != null ? dto.quantidadePessoas() : agenda.getQuantidadePessoas();
+            exigirReservavel(menu, pessoas);
+            agenda.aplicarMenu(menu, pessoas);
+        }
+        if (dto.restricoes() != null) {
+            agenda.getRestricoes().clear();
+            agenda.getRestricoes().addAll(restricoesDe(dto.restricoes(), agenda.getQuantidadePessoas()));
+        } else {
+            // a quantidade pode ter diminuído abaixo de uma restrição já gravada
+            validarRestricoes(agenda.getRestricoes(), agenda.getQuantidadePessoas());
+        }
+        if (dto.ocasiao() != null) {
+            agenda.setOcasiao(dto.ocasiao());
+        }
+        if (observacoes != null) {
+            observacoes.aplicarEm(agenda);
         }
 
-        if (dto.dataHoraInicial() != null || dto.dataHoraFinal() != null) {
-            LocalDateTime inicio = dto.dataHoraInicial() != null ? dto.dataHoraInicial() : agenda.getDataHoraInicial();
-            LocalDateTime fim = dto.dataHoraFinal() != null ? dto.dataHoraFinal() : agenda.getDataHoraFinal();
-            validarPeriodo(inicio, fim);
-            agenda.setDataHoraInicial(inicio);
-            agenda.setDataHoraFinal(fim);
-            recalcular = true;
-        }
-
-        if (dto.quantidadePessoas() != null) {
-            agenda.setQuantidadePessoas(dto.quantidadePessoas());
-        }
-
-        if (dto.enderecoId() != null || (dto.chefeIds() != null && !dto.chefeIds().isEmpty())) {
-            exigirMesmaCidade(agenda.getChefes(), agenda.getEndereco());
-        }
-
-        if (recalcular) {
-            agenda.setValorTotal(Agendamento.calcularValor(agenda.getChefes(), agenda.getDataHoraInicial(), agenda.getDataHoraFinal()));
-            exigirHorarioLivre(agenda);
-            agendaService.exigirDisponivel(agenda.getChefes(), agenda.getDataHoraInicial(), agenda.getDataHoraFinal());
-        }
+        exigirMesmaCidade(agenda.getChefe(), agenda.getEndereco());
+        exigirHorarioLivre(agenda);
+        agendaService.exigirDisponivel(agenda.getChefe(), agenda.getDataHoraInicial(), agenda.getDataHoraFinal());
 
         Agendamento salvo = agendamentoRepository.save(agenda);
         historico.registrar(salvo, AcaoAgendamento.EDITADO, usuarioId, TipoUsuario.CLIENTE, null, null);
@@ -183,24 +211,20 @@ public class AgendamentoService {
 
     @Transactional
     public void confirmarAgendamento(Long idAgendamento, UUID chefeId) {
-        // só um chef do agendamento o enxerga; para os demais ele não existe
-        Agendamento agendamento = agendamentoRepository.travarPorId(idAgendamento)
-                .filter(a -> a.getChefes().stream().anyMatch(chefe -> chefe.getId().equals(chefeId)))
-                .orElseThrow(AgendamentoException::new);
-        agendamento.getChefes().stream()
-                .filter(chefe -> chefe.getId().equals(chefeId))
-                .forEach(ChefeModel::exigirAtivo);
+        // só o chef do agendamento o enxerga; para os demais ele não existe
+        Agendamento agendamento = doChef(idAgendamento, chefeId);
         if (agendamento.getStatus() != StatusAgendamento.PENDENTE) {
             throw new AgendamentoNaoConfirmavelException(agendamento.getStatus());
         }
-        // confirmar vale para todos os chefs do agendamento: trava todos e confere a agenda de cada um
-        chefeRepository.travar(agendamento.getChefes().stream().map(ChefeModel::getId).toList());
+        // trava o chef (agendamento primeiro, depois chef) e só então lê a conta dele: ainda não carregada, vem do banco já sob a trava
+        chefeRepository.travar(List.of(chefeId));
+        agendamento.getChefe().exigirAtivo();
         agendamento.confirmar(agora());
         // o chef pode ter mudado de cidade depois do pedido
-        exigirMesmaCidade(agendamento.getChefes(), agendamento.getEndereco());
+        exigirMesmaCidade(agendamento.getChefe(), agendamento.getEndereco());
         exigirHorarioLivre(agendamento);
-        // a agenda de todos (como o horário livre); depois da trava, para não confirmar dentro de um bloqueio recém-criado
-        agendaService.exigirDisponivel(agendamento.getChefes(),
+        // a agenda do chef (como o horário livre); depois da trava, para não confirmar dentro de um bloqueio recém-criado
+        agendaService.exigirDisponivel(agendamento.getChefe(),
                 agendamento.getDataHoraInicial(), agendamento.getDataHoraFinal());
         agendamentoRepository.save(agendamento);
         historico.registrar(agendamento, AcaoAgendamento.CONFIRMADO, chefeId, TipoUsuario.CHEFE, null, null);
@@ -223,24 +247,24 @@ public class AgendamentoService {
     @Transactional
     public void recusarAgendamento(Long id, UUID chefeId, RecusaRequestDto dto) {
         Agendamento agendamento = doChef(id, chefeId);
-        ChefeModel chefe = chefeDoAgendamento(agendamento, chefeId);
-        boolean restam = agendamento.recusar(chefe, agora());
-        sairDoAgendamento(agendamento, chefe, AcaoAgendamento.RECUSADO, true, restam, dto);
+        ChefeModel chefe = chefeAtivo(agendamento);
+        agendamento.recusar(agora());
+        registrarSaida(agendamento, chefe, AcaoAgendamento.RECUSADO, true, dto);
     }
 
     @Transactional
     public void desistirDoAgendamento(Long id, UUID chefeId, RecusaRequestDto dto) {
         Agendamento agendamento = doChef(id, chefeId);
-        ChefeModel chefe = chefeDoAgendamento(agendamento, chefeId);
-        boolean restam = agendamento.desistir(chefe, agora());
-        sairDoAgendamento(agendamento, chefe, AcaoAgendamento.DESISTENCIA, false, restam, dto);
+        ChefeModel chefe = chefeAtivo(agendamento);
+        agendamento.desistir(agora());
+        registrarSaida(agendamento, chefe, AcaoAgendamento.DESISTENCIA, false, dto);
     }
 
     @Transactional
     public void concluirAgendamento(Long id, UUID chefeId) {
         // com trava: a rotina pode estar concluindo o mesmo agendamento agora
         Agendamento agendamento = doChef(id, chefeId);
-        chefeDoAgendamento(agendamento, chefeId);
+        chefeAtivo(agendamento);
         agendamento.concluirPeloChef(agora());
         historico.registrar(agendamento, AcaoAgendamento.CONCLUIDO, chefeId, TipoUsuario.CHEFE, null, null);
     }
@@ -263,14 +287,14 @@ public class AgendamentoService {
                 });
     }
 
-    /** Linha do tempo: só o cliente dono ou um chef que ainda está no agendamento. */
+    /** Linha do tempo: só o cliente dono ou o chef do agendamento (mesmo depois de recusar ou desistir). */
     @Transactional(readOnly = true)
     public List<HistoricoAgendamentoDto> historico(Long id, UsuarioAutenticado usuario) {
         Agendamento agendamento = switch (usuario.tipo()) {
             case CLIENTE -> agendamentoRepository.findByIdAndUsuario_Id(id, usuario.id()).orElseThrow(AgendamentoException::new);
             // leitura: sem trava (FOR UPDATE nem é permitido numa transação somente leitura no Postgres)
             case CHEFE -> agendamentoRepository.findById(id)
-                    .filter(a -> a.getChefes().stream().anyMatch(chefe -> chefe.getId().equals(usuario.id())))
+                    .filter(a -> a.visivelPara(usuario.id()))
                     .orElseThrow(AgendamentoException::new);
             case MODERADOR -> throw new AgendamentoException();
         };
@@ -307,31 +331,27 @@ public class AgendamentoService {
         return new HistoricoAgendamentoDto.Motivo(motivo.name(), motivo.rotulo());
     }
 
-    private void sairDoAgendamento(Agendamento agendamento, ChefeModel chefe, AcaoAgendamento acao, boolean recusa,
-                                   boolean restam, RecusaRequestDto dto) {
+    private void registrarSaida(Agendamento agendamento, ChefeModel chefe, AcaoAgendamento acao, boolean recusa,
+                                RecusaRequestDto dto) {
         MotivoAgendamento motivo = dto == null ? null : dto.motivo();
         String descricao = dto == null ? null : dto.descricao();
         historico.registrar(agendamento, acao, chefe.getId(), TipoUsuario.CHEFE, motivo, descricao);
-        eventPublisher.publishEvent(new ChefSaiuDoAgendamentoEvent(agendamento.getId(), chefe.getNome(), recusa, restam,
-                motivo, descricao));
+        eventPublisher.publishEvent(new ChefSaiuDoAgendamentoEvent(agendamento.getId(), chefe.getNome(), recusa, motivo, descricao));
     }
 
     /**
-     * Agendamento em que o chef está, com trava (duas ações ao mesmo tempo esperam uma pela outra em vez de
-     * sobrescrever); para qualquer outro (inclusive quem já saiu dele) ele "não existe".
+     * Agendamento do chef, com trava (duas ações ao mesmo tempo esperam uma pela outra em vez de
+     * sobrescrever); para qualquer outro chef ele "não existe". O chef continua dono depois de recusar ou desistir.
      */
     private Agendamento doChef(Long id, UUID chefeId) {
         return agendamentoRepository.travarPorId(id)
-                .filter(a -> a.getChefes().stream().anyMatch(chefe -> chefe.getId().equals(chefeId)))
+                .filter(a -> a.visivelPara(chefeId))
                 .orElseThrow(AgendamentoException::new);
     }
 
-    /** O chef dentro do agendamento, exigindo conta ativa (apagado ou banido não age). */
-    private static ChefeModel chefeDoAgendamento(Agendamento agendamento, UUID chefeId) {
-        ChefeModel chefe = agendamento.getChefes().stream()
-                .filter(c -> c.getId().equals(chefeId))
-                .findFirst()
-                .orElseThrow(AgendamentoException::new);
+    /** O chef do agendamento, exigindo conta ativa (apagado ou banido não age). */
+    private static ChefeModel chefeAtivo(Agendamento agendamento) {
+        ChefeModel chefe = agendamento.getChefe();
         chefe.exigirAtivo();
         return chefe;
     }
@@ -343,23 +363,18 @@ public class AgendamentoService {
     /** Só agendamento CONFIRMADO ocupa a agenda do chef; pedidos pendentes podem se sobrepor. */
     private void exigirHorarioLivre(Agendamento agendamento) {
         Long proprio = agendamento.getId() == null ? -1L : agendamento.getId();
-        agendamento.getChefes().stream()
-                .filter(chefe -> agendamentoRepository.existeConfirmadoSobreposto(chefe.getId(),
-                        agendamento.getDataHoraInicial(), agendamento.getDataHoraFinal(), proprio))
-                .findFirst()
-                .ifPresent(chefe -> {
-                    throw new HorarioIndisponivelException(chefe.getNome());
-                });
+        ChefeModel chefe = agendamento.getChefe();
+        if (agendamentoRepository.existeConfirmadoSobreposto(chefe.getId(),
+                agendamento.getDataHoraInicial(), agendamento.getDataHoraFinal(), proprio)) {
+            throw new HorarioIndisponivelException(chefe.getNome());
+        }
     }
 
-    /** O chef só atende na cidade de origem dele: cada chef do agendamento, contra a cidade e a UF do endereço. */
-    private static void exigirMesmaCidade(List<ChefeModel> chefes, EnderecoModel endereco) {
-        chefes.stream()
-                .filter(chefe -> !chefe.atendeEm(endereco.getCidade(), endereco.getEstado()))
-                .findFirst()
-                .ifPresent(chefe -> {
-                    throw new ForaDaCidadeException(chefe.getNome(), endereco.getCidade());
-                });
+    /** O chef só atende na cidade de origem dele: contra a cidade e a UF do endereço. */
+    private static void exigirMesmaCidade(ChefeModel chefe, EnderecoModel endereco) {
+        if (!chefe.atendeEm(endereco.getCidade(), endereco.getEstado())) {
+            throw new ForaDaCidadeException(chefe.getNome(), endereco.getCidade());
+        }
     }
 
     private EnderecoModel buscarEndereco(Long enderecoId, UUID usuarioId) {
@@ -369,45 +384,51 @@ public class AgendamentoService {
         return enderecoRepository.findByIdAndUsuario_Id(enderecoId, usuarioId).orElseThrow(EnderecoException::new);
     }
 
-    private static void validarPeriodo(LocalDateTime inicio, LocalDateTime fim) {
-        if (inicio == null || fim == null) {
-            throw new AgendamentoInvalidoException("Informe a data/hora inicial e final");
+    /** Menu ativo de chef visível, e a quantidade de pessoas dentro do que o menu atende (409 nos dois casos). */
+    private void exigirReservavel(Menu menu, int pessoas) {
+        if (!menu.isAtivo() || !chefeRepository.visivel(menu.getChefe().getId())) {
+            throw new MenuIndisponivelException();
         }
-        if (!fim.isAfter(inicio)) {
-            throw new AgendamentoInvalidoException("data/hora final deve ser maior que a inicial");
+        if (pessoas < menu.getMinimoConvidados() || pessoas > menu.getMaximoConvidados()) {
+            throw new ConvidadosForaDoLimiteException(menu.getMinimoConvidados(), menu.getMaximoConvidados());
         }
     }
 
-    /**
-     * Garante que todos os ids existem (ids repetidos contam uma vez) e que os
-     * chefes estão ativos e disponíveis.
-     */
-    private List<ChefeModel> validarChefes(List<UUID> chefeIds) {
-        if (chefeIds == null || chefeIds.isEmpty()) {
-            throw new AgendamentoInvalidoException("Informe ao menos um chefe");
+    /** Converte e valida as restrições do pedido (400); sem a lista, não há restrições. */
+    private static Set<RestricaoAgendamento> restricoesDe(List<RestricaoDto> dtos, int pessoas) {
+        Set<RestricaoAgendamento> restricoes = new LinkedHashSet<>();
+        if (dtos != null) {
+            if (dtos.stream().map(RestricaoDto::tipo).distinct().count() != dtos.size()) {
+                throw new AgendamentoInvalidoException("Restrições repetidas no pedido");
+            }
+            dtos.forEach(r -> restricoes.add(new RestricaoAgendamento(r.tipo(), r.quantidade())));
         }
+        validarRestricoes(restricoes, pessoas);
+        return restricoes;
+    }
 
-        Set<UUID> idsUnicos = new LinkedHashSet<>(chefeIds);
-        List<ChefeModel> chefes = chefeRepository.findAllById(idsUnicos);
+    /** Cada restrição afeta de 1 até o total de pessoas; a soma pode passar do total (uma pessoa pode ter duas). */
+    private static void validarRestricoes(Set<RestricaoAgendamento> restricoes, int pessoas) {
+        if (restricoes.stream().anyMatch(r -> r.quantidade() < 1 || r.quantidade() > pessoas)) {
+            throw new AgendamentoInvalidoException("A quantidade de cada restrição deve ser de 1 até " + pessoas);
+        }
+    }
 
-        if (chefes.size() != idsUnicos.size()) {
-            Set<UUID> encontrados = new LinkedHashSet<>();
-            chefes.forEach(chefe -> encontrados.add(chefe.getId()));
-            idsUnicos.removeAll(encontrados);
-            throw new ChefeNaoEncontradoException("chefe(s) não encontrado(s): " + idsUnicos);
+    /** Observações já moderadas; em branco viram nulo. */
+    private Observacoes verificarObservacoes(String texto, UsuarioAutenticado autor) {
+        if (texto == null || texto.isBlank()) {
+            return new Observacoes(null, null);
         }
+        String enviado = texto.strip();
+        String exibido = moderacaoConteudo.verificar(enviado, autor).texto();
+        return new Observacoes(exibido, exibido.equals(enviado) ? null : enviado);
+    }
 
-        boolean todosValidos = chefes.stream()
-                .allMatch(chefe -> chefe.isDisponivel() && Boolean.TRUE.equals(chefe.getAtivo()) && !chefe.isSuspenso()
-                        && chefe.getBloqueadoEm() == null
-                        && denunciaRepository.countDistinctClienteByChefeIdAndStatus(chefe.getId(), StatusDenuncia.ABERTA)
-                        < DenunciaService.LIMITE_OCULTACAO);
-        if (!todosValidos) {
-            throw new ChefeIndisponivelException();
+    /** O texto exibido e, só quando foi mascarado, o que o cliente escreveu. */
+    private record Observacoes(String exibido, String original) {
+        void aplicarEm(Agendamento agendamento) {
+            agendamento.setObservacoes(exibido);
+            agendamento.setObservacoesOriginal(original);
         }
-        if (!chefes.stream().allMatch(ChefeModel::isPerfilCompleto)) {
-            throw new AgendamentoInvalidoException("chef com perfil incompleto");
-        }
-        return new ArrayList<>(chefes);
     }
 }

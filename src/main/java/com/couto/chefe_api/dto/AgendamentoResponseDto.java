@@ -1,5 +1,6 @@
 package com.couto.chefe_api.dto;
 
+import com.couto.chefe_api.enums.OcasiaoMenu;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -34,7 +35,11 @@ public class AgendamentoResponseDto {
     private String complemento;
     private String estado;
     private String cep;
-    private List<String> chefes;
+    private ChefeResumoDto chefe;
+    private MenuDoAgendamentoDto menu;
+    private OcasiaoMenu ocasiao;
+    private List<RestricaoDto> restricoes;
+    private String observacoes;
     private String status;
     @JsonFormat(pattern = "dd-MM-yyyy HH:mm")
     private LocalDateTime criadoEm;

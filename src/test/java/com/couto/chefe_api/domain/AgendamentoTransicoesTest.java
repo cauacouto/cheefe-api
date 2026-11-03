@@ -20,8 +20,7 @@ class AgendamentoTransicoesTest {
     static final LocalDateTime INICIO = LocalDateTime.of(2026, 11, 20, 19, 0);
     static final LocalDateTime FIM = INICIO.plusHours(2);
 
-    final ChefeModel bia = chefe("Bia", "100");
-    final ChefeModel caio = chefe("Caio", "50");
+    final ChefeModel bia = chefe("Bia");
 
     @Test
     void cancelarConfirmadoComExatamente24hPode() {
@@ -52,7 +51,7 @@ class AgendamentoTransicoesTest {
     void depoisDoInicioPendenteNaoEhConfirmadoRecusadoNemEditado() {
         assertThatThrownBy(() -> agendamento(StatusAgendamento.PENDENTE, bia).confirmar(INICIO))
                 .isInstanceOf(AgendamentoTransicaoInvalidaException.class);
-        assertThatThrownBy(() -> agendamento(StatusAgendamento.PENDENTE, bia).recusar(bia, INICIO.plusMinutes(1)))
+        assertThatThrownBy(() -> agendamento(StatusAgendamento.PENDENTE, bia).recusar(INICIO.plusMinutes(1)))
                 .isInstanceOf(AgendamentoTransicaoInvalidaException.class);
         assertThatThrownBy(() -> agendamento(StatusAgendamento.PENDENTE, bia).exigirEditavel(INICIO))
                 .isInstanceOf(AgendamentoTransicaoInvalidaException.class);
@@ -74,45 +73,33 @@ class AgendamentoTransicoesTest {
     }
 
     @Test
-    void recusaParcialTiraOChefERecalculaEMantemPendente() {
-        Agendamento a = agendamento(StatusAgendamento.PENDENTE, bia, caio);
+    void recusarViraRecusadoEOChefContinuaNoAgendamento() {
+        Agendamento a = agendamento(StatusAgendamento.PENDENTE, bia);
 
-        boolean restam = a.recusar(caio, INICIO.minusDays(1));
+        a.recusar(INICIO.minusDays(1));
 
-        assertThat(restam).isTrue();
-        assertThat(a.getStatus()).isEqualTo(StatusAgendamento.PENDENTE);
-        assertThat(a.getChefes()).containsExactly(bia);
+        assertThat(a.getStatus()).isEqualTo(StatusAgendamento.RECUSADO);
+        assertThat(a.getChefe()).isSameAs(bia);
         assertThat(a.getValorTotal()).isEqualByComparingTo("200.00");
     }
 
     @Test
-    void recusaDoUltimoChefViraRecusado() {
-        Agendamento a = agendamento(StatusAgendamento.PENDENTE, bia);
+    void desistirViraCanceladoEOChefContinuaNoAgendamento() {
+        Agendamento a = agendamento(StatusAgendamento.CONFIRMADO, bia);
 
-        assertThat(a.recusar(bia, INICIO.minusDays(1))).isFalse();
-        assertThat(a.getStatus()).isEqualTo(StatusAgendamento.RECUSADO);
-        assertThat(a.getChefes()).isEmpty();
-    }
+        a.desistir(INICIO.minusHours(1));
 
-    @Test
-    void desistenciaParcialMantemConfirmadoEDoUltimoCancela() {
-        Agendamento a = agendamento(StatusAgendamento.CONFIRMADO, bia, caio);
-
-        assertThat(a.desistir(bia, INICIO.minusHours(1))).isTrue();
-        assertThat(a.getStatus()).isEqualTo(StatusAgendamento.CONFIRMADO);
-        assertThat(a.getValorTotal()).isEqualByComparingTo("100.00");
-
-        assertThat(a.desistir(caio, INICIO.minusHours(1))).isFalse();
         assertThat(a.getStatus()).isEqualTo(StatusAgendamento.CANCELADO);
+        assertThat(a.getChefe()).isSameAs(bia);
     }
 
     @Test
     void desistirSoDeConfirmadoERecusarSoDePendente() {
-        assertThatThrownBy(() -> agendamento(StatusAgendamento.PENDENTE, bia).desistir(bia, INICIO.minusDays(1)))
+        assertThatThrownBy(() -> agendamento(StatusAgendamento.PENDENTE, bia).desistir(INICIO.minusDays(1)))
                 .isInstanceOf(AgendamentoTransicaoInvalidaException.class);
-        assertThatThrownBy(() -> agendamento(StatusAgendamento.CONFIRMADO, bia).recusar(bia, INICIO.minusDays(1)))
+        assertThatThrownBy(() -> agendamento(StatusAgendamento.CONFIRMADO, bia).recusar(INICIO.minusDays(1)))
                 .isInstanceOf(AgendamentoTransicaoInvalidaException.class);
-        assertThatThrownBy(() -> agendamento(StatusAgendamento.CONFIRMADO, bia).desistir(bia, INICIO))
+        assertThatThrownBy(() -> agendamento(StatusAgendamento.CONFIRMADO, bia).desistir(INICIO))
                 .isInstanceOf(AgendamentoTransicaoInvalidaException.class);
     }
 
@@ -121,7 +108,7 @@ class AgendamentoTransicoesTest {
         LocalDateTime antes = INICIO.minusDays(2);
         List<Consumer<Agendamento>> acoes = List.of(
                 a -> a.confirmar(antes), a -> a.exigirEditavel(antes), a -> a.cancelarPeloCliente(antes),
-                a -> a.recusar(bia, antes), a -> a.desistir(bia, antes), a -> a.concluirPeloChef(INICIO.plusHours(1)));
+                a -> a.recusar(antes), a -> a.desistir(antes), a -> a.concluirPeloChef(INICIO.plusHours(1)));
         for (StatusAgendamento finalStatus : List.of(StatusAgendamento.CANCELADO, StatusAgendamento.RECUSADO,
                 StatusAgendamento.CONCLUIDO, StatusAgendamento.EXPIRADO)) {
             for (Consumer<Agendamento> acao : acoes) {
@@ -160,7 +147,8 @@ class AgendamentoTransicoesTest {
         assertThat(cancelavel.getStatus()).isEqualTo(StatusAgendamento.CANCELADO);
 
         Agendamento recusavel = semDatas(StatusAgendamento.PENDENTE);
-        assertThat(recusavel.recusar(bia, INICIO)).isFalse();
+        recusavel.recusar(INICIO);
+        assertThat(recusavel.getStatus()).isEqualTo(StatusAgendamento.RECUSADO);
 
         Agendamento confirmado = semDatas(StatusAgendamento.CONFIRMADO);
         assertThatThrownBy(() -> confirmado.concluirPeloChef(INICIO)).isInstanceOf(AgendamentoTransicaoInvalidaException.class);
@@ -170,36 +158,35 @@ class AgendamentoTransicoesTest {
 
     @Test
     void valorJaSaiComDuasCasasArredondadoParaCima() {
-        // 100,25 x 2,5h = 250,625: o mesmo valor na notificação e no banco (numeric(10,2))
-        BigDecimal valor = Agendamento.calcularValor(List.of(chefe("Bia", "100.25")), INICIO, INICIO.plusMinutes(150));
+        // 33,335 x 3 pessoas = 100,005: o mesmo valor na notificação e no banco (numeric(10,2))
+        BigDecimal valor = Agendamento.calcularValor(new BigDecimal("33.335"), 3);
 
-        assertThat(valor).isEqualTo(new BigDecimal("250.63"));
+        assertThat(valor).isEqualTo(new BigDecimal("100.01"));
     }
 
     // ---------------------------------------------------------------------
 
-    Agendamento agendamento(StatusAgendamento status, ChefeModel... chefes) {
+    Agendamento agendamento(StatusAgendamento status, ChefeModel chefe) {
         Agendamento a = new Agendamento();
         a.setStatus(status);
-        a.setChefes(new ArrayList<>(List.of(chefes)));
+        a.setChefe(chefe);
         a.setDataHoraInicial(INICIO);
         a.setDataHoraFinal(FIM);
-        a.setValorTotal(Agendamento.calcularValor(a.getChefes(), INICIO, FIM));
+        a.setValorTotal(new BigDecimal("200.00"));
         return a;
     }
 
     Agendamento semDatas(StatusAgendamento status) {
         Agendamento a = new Agendamento();
         a.setStatus(status);
-        a.setChefes(new ArrayList<>(List.of(bia)));
+        a.setChefe(bia);
         return a;
     }
 
-    static ChefeModel chefe(String nome, String valorHora) {
+    static ChefeModel chefe(String nome) {
         ChefeModel chefe = new ChefeModel();
         chefe.setId(UUID.randomUUID());
         chefe.setNome(nome);
-        chefe.setValorHora(new BigDecimal(valorHora));
         chefe.setCidade("São Paulo");
         chefe.setEstado("SP");
         return chefe;

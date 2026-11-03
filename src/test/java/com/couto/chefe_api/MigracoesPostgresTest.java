@@ -12,6 +12,7 @@ import com.couto.chefe_api.repository.ChefeRepository;
 import com.couto.chefe_api.repository.EnderecoRepository;
 import com.couto.chefe_api.repository.PratosRepository;
 import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -30,6 +31,7 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -114,10 +116,9 @@ class MigracoesPostgresTest {
         chefe.setEmail("bia-" + UUID.randomUUID() + "@x.com");
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
-        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setEspecialidades(Set.of(Especialidades.BRASILEIRA));
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
-        chefe.setValorHora(new BigDecimal("100"));
         chefe.setCidade("São Paulo");
         chefe.setEstado("SP");
         chefe = chefeRepository.save(chefe);
@@ -181,12 +182,30 @@ class MigracoesPostgresTest {
         }
     }
 
+    static final String CHEFE_DE_TESTE = "00000000-0000-0000-0000-0000000009ff";
+
+    /** Todo agendamento tem chef (V15): um chef só para estes testes de tabela, apagado ao fim de cada um. */
+    static void agendamentoDeTeste(Statement st, long id, String status) throws SQLException {
+        st.execute("INSERT INTO chefhome.chefe (id, email, nome) VALUES ('" + CHEFE_DE_TESTE + "', 'teste-v15@x.com', 'Teste') "
+                + "ON CONFLICT DO NOTHING");
+        st.execute("INSERT INTO chefhome.agendamentos (id, status, chefe_id) VALUES (" + id + ", '" + status + "', '"
+                + CHEFE_DE_TESTE + "')");
+    }
+
+    @AfterEach
+    void apagarChefeDeTeste() throws SQLException {
+        try (Connection app = conectar("chefhome_app", SENHA_APP);
+             Statement st = app.createStatement()) {
+            st.execute("DELETE FROM chefhome.chefe WHERE id = '" + CHEFE_DE_TESTE + "'");
+        }
+    }
+
     @Test
     void historicoDeAgendamentoEhSoDeInsercaoParaAApi() throws Exception {
         rodarSetup(); // re-rodar o setup não pode devolver UPDATE/DELETE à API
         try (Connection app = conectar("chefhome_app", SENHA_APP);
              Statement st = app.createStatement()) {
-            st.execute("INSERT INTO chefhome.agendamentos (id, status) VALUES (900001, 'PENDENTE')");
+            agendamentoDeTeste(st, 900001, "PENDENTE");
             st.execute("INSERT INTO chefhome.agendamento_historico (agendamento_id, acao, ocorrido_em) "
                     + "VALUES (900001, 'CRIADO', now())");
             assertSemPermissao(app, "UPDATE chefhome.agendamento_historico SET motivo = 'OUTRO'");
@@ -200,7 +219,7 @@ class MigracoesPostgresTest {
     void apagarAgendamentoLevaOHistorico() throws Exception {
         try (Connection app = conectar("chefhome_app", SENHA_APP);
              Statement st = app.createStatement()) {
-            st.execute("INSERT INTO chefhome.agendamentos (id, status) VALUES (900002, 'CONFIRMADO')");
+            agendamentoDeTeste(st, 900002, "CONFIRMADO");
             st.execute("INSERT INTO chefhome.agendamento_historico (agendamento_id, acao, ocorrido_em) "
                     + "VALUES (900002, 'CRIADO', now()), (900002, 'CONFIRMADO', now())");
 
@@ -216,7 +235,7 @@ class MigracoesPostgresTest {
     void apagarAgendamentoLevaAvaliacoesTagsEDenuncias() throws Exception {
         try (Connection app = conectar("chefhome_app", SENHA_APP);
              Statement st = app.createStatement()) {
-            st.execute("INSERT INTO chefhome.agendamentos (id, status) VALUES (900003, 'CONCLUIDO')");
+            agendamentoDeTeste(st, 900003, "CONCLUIDO");
             try {
                 st.execute("INSERT INTO chefhome.avaliacao (id, agendamento_id, autor_id, autor_tipo, avaliado_id, avaliado_tipo, "
                         + "nota, comentario, anonimo, publicado_em, comentario_removido, criada_em) VALUES "
@@ -241,7 +260,7 @@ class MigracoesPostgresTest {
     void notaDaAvaliacaoVaiDeUmACinco() throws Exception {
         try (Connection app = conectar("chefhome_app", SENHA_APP);
              Statement st = app.createStatement()) {
-            st.execute("INSERT INTO chefhome.agendamentos (id, status) VALUES (900004, 'CONCLUIDO')");
+            agendamentoDeTeste(st, 900004, "CONCLUIDO");
             try {
                 for (int nota : new int[]{0, 6}) {
                     assertThatThrownBy(() -> st.execute("INSERT INTO chefhome.avaliacao (agendamento_id, autor_id, autor_tipo, "
@@ -327,7 +346,11 @@ class MigracoesPostgresTest {
 
     @Test
     void checksDeEnumBatemComOsEnumsJava() throws SQLException {
-        assertCheckDeTexto("chefe", "especialidade", com.couto.chefe_api.enums.Especialidades.values());
+        assertCheckDeTexto("chefe_especialidade", "especialidade", com.couto.chefe_api.enums.Especialidades.values());
+        assertCheckDeTexto("menu_item", "etapa", com.couto.chefe_api.enums.EtapaMenu.values());
+        assertCheckDeTexto("menu_ocasiao", "ocasiao", com.couto.chefe_api.enums.OcasiaoMenu.values());
+        assertCheckDeTexto("agendamentos", "ocasiao", com.couto.chefe_api.enums.OcasiaoMenu.values());
+        assertCheckDeTexto("agendamento_restricao", "tipo", com.couto.chefe_api.enums.TipoRestricao.values());
         assertCheckDeTexto("chefe", "senioridade", Senioridade.values());
         assertCheckDeTexto("notificacao", "destinatario_tipo", com.couto.chefe_api.enums.TipoUsuario.values());
         assertCheckDeTexto("notificacao", "evento", com.couto.chefe_api.enums.EventoNotificacao.values());
@@ -427,7 +450,8 @@ class MigracoesPostgresTest {
                     + "(1, '00000000-0000-0000-0000-000000000001', 1, 0), (2, '00000000-0000-0000-0000-000000000001', 1, 1), "
                     + "(3, '00000000-0000-0000-0000-000000000001', 2, 2), (4, '00000000-0000-0000-0000-000000000001', 2, 3)");
             st.execute("INSERT INTO agedamento_chefe (agendamento_id, chefe_id) VALUES "
-                    + "(1, '00000000-0000-0000-0000-000000000002'), (2, '00000000-0000-0000-0000-000000000002')");
+                    + "(1, '00000000-0000-0000-0000-000000000002'), (2, '00000000-0000-0000-0000-000000000002'), "
+                    + "(3, '00000000-0000-0000-0000-000000000002'), (4, '00000000-0000-0000-0000-000000000002')");
         }
 
         Flyway.configure().dataSource(url, "chefhome_migracao", SENHA_MIGRACAO).schemas("chefhome")
@@ -438,14 +462,86 @@ class MigracoesPostgresTest {
             assertThat(coluna(st, "SELECT status FROM agendamentos ORDER BY id"))
                     .containsExactly("PENDENTE", "CONFIRMADO", "CANCELADO", "CONCLUIDO");
             assertThat(coluna(st, "SELECT tipo_de_residencia FROM endereco ORDER BY id")).containsExactly("CASA", "APARTAMENTO");
-            assertThat(coluna(st, "SELECT agendamento_id::text FROM agendamento_chefe ORDER BY agendamento_id"))
-                    .containsExactly("1", "2");
+            // a junção renomeada pela V5 some na V15: o chef de cada linha vai para agendamentos.chefe_id
+            assertThat(coluna(st, "SELECT chefe_id::text FROM agendamentos ORDER BY id"))
+                    .containsOnly("00000000-0000-0000-0000-000000000002").hasSize(4);
             assertThat(coluna(st, "SELECT count(*)::text FROM information_schema.columns WHERE table_schema = 'chefhome' "
                     + "AND ((table_name = 'chefe' AND column_name = 'password') OR table_name = 'agedamento_chefe')"))
                     .containsExactly("0");
-            // a API continua só com DML na tabela renomeada
-            st.execute("INSERT INTO agendamento_chefe (agendamento_id, chefe_id) VALUES (3, '00000000-0000-0000-0000-000000000002')");
-            assertSemPermissao(app, "DROP TABLE chefhome.agendamento_chefe");
+            assertThat(coluna(st, "SELECT count(*)::text FROM information_schema.tables WHERE table_schema = 'chefhome' "
+                    + "AND table_name IN ('agendamento_chefe', 'agedamento_chefe')")).containsExactly("0");
+        }
+    }
+
+    /**
+     * V15 sobre agendamentos que já têm chefs: com vários vale o de menor id; sem nenhum (todos recusaram ou
+     * desistiram) vale quem saiu por último; sem rastro nenhum o agendamento e as denúncias dele são apagados.
+     * Agendamentos antigos ficam sem menu e mantêm o valor total; a especialidade do chef vira linha da lista e
+     * valor_hora, chefe.especialidade e a tabela de junção saem.
+     */
+    @Test
+    void v14ParaV15ConverteOsDadosAntigos() throws Exception {
+        executarComoSuperusuario(POSTGRES, "CREATE DATABASE conversao_v15");
+        Container.ExecResult setup = POSTGRES.execInContainer("psql",
+                "-U", POSTGRES.getUsername(), "-d", "conversao_v15", "-v", "ON_ERROR_STOP=1",
+                "-v", "senha_migracao=" + SENHA_MIGRACAO, "-v", "senha_app=" + SENHA_APP,
+                "-v", "nome_banco=conversao_v15", "-f", SCRIPT_NO_CONTAINER);
+        assertThat(setup.getExitCode()).as(setup.getStderr()).isZero();
+        String url = POSTGRES.getJdbcUrl().replace("/" + POSTGRES.getDatabaseName(), "/conversao_v15")
+                + (POSTGRES.getJdbcUrl().contains("?") ? "&" : "?") + "currentSchema=chefhome";
+        Flyway.configure().dataSource(url, "chefhome_migracao", SENHA_MIGRACAO).schemas("chefhome")
+                .locations("classpath:db/migration").target("14").load().migrate();
+
+        String ana = "00000000-0000-0000-0000-000000000001";
+        String bia = "00000000-0000-0000-0000-000000000002";
+        String caio = "00000000-0000-0000-0000-000000000003";
+        try (Connection app = DriverManager.getConnection(url, "chefhome_app", SENHA_APP);
+             Statement st = app.createStatement()) {
+            st.execute("INSERT INTO usuarios (id, email, nome) VALUES ('" + ana + "', 'a@x.com', 'Ana')");
+            st.execute("INSERT INTO chefe (id, email, nome) VALUES ('" + bia + "', 'b@x.com', 'Bia'), ('" + caio + "', 'c@x.com', 'Caio')");
+            st.execute("UPDATE chefe SET especialidade = 'ITALIANA', valor_hora = 150.00 WHERE id = '" + bia + "'");
+            st.execute("INSERT INTO endereco (id, user_id, rua, tipo_de_residencia) VALUES (1, '" + ana + "', 'Rua A', 'CASA')");
+            st.execute("INSERT INTO agendamentos (id, user_id, endereco_id, status, valor_total) VALUES "
+                    + "(1, '" + ana + "', 1, 'PENDENTE', 450.00), (2, '" + ana + "', 1, 'RECUSADO', 300.00), "
+                    + "(3, '" + ana + "', 1, 'RECUSADO', 100.00), (4, '" + ana + "', 1, 'CANCELADO', 100.00), "
+                    + "(5, '" + ana + "', 1, 'RECUSADO', 100.00)");
+            // 1: dois chefs; 2: ninguém, mas a Bia recusou antes do Caio desistir; 3 e 4: sem rastro de chef
+            st.execute("INSERT INTO agendamento_chefe (agendamento_id, chefe_id) VALUES (1, '" + caio + "'), (1, '" + bia + "')");
+            st.execute("INSERT INTO agendamento_historico (id, agendamento_id, acao, autor_id, autor_tipo, ocorrido_em) VALUES "
+                    + "(1, 2, 'RECUSADO', '" + bia + "', 'CHEFE', '2026-10-01 10:00'), "
+                    + "(2, 2, 'DESISTENCIA', '" + caio + "', 'CHEFE', '2026-10-01 11:00'), "
+                    + "(3, 4, 'CANCELADO', '" + ana + "', 'CLIENTE', '2026-10-01 12:00'), "
+                    // 5: o autor do histórico é um chef que não existe mais: também sem rastro utilizável
+                    + "(4, 5, 'RECUSADO', '00000000-0000-0000-0000-0000000000ff', 'CHEFE', '2026-10-01 13:00')");
+            st.execute("INSERT INTO denuncia (agendamento_id, chefe_id, cliente_id, motivo, descricao, status, criada_em) VALUES "
+                    + "(3, '" + bia + "', '" + ana + "', 'OUTRO', 'x', 'ABERTA', '2026-10-01 10:00')");
+        }
+
+        Flyway.configure().dataSource(url, "chefhome_migracao", SENHA_MIGRACAO).schemas("chefhome")
+                .locations("classpath:db/migration").load().migrate();
+
+        try (Connection app = DriverManager.getConnection(url, "chefhome_app", SENHA_APP);
+             Statement st = app.createStatement()) {
+            assertThat(coluna(st, "SELECT id || ':' || chefe_id FROM agendamentos ORDER BY id"))
+                    .containsExactly("1:" + bia, "2:" + caio);
+            assertThat(coluna(st, "SELECT count(*)::text FROM denuncia")).containsExactly("0");
+            assertThat(coluna(st, "SELECT id || ':' || coalesce(menu_id::text, 'nulo') || ':' || valor_total FROM agendamentos ORDER BY id"))
+                    .containsExactly("1:nulo:450.00", "2:nulo:300.00");
+            assertThat(coluna(st, "SELECT chefe_id || ':' || especialidade FROM chefe_especialidade"))
+                    .containsExactly(bia + ":ITALIANA");
+            assertThat(coluna(st, "SELECT count(*)::text FROM information_schema.columns WHERE table_schema = 'chefhome' "
+                    + "AND table_name = 'chefe' AND column_name IN ('valor_hora', 'especialidade')")).containsExactly("0");
+            assertThat(coluna(st, "SELECT count(*)::text FROM information_schema.tables WHERE table_schema = 'chefhome' "
+                    + "AND table_name = 'agendamento_chefe'")).containsExactly("0");
+            // a API só manipula dados nas tabelas novas: DML sim, DDL não
+            for (String tabela : new String[]{"menu", "menu_item", "menu_ocasiao", "chefe_especialidade", "agendamento_restricao"}) {
+                assertThat(coluna(st, "SELECT has_table_privilege('chefhome_app', 'chefhome." + tabela + "', "
+                        + "'SELECT,INSERT,UPDATE,DELETE')::text")).as(tabela).containsExactly("true");
+                assertSemPermissao(app, "DROP TABLE chefhome." + tabela);
+                assertSemPermissao(app, "ALTER TABLE chefhome." + tabela + " DISABLE TRIGGER ALL");
+            }
+            assertThat(coluna(st, "SELECT is_nullable FROM information_schema.columns WHERE table_schema = 'chefhome' "
+                    + "AND table_name = 'agendamentos' AND column_name = 'chefe_id'")).containsExactly("NO");
         }
     }
 

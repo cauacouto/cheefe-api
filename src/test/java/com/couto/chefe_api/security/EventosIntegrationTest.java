@@ -32,6 +32,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -88,10 +89,9 @@ class EventosIntegrationTest {
         bia.setEmail("bia-" + UUID.randomUUID() + "@x.com");
         bia.setNacionalidade("Brasileira");
         bia.setIdiomas("pt");
-        bia.setValorHora(new BigDecimal("100"));
         bia.setCidade("São Paulo");
         bia.setEstado("SP");
-        bia.setEspecialidade(Especialidades.BRASILEIRA);
+        bia.setEspecialidades(Set.of(Especialidades.BRASILEIRA));
         bia.setSenioridade(Senioridade.HEAD_CHEF);
         bia.setAnosDeExperiencia(5);
         bia = chefeRepository.save(TelefoneDeTeste.verificado(bia));

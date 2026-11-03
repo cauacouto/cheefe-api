@@ -3,12 +3,17 @@ package com.couto.chefe_api.repository;
 import com.couto.chefe_api.service.DenunciaService;
 import com.couto.chefe_api.domain.ChefeModel;
 import com.couto.chefe_api.domain.Denuncia;
+import com.couto.chefe_api.domain.Menu;
 import com.couto.chefe_api.enums.StatusDenuncia;
 import com.couto.chefe_api.domain.Reputacao;
 import com.couto.chefe_api.enums.Especialidades;
+import com.couto.chefe_api.enums.OcasiaoMenu;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Nulls;
 import jakarta.persistence.criteria.Order;
+import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
 import org.springframework.data.domain.Sort;
@@ -18,6 +23,7 @@ import org.springframework.data.jpa.repository.query.QueryUtils;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 public final class ChefeSpecification {
 
@@ -52,17 +58,39 @@ public final class ChefeSpecification {
         };
     }
 
-    /** Mesma regra de {@link ChefeModel#isPerfilCompleto()}. */
+    /** Mesmos campos de perfil de {@link ChefeRepository#VISIVEL}, que também exige ao menos um menu ativo. */
     public static Specification<ChefeModel> perfilCompleto() {
         return (root, query, cb) -> cb.and(
                 cb.notEqual(cb.trim(cb.coalesce(root.get("nacionalidade"), "")), ""),
-                cb.isNotNull(root.get("especialidade")),
+                cb.isNotEmpty(root.<Set<Especialidades>>get("especialidades")),
                 cb.isNotNull(root.get("senioridade")),
                 cb.isNotNull(root.get("anosDeExperiencia")),
                 cb.notEqual(cb.trim(cb.coalesce(root.get("idiomas"), "")), ""),
-                cb.isNotNull(root.get("valorHora")),
                 cb.isNotNull(root.get("cidade")),
-                cb.isNotNull(root.get("estado")));
+                cb.isNotNull(root.get("estado")),
+                temMenuAtivo(root, query, cb, null, null, null));
+    }
+
+    /**
+     * Pelo menos um menu ativo com a ocasião e a faixa de preço por pessoa pedidas, todos os filtros no MESMO menu
+     * (um menu de aniversário caro e um de empresa barato não formam "aniversário barato"). Filtro nulo = sem filtro.
+     */
+    public static Specification<ChefeModel> comMenuAtivo(OcasiaoMenu ocasiao, BigDecimal minimo, BigDecimal maximo) {
+        return (root, query, cb) -> ocasiao == null && minimo == null && maximo == null
+                ? null : temMenuAtivo(root, query, cb, ocasiao, minimo, maximo);
+    }
+
+    private static Predicate temMenuAtivo(Root<ChefeModel> root, CriteriaQuery<?> query, CriteriaBuilder cb,
+                                          OcasiaoMenu ocasiao, BigDecimal minimo, BigDecimal maximo) {
+        Subquery<Integer> existe = query.subquery(Integer.class);
+        Root<Menu> menu = existe.from(Menu.class);
+        List<Predicate> regras = new ArrayList<>();
+        regras.add(cb.equal(menu.get("chefe"), root));
+        regras.add(cb.isTrue(menu.get("ativo")));
+        if (ocasiao != null) regras.add(cb.isMember(ocasiao, menu.<Set<OcasiaoMenu>>get("ocasioes")));
+        if (minimo != null) regras.add(cb.greaterThanOrEqualTo(menu.<BigDecimal>get("precoPorPessoa"), minimo));
+        if (maximo != null) regras.add(cb.lessThanOrEqualTo(menu.<BigDecimal>get("precoPorPessoa"), maximo));
+        return cb.exists(existe.select(cb.literal(1)).where(regras.toArray(Predicate[]::new)));
     }
 
     /** Pela cidade de origem já normalizada ({@link com.couto.chefe_api.domain.Cidade#normalizar}); nula = sem filtro. */
@@ -76,7 +104,8 @@ public final class ChefeSpecification {
     }
 
     public static Specification<ChefeModel> daEspecialidade(Especialidades especialidade) {
-        return (root, query, cb) -> especialidade == null ? null : cb.equal(root.get("especialidade"), especialidade);
+        return (root, query, cb) -> especialidade == null ? null
+                : cb.isMember(especialidade, root.<Set<Especialidades>>get("especialidades"));
     }
 
     /**
@@ -101,13 +130,25 @@ public final class ChefeSpecification {
         };
     }
 
-    public static Specification<ChefeModel> valorMinimoMaior(BigDecimal valorMinimo) {
-        return (root, query, cb) ->
-                valorMinimo == null ? null : cb.greaterThanOrEqualTo(root.get("valorHora"), valorMinimo);
-    }
-
-    public static Specification<ChefeModel> valorMaximoMenor(BigDecimal valorMaximo) {
-        return (root, query, cb) ->
-                valorMaximo == null ? null : cb.lessThanOrEqualTo(root.get("valorHora"), valorMaximo);
+    /**
+     * Menor preço por pessoa entre os menus ativos primeiro (ou maior, em {@code DESC}), depois as outras ordens
+     * pedidas e o id (página estável). A ordem fica aqui porque o preço não é coluna do chef.
+     */
+    public static Specification<ChefeModel> ordenadoPorPreco(Sort.Direction direcao, Sort demais) {
+        return (root, query, cb) -> {
+            if (Long.class.equals(query.getResultType())) {
+                return null; // contagem da página: sem ordem
+            }
+            Subquery<BigDecimal> menor = query.subquery(BigDecimal.class);
+            Root<Menu> menu = menor.from(Menu.class);
+            menor.select(cb.min(menu.<BigDecimal>get("precoPorPessoa")))
+                    .where(cb.equal(menu.get("chefe"), root), cb.isTrue(menu.get("ativo")));
+            List<Order> ordens = new ArrayList<>();
+            ordens.add(direcao.isAscending() ? cb.asc(menor, Nulls.LAST) : cb.desc(menor, Nulls.LAST));
+            ordens.addAll(QueryUtils.toOrders(demais, root, cb));
+            ordens.add(cb.asc(root.get("id")));
+            query.orderBy(ordens);
+            return null;
+        };
     }
 }

@@ -28,10 +28,14 @@ import org.springframework.web.context.WebApplicationContext;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.is;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -51,6 +55,7 @@ class ListagensIntegrationTest {
     @Autowired EnderecoRepository enderecoRepository;
     @Autowired AgendamentoRepository agendamentoRepository;
     @Autowired PratosRepository pratosRepository;
+    @Autowired com.couto.chefe_api.MenuDeTeste menus;
 
     MockMvc mockMvc;
 
@@ -74,7 +79,7 @@ class ListagensIntegrationTest {
         ChefeModel bia = novoChefe("Bia");
         ChefeModel caio = novoChefe("Caio");
         novoAgendamento(ana, BASE.plusDays(1), bia);
-        Agendamento maisDistante = novoAgendamento(ana, BASE.plusDays(5), bia, caio);
+        Agendamento maisDistante = novoAgendamento(ana, BASE.plusDays(5), bia);
         novoAgendamento(ana, BASE.plusDays(3), caio);
 
         mockMvc.perform(get("/agendamentos/meus").param("size", "2").cookie(cookieDe(ana)))
@@ -84,9 +89,10 @@ class ListagensIntegrationTest {
                 .andExpect(jsonPath("$.content[0].id").value(maisDistante.getId()))
                 .andExpect(jsonPath("$.content[0].valorTotal").value(200.0))
                 .andExpect(jsonPath("$.content[0].dataHoraFinal").isNotEmpty())
-                .andExpect(jsonPath("$.content[0].chefes.length()").value(2))
-                .andExpect(jsonPath("$.content[0].chefes[*].nome").value(org.hamcrest.Matchers.containsInAnyOrder("Bia", "Caio")))
-                .andExpect(jsonPath("$.content[0].chefes[0].id").isNotEmpty());
+                .andExpect(jsonPath("$.content[0].chefe.nome").value("Bia"))
+                .andExpect(jsonPath("$.content[0].chefe.id").value(bia.getId().toString()))
+                .andExpect(jsonPath("$.content[0].nomesChefes").doesNotExist())
+                .andExpect(jsonPath("$.content[0].chefes").doesNotExist());
     }
 
     @Test
@@ -119,20 +125,20 @@ class ListagensIntegrationTest {
         novoPrato(pausado, "Risoto");
         Cookie ana = cookieDe(novoCliente("Ana"));
 
+        // cada chef tem o prato do menu de teste (novoChefe): o visível mostra os dois, os outros nenhum
         mockMvc.perform(get("/pratos").cookie(ana))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content.length()").value(1))
-                .andExpect(jsonPath("$.page.totalElements").value(1))
-                .andExpect(jsonPath("$.content[0].id").value(moqueca.getId()))
-                .andExpect(jsonPath("$.content[0].chefeId").value(visivel.getId().toString()))
-                .andExpect(jsonPath("$.content[0].imageUrl").value("https://img.test/Moqueca.jpg"));
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.page.totalElements").value(2))
+                .andExpect(jsonPath("$.content[*].chefeId", everyItem(is(visivel.getId().toString()))))
+                .andExpect(jsonPath("$.content[?(@.id == " + moqueca.getId() + ")].imageUrl", contains("https://img.test/Moqueca.jpg")));
         mockMvc.perform(get("/pratos/chefe/" + visivel.getId()).cookie(ana))
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].imageUrl").value("https://img.test/Moqueca.jpg"));
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[?(@.id == " + moqueca.getId() + ")].imageUrl", contains("https://img.test/Moqueca.jpg")));
         mockMvc.perform(get("/pratos/chefe/" + banido.getId()).cookie(ana)).andExpect(jsonPath("$.length()").value(0));
         mockMvc.perform(get("/pratos/chefe/" + pausado.getId()).cookie(ana)).andExpect(jsonPath("$.length()").value(0));
         // o próprio chef pausado continua vendo e editando os pratos dele
-        mockMvc.perform(get("/pratos/meus").cookie(cookieDe(pausado))).andExpect(jsonPath("$.length()").value(1));
+        mockMvc.perform(get("/pratos/meus").cookie(cookieDe(pausado))).andExpect(jsonPath("$.length()").value(2));
     }
 
     @Test
@@ -153,9 +159,10 @@ class ListagensIntegrationTest {
         mockMvc.perform(get("/chefe/destaque").cookie(cookie))
                 .andExpect(jsonPath("$.content.length()").value(1))
                 .andExpect(jsonPath("$.content[0].nome").value("Bia"));
+        // o prato do menu de teste vem junto com a Moqueca; o bloqueado não aparece com nenhum dos dois
         mockMvc.perform(get("/pratos").cookie(cookie))
-                .andExpect(jsonPath("$.content.length()").value(1))
-                .andExpect(jsonPath("$.content[0].chefeId").value(bia.getId().toString()));
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.content[*].chefeId", everyItem(is(bia.getId().toString()))));
     }
 
     @Test
@@ -199,17 +206,13 @@ class ListagensIntegrationTest {
     @Test
     void buscaOrdenaSoPorCamposVisiveisELimitaAPagina() throws Exception {
         ChefeModel barato = novoChefe("Bia");
-        ChefeModel caro = novoChefe("Caio");
-        caro.setValorHora(new BigDecimal("300"));
-        caro.setCidade("São Paulo");
-        caro.setEstado("SP");
-        chefeRepository.save(caro);
+        ChefeModel caro = novoChefe("Caio", new BigDecimal("300"));
         Cookie ana = cookieDe(novoCliente("Ana"));
 
-        mockMvc.perform(get("/chefe").param("sort", "valorHora,desc").cookie(ana))
+        mockMvc.perform(get("/chefe").param("sort", "precoAPartirDe,desc").cookie(ana))
                 .andExpect(jsonPath("$.content[0].nome").value("Caio"))
                 .andExpect(jsonPath("$.content[1].nome").value("Bia"));
-        mockMvc.perform(get("/chefe").param("sort", "valorHora,asc").cookie(ana))
+        mockMvc.perform(get("/chefe").param("sort", "precoAPartirDe,asc").cookie(ana))
                 .andExpect(jsonPath("$.content[0].nome").value("Bia"));
         // campo que a resposta não mostra: ordenação ignorada (sem 500 e sem vazar a ordem dos e-mails)
         mockMvc.perform(get("/chefe").param("sort", "email").param("size", "1000").cookie(ana))
@@ -272,11 +275,11 @@ class ListagensIntegrationTest {
 
     // ---------------------------------------------------------------------
 
-    Agendamento novoAgendamento(UserModel cliente, LocalDateTime inicio, ChefeModel... chefes) {
+    Agendamento novoAgendamento(UserModel cliente, LocalDateTime inicio, ChefeModel chefe) {
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(cliente);
         agendamento.setEndereco(novoEndereco(cliente));
-        agendamento.setChefes(new ArrayList<>(List.of(chefes)));
+        agendamento.setChefe(chefe);
         agendamento.setDataHoraInicial(inicio);
         agendamento.setDataHoraFinal(inicio.plusHours(2));
         agendamento.setQuantidadePessoas(2);
@@ -315,20 +318,26 @@ class ListagensIntegrationTest {
     }
 
     ChefeModel novoChefe(String nome) {
+        return novoChefe(nome, new BigDecimal("100"));
+    }
+
+    /** Já com um menu ativo (a busca só mostra quem tem). */
+    ChefeModel novoChefe(String nome, BigDecimal precoDoMenu) {
         ChefeModel chefe = new ChefeModel();
         chefe.setNome(nome);
         chefe.setEmail(nome.toLowerCase() + "-" + UUID.randomUUID() + "@x.com");
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
-        chefe.setValorHora(new BigDecimal("100"));
         chefe.setCidade("São Paulo");
         chefe.setEstado("SP");
-        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setEspecialidades(Set.of(Especialidades.BRASILEIRA));
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
         chefe.setDisponivel(true);
         chefe.setAtivo(true);
-        return chefeRepository.save(TelefoneDeTeste.verificado(chefe));
+        chefe = chefeRepository.save(TelefoneDeTeste.verificado(chefe));
+        menus.ativo(chefe, precoDoMenu);
+        return chefe;
     }
 
     Cookie cookieDe(UserModel usuario) {

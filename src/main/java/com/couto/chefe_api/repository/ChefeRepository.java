@@ -28,12 +28,13 @@ public interface ChefeRepository extends JpaRepository<ChefeModel, UUID>, JpaSpe
     /** O telefone já está verificado em outra conta desta tabela (a própria conta não conta). */
     boolean existsByTelefoneVerificadoAndIdNot(String telefoneVerificado, UUID id);
 
-    // visível = ativo, disponível, perfil completo, não suspenso, não bloqueado e < 3 denunciantes com denúncia aberta
+    // visível = ativo, disponível, perfil completo (com ao menos um menu ativo), não suspenso, não bloqueado e < 3 denunciantes com denúncia aberta
     String VISIVEL = "c.ativo = true AND c.disponivel = true " +
-            "AND TRIM(COALESCE(c.nacionalidade, '')) <> '' AND c.especialidade IS NOT NULL " +
+            "AND TRIM(COALESCE(c.nacionalidade, '')) <> '' AND c.especialidades IS NOT EMPTY " +
             "AND c.senioridade IS NOT NULL AND c.anosDeExperiencia IS NOT NULL " +
-            "AND TRIM(COALESCE(c.idiomas, '')) <> '' AND c.valorHora IS NOT NULL " +
+            "AND TRIM(COALESCE(c.idiomas, '')) <> '' " +
             "AND c.cidade IS NOT NULL AND c.estado IS NOT NULL " +
+            "AND EXISTS (SELECT 1 FROM Menu m WHERE m.chefe = c AND m.ativo = true) " +
             "AND c.suspenso = false AND c.bloqueadoEm IS NULL " +
             "AND (SELECT COUNT(DISTINCT d.cliente.id) FROM Denuncia d WHERE d.chefe = c " +
             "AND d.status = com.couto.chefe_api.enums.StatusDenuncia.ABERTA) < 3";
@@ -57,8 +58,14 @@ public interface ChefeRepository extends JpaRepository<ChefeModel, UUID>, JpaSpe
     @Query("UPDATE ChefeModel c SET c.somaNotas = c.somaNotas - :nota, c.totalAvaliacoes = c.totalAvaliacoes - 1 WHERE c.id = :id")
     int descontarAvaliacao(@Param("id") UUID id, @Param("nota") int nota);
 
-    @Query(value = "SELECT c FROM ChefeModel c LEFT JOIN c.agendamentos a WHERE " + VISIVEL +
-            " GROUP BY c ORDER BY COUNT(a) DESC",
+    /**
+     * Pedidos que não deram em nada (recusado, cancelado, expirado) não contam: quem recusa continua no agendamento
+     * e subiria no ranking por isso. A contagem da página não junta agendamentos.
+     */
+    @Query(value = "SELECT c FROM ChefeModel c LEFT JOIN c.agendamentos a ON a.status NOT IN (" +
+            "com.couto.chefe_api.enums.StatusAgendamento.RECUSADO, com.couto.chefe_api.enums.StatusAgendamento.CANCELADO, " +
+            "com.couto.chefe_api.enums.StatusAgendamento.EXPIRADO) WHERE " + VISIVEL +
+            " GROUP BY c ORDER BY COUNT(a) DESC, c.id",
             countQuery = "SELECT COUNT(c) FROM ChefeModel c WHERE " + VISIVEL)
     Page<ChefeModel> findMaisAgendados(Pageable pageable);
 }

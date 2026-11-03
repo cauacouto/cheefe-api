@@ -39,6 +39,7 @@ import org.springframework.web.context.WebApplicationContext;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -75,6 +76,7 @@ class TelefoneParadoIntegrationTest {
     @Autowired MensagemRepository mensagemRepository;
     @Autowired AvaliacaoRepository avaliacaoRepository;
     @Autowired PratosRepository pratosRepository;
+    @Autowired com.couto.chefe_api.MenuDeTeste menus;
     @Autowired NotificacaoRepository notificacaoRepository;
     @Autowired BloqueioContaRepository bloqueioContaRepository;
 
@@ -93,6 +95,8 @@ class TelefoneParadoIntegrationTest {
         caio = usuarioRepository.save(cliente("Caio"));
         bia = chefeRepository.save(TelefoneDeTeste.verificado(chefe("Bia")));
         duda = chefeRepository.save(chefe("Duda"));
+        menus.ativo(bia); // sem menu ativo o chef não é visível (busca, destaque, agenda)
+        menus.ativo(duda);
     }
 
     @AfterEach
@@ -112,7 +116,6 @@ class TelefoneParadoIntegrationTest {
     void clienteSemTelefoneAgendaEChefSemTelefonePodeSerAgendado() throws Exception {
         agendar(caio, endereco(caio), bia).andExpect(status().isCreated());
         agendar(ana, endereco(ana), duda).andExpect(status().isCreated());
-        agendar(ana, endereco(ana), bia, duda).andExpect(status().isCreated());
     }
 
     @Test
@@ -159,7 +162,7 @@ class TelefoneParadoIntegrationTest {
         mockMvc.perform(get("/chefe/destaque").cookie(cookie(ana)))
                 .andExpect(jsonPath("$.content[*].id", containsInAnyOrder(bia.getId().toString(), duda.getId().toString())));
         mockMvc.perform(get("/pratos").cookie(cookie(ana)))
-                .andExpect(jsonPath("$.content[*].nomePrato", containsInAnyOrder("Moqueca", "Feijoada")));
+                .andExpect(jsonPath("$.content[*].nomePrato", containsInAnyOrder("Moqueca", "Feijoada", "Prato do menu", "Prato do menu")));
         mockMvc.perform(get("/chefe/" + duda.getId() + "/agenda").cookie(cookie(ana))).andExpect(status().isOk());
     }
 
@@ -174,12 +177,11 @@ class TelefoneParadoIntegrationTest {
                 .andExpect(jsonPath("$.camposPendentes").isEmpty());
     }
 
-    ResultActions agendar(UserModel cliente, EnderecoModel endereco, ChefeModel... chefes) throws Exception {
-        String ids = String.join(",", java.util.Arrays.stream(chefes).map(c -> "\"" + c.getId() + "\"").toList());
+    ResultActions agendar(UserModel cliente, EnderecoModel endereco, ChefeModel chefe) throws Exception {
         return mockMvc.perform(post("/agendamentos").cookie(cookie(cliente)).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"dataHoraInicial\":\"" + FUTURO.format(FORMATO) + "\",\"dataHoraFinal\":\""
-                        + FUTURO.plusHours(2).format(FORMATO) + "\",\"enderecoId\":" + endereco.getId()
-                        + ",\"chefeIds\":[" + ids + "],\"quantidadePessoas\":2}"));
+                .content("{\"menuId\":" + menus.ativo(chefe).getId() + ",\"dataHoraInicial\":\"" + FUTURO.format(FORMATO)
+                        + "\",\"enderecoId\":" + endereco.getId()
+                        + ",\"ocasiao\":\"FAMILIA\",\"quantidadePessoas\":2}"));
     }
 
     ResultActions enviar(Cookie quem, Conversa conversa, String texto) throws Exception {
@@ -201,11 +203,11 @@ class TelefoneParadoIntegrationTest {
         return conversaRepository.save(conversa);
     }
 
-    Agendamento agendamento(UserModel cliente, ChefeModel... chefes) {
+    Agendamento agendamento(UserModel cliente, ChefeModel chefe) {
         Agendamento agendamento = new Agendamento();
         agendamento.setUsuario(cliente);
         agendamento.setEndereco(endereco(cliente));
-        agendamento.setChefes(new ArrayList<>(List.of(chefes)));
+        agendamento.setChefe(chefe);
         agendamento.setDataHoraInicial(FUTURO);
         agendamento.setDataHoraFinal(FUTURO.plusHours(2));
         agendamento.setQuantidadePessoas(2);
@@ -258,10 +260,9 @@ class TelefoneParadoIntegrationTest {
         chefe.setEmail(nome.toLowerCase() + "-" + UUID.randomUUID() + "@x.com");
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
-        chefe.setValorHora(new BigDecimal("100"));
         chefe.setCidade("São Paulo");
         chefe.setEstado("SP");
-        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setEspecialidades(Set.of(Especialidades.BRASILEIRA));
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
         return chefe;

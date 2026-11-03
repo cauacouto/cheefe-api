@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 import java.math.BigDecimal;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.UUID;
 
@@ -38,6 +39,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 class PausaChefIntegrationTest {
 
+    @Autowired com.couto.chefe_api.repository.PratosRepository pratosRepository;
+    @Autowired com.couto.chefe_api.MenuDeTeste menus;
     @Autowired
     private WebApplicationContext context;
     @Autowired
@@ -56,6 +59,7 @@ class PausaChefIntegrationTest {
 
     @AfterEach
     void limparBanco() {
+        pratosRepository.deleteAll();
         usuarioRepository.deleteAll();
         chefeRepository.deleteAll();
     }
@@ -97,15 +101,16 @@ class PausaChefIntegrationTest {
         chefe.setEmail("chef-" + UUID.randomUUID() + "@x.com");
         chefe.setNacionalidade("Brasileira");
         chefe.setIdiomas("pt");
-        chefe.setValorHora(new BigDecimal("100"));
         chefe.setCidade("São Paulo");
         chefe.setEstado("SP");
-        chefe.setEspecialidade(Especialidades.BRASILEIRA);
+        chefe.setEspecialidades(Set.of(Especialidades.BRASILEIRA));
         chefe.setSenioridade(Senioridade.HEAD_CHEF);
         chefe.setAnosDeExperiencia(5);
         chefe.setDisponivel(true);
         chefe.setAtivo(true);
-        return chefeRepository.save(TelefoneDeTeste.verificado(chefe));
+        chefe = chefeRepository.save(TelefoneDeTeste.verificado(chefe));
+        menus.ativo(chefe);
+        return chefe;
     }
 
     private Cookie cookieDe(ChefeModel chefe) {

@@ -4,8 +4,11 @@ import com.couto.chefe_api.exception.ContaInativaException;
 import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.enums.Senioridade;
 import jakarta.persistence.*;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.DynamicUpdate;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -14,7 +17,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.io.Serializable;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -43,10 +45,16 @@ public class ChefeModel implements Serializable {
 
     private String nacionalidade;
 
+    /** De 1 a 3 (a API valida); vazia = perfil incompleto. */
+    @ElementCollection
+    @CollectionTable(name = "chefe_especialidade", joinColumns = @JoinColumn(name = "chefe_id"))
     @Enumerated(EnumType.STRING)
-    private Especialidades especialidade;
+    @Column(name = "especialidade", nullable = false, length = 32)
+    @OnDelete(action = OnDeleteAction.CASCADE)
+    @BatchSize(size = 50) // a busca e as listas carregam as especialidades de todos os chefs de uma vez
+    private Set<Especialidades> especialidades = EnumSet.noneOf(Especialidades.class);
 
-    @ManyToMany(mappedBy = "chefes")
+    @OneToMany(mappedBy = "chefe")
     private List<Agendamento> agendamentos = new ArrayList<>();
 
     private Integer anosDeExperiencia;
@@ -82,8 +90,6 @@ private Boolean ativo = true;
 
     private String imageUrl;
 
-    private BigDecimal valorHora;
-
     /** Cidade de origem: o chef atende só nela (o endereço do agendamento precisa ser da mesma cidade e UF). */
     @Column(length = 100)
     private String cidade;
@@ -107,15 +113,17 @@ private Boolean ativo = true;
         }
     }
 
-    /** Campos que o chef precisa preencher para aparecer na busca e ser agendado, na ordem do contrato. */
+    /**
+     * Campos da conta que o chef precisa preencher para aparecer na busca e ser agendado, na ordem do contrato. O menu
+     * ativo também é exigido, mas mora em outra tabela: quem monta o perfil acrescenta {@code "menu"} (ver ChefePerfilDto).
+     */
     public List<String> camposPendentes() {
         List<String> pendentes = new ArrayList<>();
         if (emBranco(nacionalidade)) pendentes.add("nacionalidade");
-        if (especialidade == null) pendentes.add("especialidade");
+        if (especialidades.isEmpty()) pendentes.add("especialidades");
         if (senioridade == null) pendentes.add("senioridade");
         if (anosDeExperiencia == null) pendentes.add("anosDeExperiencia");
         if (emBranco(idiomas)) pendentes.add("idiomas");
-        if (valorHora == null) pendentes.add("valorHora");
         if (cidade == null) pendentes.add("cidade");
         if (estado == null) pendentes.add("estado");
         return pendentes;
