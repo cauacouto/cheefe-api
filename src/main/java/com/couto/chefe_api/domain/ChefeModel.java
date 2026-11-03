@@ -17,6 +17,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.io.Serializable;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -103,8 +104,17 @@ private Boolean ativo = true;
     @Setter(AccessLevel.NONE)
     private String cidadeBusca;
 
+    /** Folga antes e depois de cada agendamento confirmado, em minutos (0 a 240, múltiplo de 15): o intervalo em que o chef não aceita outro pedido. */
+    @Column(nullable = false)
+    @ColumnDefault("60")
+    private int folgaMinutos = 60;
+
     @OneToMany(mappedBy = "chefeModel")
     private List<Pratos> pratos = new ArrayList<>();
+
+    public Duration folga() {
+        return Duration.ofMinutes(folgaMinutos);
+    }
 
     /** Conta apagada não opera, mesmo com token ainda válido. */
     public void exigirAtivo() {

@@ -121,7 +121,7 @@ class ChefeServiceIntegrationTest {
     void chefPausadoContinuaEditandoOPerfil() {
         chefeService.inativar(ativo.getId());
 
-        chefeService.atualizarDados(new ChefeRequestDto("Renomeado", null, null, null, null, null, null, null), ativo.getId());
+        chefeService.atualizarDados(new ChefeRequestDto("Renomeado", null, null, null, null, null, null, null, null), ativo.getId());
 
         assertThat(chefeRepository.findById(ativo.getId()).orElseThrow().getNome()).isEqualTo("Renomeado");
     }

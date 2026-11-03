@@ -52,9 +52,14 @@ public class ChefeService {
 
     @Transactional
     public ChefeResponseDto atualizarDados(ChefeRequestDto dto, UUID id) {
-        ChefeModel chefe = chefeRepository.findById(id).orElseThrow(ChefeNaoEncontradoException::new);
+        // trava o chef (como a confirmação de agendamento): confirmar e trocar a folga não se cruzam
+        ChefeModel chefe = chefeRepository.travar(List.of(id)).stream().findFirst()
+                .orElseThrow(ChefeNaoEncontradoException::new);
         chefe.exigirAtivo();
         exigirSemRepeticao(dto.especialidades());
+        if (dto.folgaMinutos() != null && dto.folgaMinutos() % 15 != 0) {
+            throw new RegraDeNegocioException("A folga deve ser múltipla de 15 minutos");
+        }
         chefeMapper.updateModelFromDto(dto, chefe);
         ChefeResponseDto resposta = chefeMapper.toDto(chefeRepository.save(chefe));
         return ChefeResponseDto.comPrecoAPartirDe(resposta, menoresPrecos(List.of(id)).get(id));

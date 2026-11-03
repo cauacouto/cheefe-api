@@ -93,6 +93,8 @@ class ConflitoHorarioIntegrationTest {
     @Test
     void criarSobrepondoUmConfirmadoDoChefDa409() throws Exception {
         ChefeModel bia = novoChefe("Bia");
+        bia.setFolgaMinutos(0); // sem folga, encostar é permitido (a folga tem teste próprio, em FolgaIntegrationTest)
+        chefeRepository.save(bia);
         ChefeModel caio = novoChefe("Caio");
         confirmar(novoAgendamento(novoCliente("Edu"), BASE, bia)); // 18h-20h confirmado
         UserModel ana = novoCliente("Ana");

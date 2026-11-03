@@ -153,6 +153,7 @@ public class AgendaService {
         if (!chefeRepository.visivel(chefeId)) {
             throw new ChefeNaoEncontradoException();
         }
+        ChefeModel chefe = chefeRepository.findById(chefeId).orElseThrow(ChefeNaoEncontradoException::new);
         LocalDate inicioJanela = de != null ? de : LocalDate.now(clock);
         LocalDate fimJanela = ate != null ? ate : inicioJanela.plusDays(JANELA_PADRAO_DIAS);
         if (fimJanela.isBefore(inicioJanela)) {
@@ -167,8 +168,11 @@ public class AgendaService {
         List<PeriodoIndisponivelDto> periodos = new ArrayList<>();
         bloqueioRepository.sobrepostos(chefeId, inicio, fim)
                 .forEach(b -> periodos.add(new PeriodoIndisponivelDto(b.getInicio(), b.getFim())));
-        agendamentoRepository.confirmadosSobrepostos(chefeId, inicio, fim)
-                .forEach(a -> periodos.add(new PeriodoIndisponivelDto(a.getDataHoraInicial(), a.getDataHoraFinal())));
+        // o confirmado ocupa também a folga do chef, antes e depois; a busca alarga a janela pela mesma folga
+        Duration folga = chefe.folga();
+        agendamentoRepository.confirmadosSobrepostos(chefeId, inicio.minus(folga), fim.plus(folga))
+                .forEach(a -> periodos.add(new PeriodoIndisponivelDto(
+                        a.getDataHoraInicial().minus(folga), a.getDataHoraFinal().plus(folga))));
         Set<DayOfWeek> fixos = diaFixoRepository.doChefe(chefeId).stream().map(AgendaDiaFixo::getDiaSemana)
                 .collect(Collectors.toSet());
         for (LocalDate dia = inicioJanela; !dia.isAfter(fimJanela); dia = dia.plusDays(1)) {

@@ -17,6 +17,7 @@ import com.couto.chefe_api.service.eventos.ChefSaiuDoAgendamentoEvent;
 import com.couto.chefe_api.service.eventos.AgendamentoCanceladoEvent;
 import com.couto.chefe_api.enums.MotivoAgendamento;
 import java.time.Clock;
+import java.time.Duration;
 import com.couto.chefe_api.enums.TipoUsuario;
 import com.couto.chefe_api.enums.AcaoAgendamento;
 import com.couto.chefe_api.dto.RecusaRequestDto;
@@ -364,8 +365,10 @@ public class AgendamentoService {
     private void exigirHorarioLivre(Agendamento agendamento) {
         Long proprio = agendamento.getId() == null ? -1L : agendamento.getId();
         ChefeModel chefe = agendamento.getChefe();
+        // a folga do chef alarga o pedido dos dois lados: ele conflita com [início − folga, fim + folga) dos confirmados
+        Duration folga = chefe.folga();
         if (agendamentoRepository.existeConfirmadoSobreposto(chefe.getId(),
-                agendamento.getDataHoraInicial(), agendamento.getDataHoraFinal(), proprio)) {
+                agendamento.getDataHoraInicial().minus(folga), agendamento.getDataHoraFinal().plus(folga), proprio)) {
             throw new HorarioIndisponivelException(chefe.getNome());
         }
     }

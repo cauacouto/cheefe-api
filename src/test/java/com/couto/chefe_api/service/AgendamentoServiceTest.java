@@ -282,6 +282,8 @@ class AgendamentoServiceTest {
             agenda.setId(9L);
             agenda.setChefe(chefeB);
             agenda.setEndereco(endereco);
+            agenda.setDataHoraInicial(java.time.LocalDateTime.now().plusDays(5));
+            agenda.setDataHoraFinal(agenda.getDataHoraInicial().plusHours(2));
             when(agendamentoRepository.travarPorId(9L)).thenReturn(Optional.of(agenda));
         }
 
