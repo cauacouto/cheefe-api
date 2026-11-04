@@ -43,6 +43,8 @@ public class AgendamentoResponseDto {
     private String status;
     @JsonFormat(pattern = "dd-MM-yyyy HH:mm")
     private LocalDateTime criadoEm;
+    @JsonFormat(pattern = "dd-MM-yyyy HH:mm")
+    private LocalDateTime detalhesConfirmadosEm;
 
 
 

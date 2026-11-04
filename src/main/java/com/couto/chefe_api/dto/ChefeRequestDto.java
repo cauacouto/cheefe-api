@@ -2,6 +2,8 @@ package com.couto.chefe_api.dto;
 
 import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.enums.Senioridade;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -41,6 +43,10 @@ public record ChefeRequestDto(
         String cidade,
 
         @Pattern(regexp = "[A-Za-z]{2}", message = "deve ser a sigla da UF")
-        String estado
+        String estado,
+
+        /** Folga entre agendamentos confirmados, em minutos: de 0 a 240; ser múltiplo de 15 é conferido no serviço. */
+        @Min(0) @Max(240)
+        Integer folgaMinutos
 ) {
 }

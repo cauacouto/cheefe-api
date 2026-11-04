@@ -32,7 +32,8 @@ public record ChefePerfilDto(
         int totalAvaliacoes,
         boolean telefoneVerificado,
         String cidade,
-        String estado
+        String estado,
+        int folgaMinutos
 ) {
 
     /**
@@ -50,6 +51,6 @@ public record ChefePerfilDto(
                 precoAPartirDe, chefe.getImageUrl(), pendentes.isEmpty(), pendentes,
                 chefe.isSuspenso(), ocultoPorDenuncias,
                 Reputacao.media(chefe.getSomaNotas(), chefe.getTotalAvaliacoes()), chefe.getTotalAvaliacoes(), telefone,
-                chefe.getCidade(), chefe.getEstado());
+                chefe.getCidade(), chefe.getEstado(), chefe.getFolgaMinutos());
     }
 }

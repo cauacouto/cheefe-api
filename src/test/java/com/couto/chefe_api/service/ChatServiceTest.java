@@ -6,6 +6,7 @@ import com.couto.chefe_api.exception.ConflitoException;
 import com.couto.chefe_api.exception.ContaInativaException;
 import com.couto.chefe_api.exception.RecursoNaoEncontradoException;
 import com.couto.chefe_api.exception.RegraDeNegocioException;
+import com.couto.chefe_api.dto.AbrirConversaDto;
 import com.couto.chefe_api.security.UsuarioAutenticado;
 import com.couto.chefe_api.service.eventos.MensagemApagadaEvent;
 import com.couto.chefe_api.service.eventos.MensagemEditadaEvent;
@@ -18,6 +19,7 @@ import com.couto.chefe_api.domain.ChefeModel;
 import com.couto.chefe_api.domain.Conversa;
 import com.couto.chefe_api.domain.Mensagem;
 import com.couto.chefe_api.enums.TipoUsuario;
+import com.couto.chefe_api.repository.AgendamentoRepository;
 import com.couto.chefe_api.repository.ChefeRepository;
 import com.couto.chefe_api.repository.ConversaRepository;
 import com.couto.chefe_api.repository.MensagemRepository;
@@ -56,7 +58,7 @@ class ChatServiceTest {
     private final ChefeRepository chefeRepository = mock(ChefeRepository.class);
     private final ModeracaoConteudoService moderacao = mock(ModeracaoConteudoService.class);
     private final ChatService service = new ChatService(conversaRepository, mensagemRepository,
-            usuarioRepository, chefeRepository, mock(NotificacaoService.class), moderacao,
+            usuarioRepository, chefeRepository, mock(AgendamentoRepository.class), mock(NotificacaoService.class), moderacao,
             eventPublisher, RELOGIO,
             new TransactionTemplate(mock(PlatformTransactionManager.class)));
 
@@ -313,7 +315,8 @@ class ChatServiceTest {
         when(conversaRepository.findByCliente_IdAndChefe_Id(cliente.getId(), chefe.getId())).thenReturn(Optional.empty());
         when(conversaRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        service.abrirConversa(cliente.getId(), chefe.getId());
+        service.abrirConversa(new UsuarioAutenticado(cliente.getId(), cliente.getEmail(), TipoUsuario.CLIENTE),
+                new AbrirConversaDto(chefe.getId(), null));
 
         ArgumentCaptor<Conversa> captor = ArgumentCaptor.forClass(Conversa.class);
         verify(conversaRepository).saveAndFlush(captor.capture());

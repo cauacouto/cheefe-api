@@ -2,6 +2,7 @@ package com.couto.chefe_api.service;
 
 import com.couto.chefe_api.TelefoneDeTeste;
 import com.couto.chefe_api.dto.ConversaDto;
+import com.couto.chefe_api.dto.AbrirConversaDto;
 import com.couto.chefe_api.security.UsuarioAutenticado;
 import com.couto.chefe_api.domain.UserModel;
 import com.couto.chefe_api.repository.UsuarioRepository;
@@ -82,8 +83,10 @@ class ConversaListagemIntegrationTest {
     void cadaConversaRecebeAPropriaUltimaMensagemEContagem() {
         ChefeModel bia = chefe("Bia");
         ChefeModel caio = chefe("Caio");
-        long comBia = chatService.abrirConversa(ana.getId(), bia.getId()).conversa().id();
-        long comCaio = chatService.abrirConversa(ana.getId(), caio.getId()).conversa().id();
+        long comBia = chatService.abrirConversa(new UsuarioAutenticado(ana.getId(), ana.getEmail(), TipoUsuario.CLIENTE),
+                new AbrirConversaDto(bia.getId(), null)).conversa().id();
+        long comCaio = chatService.abrirConversa(new UsuarioAutenticado(ana.getId(), ana.getEmail(), TipoUsuario.CLIENTE),
+                new AbrirConversaDto(caio.getId(), null)).conversa().id();
         UsuarioAutenticado biaLogada = new UsuarioAutenticado(bia.getId(), bia.getEmail(), TipoUsuario.CHEFE);
         UsuarioAutenticado caioLogado = new UsuarioAutenticado(caio.getId(), caio.getEmail(), TipoUsuario.CHEFE);
         chatService.enviar(comBia, biaLogada, "b1");
@@ -132,7 +135,8 @@ class ConversaListagemIntegrationTest {
     private void conversasComMensagens(int quantidade) {
         for (int i = 0; i < quantidade; i++) {
             ChefeModel chefe = chefe("Chef " + i);
-            long conversa = chatService.abrirConversa(ana.getId(), chefe.getId()).conversa().id();
+            long conversa = chatService.abrirConversa(new UsuarioAutenticado(ana.getId(), ana.getEmail(), TipoUsuario.CLIENTE),
+                new AbrirConversaDto(chefe.getId(), null)).conversa().id();
             chatService.enviar(conversa, new UsuarioAutenticado(chefe.getId(), chefe.getEmail(), TipoUsuario.CHEFE), "oi " + i);
         }
     }

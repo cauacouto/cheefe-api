@@ -1,8 +1,7 @@
 package com.couto.chefe_api.dto;
 
-import jakarta.validation.constraints.NotNull;
-
 import java.util.UUID;
 
-public record AbrirConversaDto(@NotNull UUID chefeId) {
+/** Cliente manda só {@code chefeId}; chef manda só {@code clienteId} (qualquer outra combinação é 400, ver ChatService). */
+public record AbrirConversaDto(UUID chefeId, UUID clienteId) {
 }

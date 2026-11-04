@@ -1,5 +1,6 @@
 package com.couto.chefe_api.repository;
 
+import com.couto.chefe_api.enums.StatusAgendamento;
 import org.springframework.data.jpa.repository.Lock;
 import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
@@ -25,6 +26,9 @@ public interface AgendamentoRepository extends JpaRepository<Agendamento,Long> {
     /** Só a existência, sem carregar a entidade (ver atualizarAgendamento). */
     boolean existsByIdAndUsuario_Id(Long id, UUID usuarioId);
 
+    /** Só a existência: o chef só abre conversa com cliente que ele já atendeu (concluído). */
+    boolean existsByUsuario_IdAndChefe_IdAndStatus(UUID usuarioId, UUID chefeId, StatusAgendamento status);
+
     /** O chef tem (ou teve) algum agendamento com o cliente, fora os que recusou: pode ver a reputação dele. */
     @Query("SELECT COUNT(a) > 0 FROM Agendamento a WHERE a.usuario.id = :clienteId AND a.chefe.id = :chefeId "
             + "AND a.status <> com.couto.chefe_api.enums.StatusAgendamento.RECUSADO")
@@ -41,10 +45,56 @@ public interface AgendamentoRepository extends JpaRepository<Agendamento,Long> {
             + "AND a.dataHoraInicial <= :agora")
     List<Long> idsParaExpirar(@Param("agora") LocalDateTime agora);
 
+    // as duas consultas seguem os índices parciais da V16 (status CONFIRMADO e marca nula)
+    @Query("SELECT a.id FROM Agendamento a WHERE a.status = com.couto.chefe_api.enums.StatusAgendamento.CONFIRMADO "
+            + "AND a.lembreteClienteEm IS NULL AND a.detalhesConfirmadosEm IS NULL AND a.dataHoraInicial <= :limite72h AND a.dataHoraInicial > :limite48h")
+    List<Long> buscarSemLembrete(@Param("limite72h") LocalDateTime limite72h, @Param("limite48h") LocalDateTime limite48h);
+
+    /** Confirmados que começam entre 48h (exclusive) e 72h (inclusive) a partir de agora, sem lembrete e sem os detalhes já confirmados. */
+    default List<Long> idsParaLembrarCliente(LocalDateTime agora) {
+        return buscarSemLembrete(agora.plusHours(72), agora.plusHours(48));
+    }
+
+    @Query("SELECT a.id FROM Agendamento a WHERE a.status = com.couto.chefe_api.enums.StatusAgendamento.CONFIRMADO "
+            + "AND a.resumoChefEm IS NULL AND a.dataHoraInicial <= :limite AND a.dataHoraInicial > :agora")
+    List<Long> buscarSemResumo(@Param("agora") LocalDateTime agora, @Param("limite") LocalDateTime limite);
+
+    /** Confirmados que começam dentro das próximas 24h e ainda sem resumo. */
+    default List<Long> idsParaResumirAoChef(LocalDateTime agora) {
+        return buscarSemResumo(agora, agora.plusHours(24));
+    }
+
+    /**
+     * Concluídos de ocasião especial, sem aviso de um ano, que começaram em (de, ate]. Segue o índice parcial da V16
+     * (status CONCLUIDO e aviso_um_ano_em nulo). A janela exata de 30 dias é conferida pela rotina.
+     */
+    @Query("SELECT new com.couto.chefe_api.repository.CandidatoAoAvisoDeUmAno(a.id, a.chefe.id, a.usuario.id, a.dataHoraInicial) "
+            + "FROM Agendamento a WHERE a.status = com.couto.chefe_api.enums.StatusAgendamento.CONCLUIDO "
+            + "AND a.avisoUmAnoEm IS NULL AND a.ocasiao IN (com.couto.chefe_api.enums.OcasiaoMenu.ANIVERSARIO, "
+            + "com.couto.chefe_api.enums.OcasiaoMenu.JANTAR_ROMANTICO, com.couto.chefe_api.enums.OcasiaoMenu.EMPRESA, "
+            + "com.couto.chefe_api.enums.OcasiaoMenu.CELEBRACAO) "
+            + "AND a.dataHoraInicial > :de AND a.dataHoraInicial <= :ate ORDER BY a.dataHoraInicial")
+    List<CandidatoAoAvisoDeUmAno> candidatosAoAvisoDeUmAno(@Param("de") LocalDateTime de, @Param("ate") LocalDateTime ate);
+
+    /** O chef e o cliente têm algum pedido ou confirmado que ainda não começou. */
+    @Query("SELECT COUNT(a) > 0 FROM Agendamento a WHERE a.chefe.id = :chefeId AND a.usuario.id = :clienteId "
+            + "AND a.status IN (com.couto.chefe_api.enums.StatusAgendamento.PENDENTE, "
+            + "com.couto.chefe_api.enums.StatusAgendamento.CONFIRMADO) AND a.dataHoraInicial > :agora")
+    boolean existeAgendamentoFuturoEntre(@Param("chefeId") UUID chefeId, @Param("clienteId") UUID clienteId,
+                                         @Param("agora") LocalDateTime agora);
+
     /** SELECT ... FOR UPDATE: a rotina e o chef não concluem o mesmo agendamento ao mesmo tempo. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT a FROM Agendamento a WHERE a.id = :id")
     Optional<Agendamento> travarPorId(@Param("id") Long id);
+
+    /**
+     * Trava os agendamentos do cliente (sempre em ordem de id, como as rotinas): uma rotina em andamento termina antes
+     * da exclusão da conta, e a seguinte relê e não encontra mais nada.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Agendamento a WHERE a.usuario.id = :clienteId ORDER BY a.id")
+    List<Agendamento> travarDoCliente(@Param("clienteId") UUID clienteId);
 
     /** Intervalos semiabertos: um que termina às 20h não conflita com outro que começa às 20h. */
     @Query("SELECT COUNT(a) > 0 FROM Agendamento a WHERE a.chefe.id = :chefeId "
@@ -79,7 +129,36 @@ public interface AgendamentoRepository extends JpaRepository<Agendamento,Long> {
                     + "AND a.status <> com.couto.chefe_api.enums.StatusAgendamento.RECUSADO")
     Page<Agendamento> findRecebidos(@Param("chefeId") UUID chefeId, Pageable pageable);
 
+    /**
+     * Clientes com ao menos um confirmado ou concluído com o chef, do agendamento mais recente (qualquer data) para o
+     * mais antigo. Uma consulta agrega a página inteira: nada é carregado por cliente.
+     */
+    @Query(value = "SELECT new com.couto.chefe_api.repository.ClienteDoChefResumo(u.id, u.nome, u.imageUrl, COUNT(a), "
+            + "MAX(CASE WHEN a.dataHoraInicial <= :agora THEN a.dataHoraInicial ELSE NULL END), "
+            + "MIN(CASE WHEN a.status = com.couto.chefe_api.enums.StatusAgendamento.CONFIRMADO "
+            + "AND a.dataHoraInicial > :agora THEN a.dataHoraInicial ELSE NULL END)) "
+            + "FROM Agendamento a JOIN a.usuario u WHERE a.chefe.id = :chefeId "
+            + "AND a.status IN (com.couto.chefe_api.enums.StatusAgendamento.CONFIRMADO, "
+            + "com.couto.chefe_api.enums.StatusAgendamento.CONCLUIDO) "
+            + "GROUP BY u.id, u.nome, u.imageUrl ORDER BY MAX(a.dataHoraInicial) DESC, u.id",
+            countQuery = "SELECT COUNT(DISTINCT a.usuario.id) FROM Agendamento a WHERE a.chefe.id = :chefeId "
+                    + "AND a.status IN (com.couto.chefe_api.enums.StatusAgendamento.CONFIRMADO, "
+                    + "com.couto.chefe_api.enums.StatusAgendamento.CONCLUIDO)")
+    Page<ClienteDoChefResumo> clientesDoChef(@Param("chefeId") UUID chefeId, @Param("agora") LocalDateTime agora,
+                                             Pageable pageable);
 
+    /** Os deste chef com o cliente, sem os recusados, do mais recente para o mais antigo (o corte vem do Pageable). */
+    @Query("SELECT a FROM Agendamento a WHERE a.chefe.id = :chefeId AND a.usuario.id = :clienteId "
+            + "AND a.status <> com.couto.chefe_api.enums.StatusAgendamento.RECUSADO "
+            + "ORDER BY a.dataHoraInicial DESC, a.id DESC")
+    List<Agendamento> historicoComOCliente(@Param("chefeId") UUID chefeId, @Param("clienteId") UUID clienteId,
+                                           Pageable pageable);
 
+    /** Em quantos agendamentos confirmados ou concluídos cada tipo de restrição apareceu; o mais frequente primeiro. */
+    @Query("SELECT r.tipo, COUNT(a) FROM Agendamento a JOIN a.restricoes r WHERE a.chefe.id = :chefeId "
+            + "AND a.usuario.id = :clienteId AND a.status IN (com.couto.chefe_api.enums.StatusAgendamento.CONFIRMADO, "
+            + "com.couto.chefe_api.enums.StatusAgendamento.CONCLUIDO) "
+            + "GROUP BY r.tipo ORDER BY COUNT(a) DESC, r.tipo")
+    List<Object[]> restricoesFrequentes(@Param("chefeId") UUID chefeId, @Param("clienteId") UUID clienteId);
 
 }

@@ -344,6 +344,51 @@ class MigracoesPostgresTest {
         }
     }
 
+    /** A V16 recria dois CHECKs por nome; o do histórico foi gerado pelo Postgres na V6, e o nome precisa ser este. */
+    @Test
+    void v16RecriaOsChecksPeloNomeEIndexaOsAgendamentosPendentesDasRotinas() throws SQLException {
+        try (Connection app = conectar("chefhome_app", SENHA_APP);
+             Statement st = app.createStatement()) {
+            assertThat(coluna(st, "SELECT conname FROM pg_constraint WHERE contype = 'c' AND conname IN "
+                    + "('notificacao_evento_check', 'agendamento_historico_acao_check') ORDER BY conname"))
+                    .containsExactly("agendamento_historico_acao_check", "notificacao_evento_check");
+            assertThat(coluna(st, "SELECT count(*)::text FROM pg_constraint WHERE contype = 'c' AND conrelid = "
+                    + "'chefhome.agendamento_historico'::regclass AND pg_get_constraintdef(oid) LIKE '%CRIADO%'"))
+                    .containsExactly("1");
+            assertThat(coluna(st, "SELECT indexdef FROM pg_indexes WHERE schemaname = 'chefhome' "
+                    + "AND indexname = 'idx_agendamentos_sem_lembrete'")).singleElement().asString()
+                    .contains("CONFIRMADO").contains("lembrete_cliente_em IS NULL");
+            assertThat(coluna(st, "SELECT indexdef FROM pg_indexes WHERE schemaname = 'chefhome' "
+                    + "AND indexname = 'idx_agendamentos_sem_resumo'")).singleElement().asString()
+                    .contains("CONFIRMADO").contains("resumo_chef_em IS NULL");
+            assertThat(coluna(st, "SELECT indexdef FROM pg_indexes WHERE schemaname = 'chefhome' "
+                    + "AND indexname = 'idx_agendamentos_sem_aviso_um_ano'")).singleElement().asString()
+                    .contains("CONCLUIDO").contains("aviso_um_ano_em IS NULL")
+                    // só as quatro ocasiões do aviso: o índice não guarda todo concluído
+                    .contains("ANIVERSARIO").contains("JANTAR_ROMANTICO").contains("EMPRESA").contains("CELEBRACAO");
+        }
+    }
+
+    /** V16: folga do chef limitada a 0..240 de 15 em 15, e a nota privada com DML para a API mas sem DDL. */
+    @Test
+    void v16LimitaAFolgaEDaSoDmlNaNotaDoCliente() throws SQLException {
+        try (Connection app = conectar("chefhome_app", SENHA_APP);
+             Statement st = app.createStatement()) {
+            assertThat(coluna(st, "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE contype = 'c' "
+                    + "AND conrelid = 'chefhome.chefe'::regclass AND conname = 'chefe_folga_minutos_check'"))
+                    .singleElement().asString().contains("folga_minutos >= 0").contains("folga_minutos <= 240")
+                    .contains("folga_minutos % 15) = 0");
+            assertThat(coluna(st, "SELECT column_default FROM information_schema.columns WHERE table_schema = 'chefhome' "
+                    + "AND table_name = 'chefe' AND column_name = 'folga_minutos'")).containsExactly("60");
+            assertThat(coluna(st, "SELECT has_table_privilege('chefhome_app', 'chefhome.nota_cliente', "
+                    + "'SELECT,INSERT,UPDATE,DELETE')::text")).containsExactly("true");
+            assertSemPermissao(app, "DROP TABLE chefhome.nota_cliente");
+            assertSemPermissao(app, "ALTER TABLE chefhome.nota_cliente ADD COLUMN x int");
+            assertSemPermissao(app, "ALTER TABLE chefhome.nota_cliente DISABLE TRIGGER ALL");
+            assertSemPermissao(app, "TRUNCATE chefhome.nota_cliente");
+        }
+    }
+
     @Test
     void checksDeEnumBatemComOsEnumsJava() throws SQLException {
         assertCheckDeTexto("chefe_especialidade", "especialidade", com.couto.chefe_api.enums.Especialidades.values());

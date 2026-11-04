@@ -302,6 +302,20 @@ class PedidoPorMenuIntegrationTest {
     }
 
     @Test
+    void putTrocaSoOMenuSemQuantidadeGravadaPedeAQuantidade() throws Exception {
+        Menu menu = menuDe(bia, "100.00", 1, 10);
+        Menu outro = menuDe(bia, "200.00", 1, 10);
+        long id = idDe(pedir(ana, menu.getId(), BASE, 4, "FAMILIA", null, null).andExpect(status().isCreated()));
+        Agendamento semQuantidade = agendamentoRepository.findById(id).orElseThrow();
+        semQuantidade.setQuantidadePessoas(null);
+        agendamentoRepository.save(semQuantidade);
+
+        editar(ana, id, "{\"menuId\":" + outro.getId() + "}").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Informe a quantidade de pessoas"));
+        assertThat(agendamentoRepository.findById(id).orElseThrow().getMenu().getId()).isEqualTo(menu.getId());
+    }
+
+    @Test
     void putTrocaMenuDeOutroChefDa409() throws Exception {
         Menu menu = menuDe(bia, "100.00", 1, 10);
         ChefeModel caio = novoChefe("Caio");

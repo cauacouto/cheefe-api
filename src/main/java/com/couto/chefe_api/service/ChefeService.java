@@ -5,6 +5,7 @@ import com.couto.chefe_api.exception.RegraDeNegocioException;
 import com.couto.chefe_api.enums.Especialidades;
 import com.couto.chefe_api.enums.OcasiaoMenu;
 import com.couto.chefe_api.repository.MenuRepository;
+import com.couto.chefe_api.repository.NotaClienteRepository;
 
 import com.couto.chefe_api.domain.Cidade;
 
@@ -49,12 +50,18 @@ public class ChefeService {
     private final ChefeMapper chefeMapper;
     private final DenunciaRepository denunciaRepository;
     private final MenuRepository menuRepository;
+    private final NotaClienteRepository notaClienteRepository;
 
     @Transactional
     public ChefeResponseDto atualizarDados(ChefeRequestDto dto, UUID id) {
-        ChefeModel chefe = chefeRepository.findById(id).orElseThrow(ChefeNaoEncontradoException::new);
+        // trava o chef (como a confirmação de agendamento): confirmar e trocar a folga não se cruzam
+        ChefeModel chefe = chefeRepository.travar(List.of(id)).stream().findFirst()
+                .orElseThrow(ChefeNaoEncontradoException::new);
         chefe.exigirAtivo();
         exigirSemRepeticao(dto.especialidades());
+        if (dto.folgaMinutos() != null && dto.folgaMinutos() % 15 != 0) {
+            throw new RegraDeNegocioException("A folga deve ser múltipla de 15 minutos");
+        }
         chefeMapper.updateModelFromDto(dto, chefe);
         ChefeResponseDto resposta = chefeMapper.toDto(chefeRepository.save(chefe));
         return ChefeResponseDto.comPrecoAPartirDe(resposta, menoresPrecos(List.of(id)).get(id));
@@ -160,6 +167,8 @@ public class ChefeService {
         chefe.setTelefoneVerificado(null);
         chefe.setTelefoneVerificadoEm(null);
         chefeRepository.save(chefe);
+        // as notas privadas sobre os clientes também são dado da conta
+        notaClienteRepository.deleteByChefe_Id(id);
     }
 
     /** Pausa: some da busca e não recebe agendamentos novos, mas a conta continua operando. */

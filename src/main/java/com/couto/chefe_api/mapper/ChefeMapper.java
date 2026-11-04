@@ -37,6 +37,8 @@ public interface ChefeMapper {
     // a cidade de origem entra depois, no PATCH /chefe/me (onboarding mínimo)
     @Mapping(target = "cidade", ignore = true)
     @Mapping(target = "estado", ignore = true)
+    // a folga nasce com o padrão (60) e só muda no PATCH /chefe/me
+    @Mapping(target = "folgaMinutos", ignore = true)
     ChefeModel toModel(RegisterRequestDto dto);
 
 @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)

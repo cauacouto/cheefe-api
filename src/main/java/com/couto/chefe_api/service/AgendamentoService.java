@@ -17,10 +17,14 @@ import com.couto.chefe_api.service.eventos.ChefSaiuDoAgendamentoEvent;
 import com.couto.chefe_api.service.eventos.AgendamentoCanceladoEvent;
 import com.couto.chefe_api.enums.MotivoAgendamento;
 import java.time.Clock;
+import java.time.Duration;
 import com.couto.chefe_api.enums.TipoUsuario;
 import com.couto.chefe_api.enums.AcaoAgendamento;
 import com.couto.chefe_api.dto.RecusaRequestDto;
 import com.couto.chefe_api.dto.CancelamentoRequestDto;
+import com.couto.chefe_api.dto.DetalhesAgendamentoDto;
+import com.couto.chefe_api.exception.DetalhesForaDoPrazoException;
+import com.couto.chefe_api.service.eventos.DetalhesDoAgendamentoEvent;
 import com.couto.chefe_api.exception.HorarioIndisponivelException;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
@@ -43,6 +47,9 @@ import com.couto.chefe_api.exception.TrocaDeChefException;
 import com.couto.chefe_api.exception.UsuarioException;
 import com.couto.chefe_api.mapper.AgendamentoMapper;
 import com.couto.chefe_api.repository.UsuarioRepository;
+import com.couto.chefe_api.domain.UserModel;
+import com.couto.chefe_api.enums.OcasiaoMenu;
+import com.couto.chefe_api.dto.ClienteDoChefDto;
 import com.couto.chefe_api.domain.Agendamento;
 import com.couto.chefe_api.domain.ChefeModel;
 import com.couto.chefe_api.domain.EnderecoModel;
@@ -51,6 +58,7 @@ import com.couto.chefe_api.domain.RestricaoAgendamento;
 import com.couto.chefe_api.dto.RestricaoDto;
 import com.couto.chefe_api.repository.MenuRepository;
 import com.couto.chefe_api.enums.StatusAgendamento;
+import com.couto.chefe_api.enums.EventoNotificacao;
 import com.couto.chefe_api.repository.AgendamentoRepository;
 import com.couto.chefe_api.repository.ChefeRepository;
 import com.couto.chefe_api.repository.EnderecoRepository;
@@ -63,6 +71,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.Optional;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -73,6 +86,12 @@ import java.util.UUID;
 public class AgendamentoService {
 
     static final int TAMANHO_MAXIMO_PAGINA = 50;
+    static final int JANELA_AVISO_UM_ANO_DIAS = 30;
+    private static final Set<OcasiaoMenu> OCASIOES_DO_AVISO_UM_ANO = EnumSet.of(OcasiaoMenu.ANIVERSARIO,
+            OcasiaoMenu.JANTAR_ROMANTICO, OcasiaoMenu.EMPRESA, OcasiaoMenu.CELEBRACAO);
+
+    private static final DateTimeFormatter DIA = DateTimeFormatter.ofPattern("dd/MM");
+    private static final DateTimeFormatter HORA = DateTimeFormatter.ofPattern("HH:mm");
 
     private final UsuarioRepository usuarioRepository;
     private final ChefeRepository chefeRepository;
@@ -86,6 +105,7 @@ public class AgendamentoService {
     private final AgendamentoHistoricoRepository historicoRepository;
     private final AgendaService agendaService;
     private final Clock clock;
+    private final NotificacaoService notificacaoService;
 
     @Transactional
     public AgendamentoResponseDto criarAgendamento(AgendamentoRequestDto dto, UsuarioAutenticado cliente) {
@@ -181,7 +201,11 @@ public class AgendamentoService {
             if (!menu.getChefe().getId().equals(agenda.getChefe().getId())) {
                 throw new TrocaDeChefException();
             }
-            int pessoas = dto.quantidadePessoas() != null ? dto.quantidadePessoas() : agenda.getQuantidadePessoas();
+            Integer pessoas = dto.quantidadePessoas() != null ? dto.quantidadePessoas() : agenda.getQuantidadePessoas();
+            // sem quantidade gravada, o novo menu não tem como validar os limites nem calcular o valor
+            if (pessoas == null) {
+                throw new AgendamentoInvalidoException("Informe a quantidade de pessoas");
+            }
             exigirReservavel(menu, pessoas);
             agenda.aplicarMenu(menu, pessoas);
         }
@@ -207,6 +231,61 @@ public class AgendamentoService {
         historico.registrar(salvo, AcaoAgendamento.EDITADO, usuarioId, TipoUsuario.CLIENTE, null, null);
         eventPublisher.publishEvent(new AgendamentoEditadoEvent(salvo.getId()));
         return agendamentoMapper.toDto(salvo);
+    }
+
+    /** Substitui restrições e observações de um confirmado, até 48h antes, e avisa o chef. */
+    @Transactional
+    public AgendamentoResponseDto ajustarDetalhes(Long id, UsuarioAutenticado cliente, DetalhesAgendamentoDto dto) {
+        UUID usuarioId = cliente.id();
+        // dono primeiro (404 sem moderar), depois o filtro, e só então a trava: ver atualizarAgendamento
+        exigirDono(id, usuarioId);
+        Observacoes observacoes = verificarObservacoes(dto.observacoes(), cliente);
+        Agendamento agenda = detalhesEditaveis(id, usuarioId);
+
+        // sem a lista, o campo vale como vazio
+        agenda.getRestricoes().clear();
+        agenda.getRestricoes().addAll(restricoesDe(dto.restricoes(), agenda.getQuantidadePessoas()));
+        observacoes.aplicarEm(agenda);
+        agenda.setDetalhesConfirmadosEm(agora());
+
+        Agendamento salvo = agendamentoRepository.save(agenda);
+        historico.registrar(salvo, AcaoAgendamento.DETALHES_ALTERADOS, usuarioId, TipoUsuario.CLIENTE, null, null);
+        eventPublisher.publishEvent(new DetalhesDoAgendamentoEvent(salvo.getId(), true));
+        return agendamentoMapper.toDto(salvo);
+    }
+
+    /** O cliente diz que os detalhes estão certos; repetir não grava nem avisa de novo. */
+    @Transactional
+    public AgendamentoResponseDto confirmarDetalhes(Long id, UsuarioAutenticado cliente) {
+        UUID usuarioId = cliente.id();
+        exigirDono(id, usuarioId);
+        Agendamento agenda = detalhesEditaveis(id, usuarioId);
+
+        if (agenda.getDetalhesConfirmadosEm() == null) {
+            agenda.setDetalhesConfirmadosEm(agora());
+            agendamentoRepository.save(agenda);
+            historico.registrar(agenda, AcaoAgendamento.DETALHES_CONFIRMADOS, usuarioId, TipoUsuario.CLIENTE, null, null);
+            eventPublisher.publishEvent(new DetalhesDoAgendamentoEvent(agenda.getId(), false));
+        }
+        return agendamentoMapper.toDto(agenda);
+    }
+
+    /** Só um exists, sem carregar a entidade (ver atualizarAgendamento); de outro cliente é tratado como inexistente. */
+    private void exigirDono(Long id, UUID usuarioId) {
+        if (!agendamentoRepository.existsByIdAndUsuario_Id(id, usuarioId)) {
+            throw new AgendamentoException();
+        }
+    }
+
+    /** O agendamento com trava, desde que ainda esteja confirmado e a mais de 48h do início (senão 409). */
+    private Agendamento detalhesEditaveis(Long id, UUID usuarioId) {
+        Agendamento agenda = agendamentoRepository.travarPorId(id)
+                .filter(a -> a.getUsuario() != null && a.getUsuario().getId().equals(usuarioId))
+                .orElseThrow(AgendamentoException::new);
+        if (!agenda.detalhesEditaveis(agora())) {
+            throw new DetalhesForaDoPrazoException();
+        }
+        return agenda;
     }
 
     @Transactional
@@ -287,6 +366,102 @@ public class AgendamentoService {
                 });
     }
 
+    /** Rotina: lembra o cliente 3 dias antes; relê com trava e confere tudo de novo (cancelado no meio do caminho não recebe). */
+    @Transactional
+    public void lembrarCliente(Long id) {
+        LocalDateTime agora = agora();
+        agendamentoRepository.travarPorId(id)
+                .filter(a -> a.getStatus() == StatusAgendamento.CONFIRMADO && a.getLembreteClienteEm() == null
+                        && a.getDetalhesConfirmadosEm() == null
+                        && a.getUsuario() != null && a.getDataHoraInicial() != null
+                        && !a.getDataHoraInicial().isAfter(agora.plusHours(72))
+                        && a.getDataHoraInicial().isAfter(agora.plusHours(48)))
+                .ifPresent(a -> {
+                    LocalDateTime inicio = a.getDataHoraInicial();
+                    LocalDateTime prazo = inicio.minusHours(48);
+                    notificacaoService.notificar(a.getUsuario().getId(), TipoUsuario.CLIENTE, EventoNotificacao.LEMBRETE_DETALHES,
+                            "Seu agendamento de " + inicio.format(DIA) + " às " + inicio.format(HORA)
+                                    + " é em 3 dias: confirme as restrições e observações até "
+                                    + prazo.format(DIA) + " às " + prazo.format(HORA),
+                            String.valueOf(a.getId()));
+                    a.setLembreteClienteEm(agora);
+                });
+    }
+
+    /** Rotina: resume o serviço ao chef 1 dia antes; mesma releitura com trava e nova checagem. */
+    @Transactional
+    public void resumirAoChef(Long id) {
+        LocalDateTime agora = agora();
+        agendamentoRepository.travarPorId(id)
+                .filter(a -> a.getStatus() == StatusAgendamento.CONFIRMADO && a.getResumoChefEm() == null
+                        && a.getDataHoraInicial() != null
+                        && !a.getDataHoraInicial().isAfter(agora.plusHours(24))
+                        && a.getDataHoraInicial().isAfter(agora))
+                .ifPresent(a -> {
+                    LocalDateTime inicio = a.getDataHoraInicial();
+                    String quando = inicio.toLocalDate().equals(agora.toLocalDate()) ? "Hoje" : "Amanhã";
+                    // agendamentos de antes dos menus não têm menuNome
+                    String menu = a.getMenuNome() != null ? a.getMenuNome() : "seu agendamento";
+                    int tipos = a.getRestricoes().size();
+                    notificacaoService.notificar(a.getChefe().getId(), TipoUsuario.CHEFE, EventoNotificacao.RESUMO_DO_SERVICO,
+                            quando + " às " + inicio.format(HORA) + ": " + menu + " para "
+                                    + pessoas(a.getQuantidadePessoas()) + ", "
+                                    + tipos + (tipos == 1 ? " restrição" : " restrições"),
+                            String.valueOf(a.getId()));
+                    a.setResumoChefEm(agora);
+                });
+    }
+
+    /**
+     * Rotina: um par (chef, cliente). Relê com trava e confere de novo; grava o aviso em todos os agendamentos do par
+     * e notifica no máximo uma vez, pelo aniversário mais próximo, se o chef opera e os dois não têm nada marcado.
+     */
+    @Transactional
+    public void avisarUmAno(List<Long> idsDoPar) {
+        LocalDateTime agora = agora();
+        LocalDateTime limite = agora.plusDays(JANELA_AVISO_UM_ANO_DIAS);
+        List<Agendamento> doPar = idsDoPar.stream().sorted()
+                .map(agendamentoRepository::travarPorId).flatMap(Optional::stream)
+                .filter(a -> a.getStatus() == StatusAgendamento.CONCLUIDO && a.getAvisoUmAnoEm() == null
+                        && a.getUsuario() != null && a.getDataHoraInicial() != null
+                        && OCASIOES_DO_AVISO_UM_ANO.contains(a.getOcasiao())
+                        && a.getDataHoraInicial().plusYears(1).isAfter(agora)
+                        && !a.getDataHoraInicial().plusYears(1).isAfter(limite))
+                .toList();
+        Agendamento maisProximo = doPar.stream()
+                .min(Comparator.comparing(a -> a.getDataHoraInicial().plusYears(1))).orElse(null);
+        if (maisProximo == null) {
+            return;
+        }
+        ChefeModel chefe = maisProximo.getChefe();
+        UserModel cliente = maisProximo.getUsuario();
+        boolean chefeOpera = Boolean.TRUE.equals(chefe.getAtivo()) && chefe.getBloqueadoEm() == null;
+        if (chefeOpera && !agendamentoRepository.existeAgendamentoFuturoEntre(chefe.getId(), cliente.getId(), agora)) {
+            LocalDateTime aniversario = maisProximo.getDataHoraInicial().plusYears(1);
+            long dias = ChronoUnit.DAYS.between(agora.toLocalDate(), aniversario.toLocalDate());
+            String quando = dias == 0 ? "Hoje faz" : "Em " + dias + (dias == 1 ? " dia faz" : " dias faz");
+            notificacaoService.notificar(chefe.getId(), TipoUsuario.CHEFE, EventoNotificacao.UM_ANO_DE_CLIENTE,
+                    quando + " um ano " + daOcasiao(maisProximo.getOcasiao()) + " que você fez para "
+                            + ClienteDoChefDto.primeiroNome(cliente.getNome()),
+                    cliente.getId().toString());
+        }
+        doPar.forEach(a -> a.setAvisoUmAnoEm(agora));
+    }
+
+    private static String pessoas(Integer quantidade) {
+        int n = quantidade != null ? quantidade : 0;
+        return n + (n == 1 ? " pessoa" : " pessoas");
+    }
+
+    private static String daOcasiao(OcasiaoMenu ocasiao) {
+        return switch (ocasiao) {
+            case ANIVERSARIO -> "do aniversário";
+            case JANTAR_ROMANTICO -> "do jantar romântico";
+            case EMPRESA -> "do evento de empresa";
+            default -> "da celebração";
+        };
+    }
+
     /** Linha do tempo: só o cliente dono ou o chef do agendamento (mesmo depois de recusar ou desistir). */
     @Transactional(readOnly = true)
     public List<HistoricoAgendamentoDto> historico(Long id, UsuarioAutenticado usuario) {
@@ -364,8 +539,10 @@ public class AgendamentoService {
     private void exigirHorarioLivre(Agendamento agendamento) {
         Long proprio = agendamento.getId() == null ? -1L : agendamento.getId();
         ChefeModel chefe = agendamento.getChefe();
+        // a folga do chef alarga o pedido dos dois lados: ele conflita com [início − folga, fim + folga) dos confirmados
+        Duration folga = chefe.folga();
         if (agendamentoRepository.existeConfirmadoSobreposto(chefe.getId(),
-                agendamento.getDataHoraInicial(), agendamento.getDataHoraFinal(), proprio)) {
+                agendamento.getDataHoraInicial().minus(folga), agendamento.getDataHoraFinal().plus(folga), proprio)) {
             throw new HorarioIndisponivelException(chefe.getNome());
         }
     }
@@ -395,7 +572,7 @@ public class AgendamentoService {
     }
 
     /** Converte e valida as restrições do pedido (400); sem a lista, não há restrições. */
-    private static Set<RestricaoAgendamento> restricoesDe(List<RestricaoDto> dtos, int pessoas) {
+    private static Set<RestricaoAgendamento> restricoesDe(List<RestricaoDto> dtos, Integer pessoas) {
         Set<RestricaoAgendamento> restricoes = new LinkedHashSet<>();
         if (dtos != null) {
             if (dtos.stream().map(RestricaoDto::tipo).distinct().count() != dtos.size()) {
@@ -407,8 +584,17 @@ public class AgendamentoService {
         return restricoes;
     }
 
-    /** Cada restrição afeta de 1 até o total de pessoas; a soma pode passar do total (uma pessoa pode ter duas). */
-    private static void validarRestricoes(Set<RestricaoAgendamento> restricoes, int pessoas) {
+    /**
+     * Cada restrição afeta de 1 até o total de pessoas; a soma pode passar do total (uma pessoa pode ter duas).
+     * Agendamento antigo sem a quantidade de pessoas (nulo): sem limite conhecido, vale só o mínimo de 1.
+     */
+    private static void validarRestricoes(Set<RestricaoAgendamento> restricoes, Integer pessoas) {
+        if (pessoas == null) {
+            if (restricoes.stream().anyMatch(r -> r.quantidade() < 1)) {
+                throw new AgendamentoInvalidoException("A quantidade de cada restrição deve ser de pelo menos 1");
+            }
+            return;
+        }
         if (restricoes.stream().anyMatch(r -> r.quantidade() < 1 || r.quantidade() > pessoas)) {
             throw new AgendamentoInvalidoException("A quantidade de cada restrição deve ser de 1 até " + pessoas);
         }

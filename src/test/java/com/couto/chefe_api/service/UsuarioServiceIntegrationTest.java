@@ -29,9 +29,12 @@ import com.couto.chefe_api.repository.EnderecoRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.Set;
@@ -58,7 +61,7 @@ class UsuarioServiceIntegrationTest {
     private EnderecoRepository enderecoRepository;
     @Autowired
     private TransactionTemplate transactionTemplate;
-    @Autowired
+    @MockitoSpyBean
     private AgendamentoRepository agendamentoRepository;
     @Autowired
     private AvaliacaoRepository avaliacaoRepository;
@@ -68,7 +71,7 @@ class UsuarioServiceIntegrationTest {
     private ChefeRepository chefeRepository;
     @Autowired
     private NotificacaoRepository notificacaoRepository;
-    @Autowired
+    @MockitoSpyBean
     private NotificacaoService notificacaoService;
 
     private UUID usuarioId;
@@ -221,6 +224,41 @@ class UsuarioServiceIntegrationTest {
         assertThat(caioDepois.getSomaNotas()).isZero();
         assertThat(avaliacaoRepository.count()).isZero();
         assertThat(notificacaoRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    void contaApagadaApagaAvisoDeUmAnoEAvisosDeDetalhesDosChefs() {
+        ChefeModel bia = novoChefe("Bia");
+        UserModel cliente = usuarioRepository.findById(usuarioId).orElseThrow();
+        Agendamento ag = concluido(cliente, bia);
+        UUID outroCliente = UUID.randomUUID();
+        notificacaoService.notificar(bia.getId(), TipoUsuario.CHEFE, EventoNotificacao.UM_ANO_DE_CLIENTE,
+                "Em 3 dias faz um ano do aniversário que você fez para Ana", usuarioId.toString());
+        notificacaoService.notificar(bia.getId(), TipoUsuario.CHEFE, EventoNotificacao.UM_ANO_DE_CLIENTE,
+                "de outro cliente", outroCliente.toString());
+        notificacaoService.notificar(bia.getId(), TipoUsuario.CHEFE, EventoNotificacao.DETALHES_ALTERADOS,
+                "alterou", String.valueOf(ag.getId()));
+        notificacaoService.notificar(bia.getId(), TipoUsuario.CHEFE, EventoNotificacao.DETALHES_CONFIRMADOS,
+                "confirmou", String.valueOf(ag.getId()));
+
+        usuarioService.deletar(usuarioId);
+
+        assertThat(notificacaoRepository.findAll()).extracting(n -> n.getReferenciaId())
+                .containsExactly(outroCliente.toString());
+    }
+
+    @Test
+    void apagarContaTravaOsAgendamentosDoClienteAntesDeApagarAsNotificacoes() {
+        ChefeModel bia = novoChefe("Bia");
+        UserModel cliente = usuarioRepository.findById(usuarioId).orElseThrow();
+        concluido(cliente, bia);
+
+        usuarioService.deletar(usuarioId);
+
+        // as rotinas relêem sob a trava do agendamento: esperam a exclusão e não acham mais nada
+        InOrder ordem = Mockito.inOrder(agendamentoRepository, notificacaoService);
+        ordem.verify(agendamentoRepository).travarDoCliente(usuarioId);
+        ordem.verify(notificacaoService).apagarDoDestinatario(usuarioId);
     }
 
     private Agendamento concluido(UserModel cliente, ChefeModel chefe) {

@@ -1,6 +1,7 @@
 package com.couto.chefe_api.service;
 
 import com.couto.chefe_api.TelefoneDeTeste;
+import com.couto.chefe_api.dto.AbrirConversaDto;
 import com.couto.chefe_api.security.UsuarioAutenticado;
 import com.couto.chefe_api.domain.UserModel;
 import com.couto.chefe_api.repository.UsuarioRepository;
@@ -81,7 +82,8 @@ class ChatConcorrenciaIntegrationTest {
 
     @Test
     void abrirAMesmaConversaAoMesmoTempoDevolveAMesmaSemErro() throws Exception {
-        List<ChatService.ConversaAberta> abertas = emParalelo(() -> chatService.abrirConversa(ana.getId(), bia.getId()));
+        List<ChatService.ConversaAberta> abertas = emParalelo(() -> chatService.abrirConversa(new UsuarioAutenticado(ana.getId(), ana.getEmail(), TipoUsuario.CLIENTE),
+                new AbrirConversaDto(bia.getId(), null)));
 
         assertThat(abertas).extracting(a -> a.conversa().id()).containsOnly(abertas.get(0).conversa().id());
         assertThat(abertas).filteredOn(ChatService.ConversaAberta::criada).hasSize(1);
@@ -90,7 +92,8 @@ class ChatConcorrenciaIntegrationTest {
 
     @Test
     void mensagensSimultaneasGeramUmaUnicaNotificacao() throws Exception {
-        long conversa = chatService.abrirConversa(ana.getId(), bia.getId()).conversa().id();
+        long conversa = chatService.abrirConversa(new UsuarioAutenticado(ana.getId(), ana.getEmail(), TipoUsuario.CLIENTE),
+                new AbrirConversaDto(bia.getId(), null)).conversa().id();
         UsuarioAutenticado remetente = new UsuarioAutenticado(ana.getId(), ana.getEmail(), TipoUsuario.CLIENTE);
 
         emParalelo(() -> chatService.enviar(conversa, remetente, "oi"));
