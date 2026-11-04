@@ -252,7 +252,7 @@
 - Produces:
   - `AvisoUmAnoRotina.avisar()` com `@Scheduled(cron = "${chefhome.rotina.aviso-um-ano.cron:0 0 9 * * *}")`; `chefhome.rotina.aviso-um-ano.cron: "-"` no yml de teste.
   - `AgendamentoRepository.candidatosAoAvisoDeUmAno(LocalDateTime de, LocalDateTime ate)`: ids `CONCLUIDO`, `ocasiao` em `ANIVERSARIO`, `JANTAR_ROMANTICO`, `EMPRESA`, `CELEBRACAO`, `avisoUmAnoEm` nulo, `inicio` em `(de, ate]`. A rotina passa `de = agora − 1 ano − 1 dia` e `ate = agora + 30 dias − 1 ano + 1 dia`, e filtra em Java: `inicio.plusYears(1)` está em `(agora, agora + 30 dias]`. `plusYears` já leva 29/02 para 28/02.
-  - `AgendamentoService.avisarUmAno(List<Long> idsDoPar)`, numa transação por par (chef, cliente). Ela grava `avisoUmAnoEm` em todos os agendamentos do par e notifica no máximo uma vez, pelo de aniversário mais próximo, só se:
+  - `AgendamentoService.avisarUmAno(List<Long> idsDoPar)`, numa transação por par (chef, cliente). Ela grava `avisoUmAnoEm` nos agendamentos do par que completam um ano dentro da janela e notifica no máximo uma vez, pelo de aniversário mais próximo, só se:
     - o chef está ativo e não bloqueado;
     - os dois não têm `PENDENTE` nem `CONFIRMADO` futuro.
   - Mensagem (`UM_ANO_DE_CLIENTE`, referência = id do cliente): "Em {n} dias faz um ano {da ocasião} que você fez para {primeiro nome}".
