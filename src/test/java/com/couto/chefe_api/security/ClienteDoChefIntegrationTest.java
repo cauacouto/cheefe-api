@@ -309,6 +309,18 @@ class ClienteDoChefIntegrationTest {
         assertThat(queries(get("/clientes/" + ana.getId() + "/historico").cookie(cookieDe(bia)))).isEqualTo(comUm);
     }
 
+    @Test
+    void historicoDeVinteAgendamentosCarregaAsRestricoesDeUmaVez() throws Exception {
+        novoAgendamento(ana, bia, AGORA.minusDays(1), StatusAgendamento.CONCLUIDO, new RestricaoAgendamento(TipoRestricao.VEGANO, 1));
+        long comUm = queries(get("/clientes/" + ana.getId() + "/historico").cookie(cookieDe(bia)));
+        for (int i = 2; i <= 20; i++) {
+            novoAgendamento(ana, bia, AGORA.minusDays(i), StatusAgendamento.CONCLUIDO,
+                    new RestricaoAgendamento(TipoRestricao.VEGANO, 1), new RestricaoAgendamento(TipoRestricao.SEM_GLUTEN, 2));
+        }
+
+        assertThat(queries(get("/clientes/" + ana.getId() + "/historico").cookie(cookieDe(bia)))).isEqualTo(comUm);
+    }
+
     // ─── nota ────────────────────────────────────────────────────────────
 
     @Test
@@ -339,6 +351,20 @@ class ClienteDoChefIntegrationTest {
         mockMvc.perform(put("/clientes/" + ana.getId() + "/nota").cookie(cookieDe(bia))
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void chefApagaANotaMesmoDepoisDeRecusarOUnicoPedidoDoCliente() throws Exception {
+        Agendamento pedido = novoAgendamento(ana, bia, AGORA.plusDays(1), StatusAgendamento.PENDENTE);
+        gravarPelaApi(bia, ana, "Prefere vinho tinto").andExpect(status().isOk());
+        pedido.setStatus(StatusAgendamento.RECUSADO);
+        agendamentoRepository.save(pedido);
+
+        // sem acesso o chef não escreve, mas apaga o que escreveu: 204, sem revelar nada
+        gravarPelaApi(bia, ana, "Outra nota").andExpect(status().isNotFound());
+        gravarPelaApi(bia, ana, "   ").andExpect(status().isNoContent());
+
+        assertThat(notaRepository.count()).isZero();
     }
 
     @Test

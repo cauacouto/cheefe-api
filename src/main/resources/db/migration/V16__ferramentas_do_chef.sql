@@ -29,7 +29,8 @@ CREATE INDEX idx_agendamentos_sem_lembrete ON agendamentos (data_hora_inicial)
 CREATE INDEX idx_agendamentos_sem_resumo ON agendamentos (data_hora_inicial)
     WHERE status = 'CONFIRMADO' AND resumo_chef_em IS NULL;
 CREATE INDEX idx_agendamentos_sem_aviso_um_ano ON agendamentos (data_hora_inicial)
-    WHERE status = 'CONCLUIDO' AND aviso_um_ano_em IS NULL;
+    WHERE status = 'CONCLUIDO' AND aviso_um_ano_em IS NULL
+      AND ocasiao IN ('ANIVERSARIO','JANTAR_ROMANTICO','EMPRESA','CELEBRACAO');
 
 ALTER TABLE notificacao DROP CONSTRAINT notificacao_evento_check;
 ALTER TABLE notificacao ADD CONSTRAINT notificacao_evento_check CHECK (evento IN (

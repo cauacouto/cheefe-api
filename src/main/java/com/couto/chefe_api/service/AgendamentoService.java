@@ -368,6 +368,7 @@ public class AgendamentoService {
         LocalDateTime agora = agora();
         agendamentoRepository.travarPorId(id)
                 .filter(a -> a.getStatus() == StatusAgendamento.CONFIRMADO && a.getLembreteClienteEm() == null
+                        && a.getDetalhesConfirmadosEm() == null
                         && a.getUsuario() != null && a.getDataHoraInicial() != null
                         && !a.getDataHoraInicial().isAfter(agora.plusHours(72))
                         && a.getDataHoraInicial().isAfter(agora.plusHours(48)))
@@ -567,7 +568,7 @@ public class AgendamentoService {
     }
 
     /** Converte e valida as restrições do pedido (400); sem a lista, não há restrições. */
-    private static Set<RestricaoAgendamento> restricoesDe(List<RestricaoDto> dtos, int pessoas) {
+    private static Set<RestricaoAgendamento> restricoesDe(List<RestricaoDto> dtos, Integer pessoas) {
         Set<RestricaoAgendamento> restricoes = new LinkedHashSet<>();
         if (dtos != null) {
             if (dtos.stream().map(RestricaoDto::tipo).distinct().count() != dtos.size()) {
@@ -579,8 +580,17 @@ public class AgendamentoService {
         return restricoes;
     }
 
-    /** Cada restrição afeta de 1 até o total de pessoas; a soma pode passar do total (uma pessoa pode ter duas). */
-    private static void validarRestricoes(Set<RestricaoAgendamento> restricoes, int pessoas) {
+    /**
+     * Cada restrição afeta de 1 até o total de pessoas; a soma pode passar do total (uma pessoa pode ter duas).
+     * Agendamento antigo sem a quantidade de pessoas (nulo): sem limite conhecido, vale só o mínimo de 1.
+     */
+    private static void validarRestricoes(Set<RestricaoAgendamento> restricoes, Integer pessoas) {
+        if (pessoas == null) {
+            if (restricoes.stream().anyMatch(r -> r.quantidade() < 1)) {
+                throw new AgendamentoInvalidoException("A quantidade de cada restrição deve ser de pelo menos 1");
+            }
+            return;
+        }
         if (restricoes.stream().anyMatch(r -> r.quantidade() < 1 || r.quantidade() > pessoas)) {
             throw new AgendamentoInvalidoException("A quantidade de cada restrição deve ser de 1 até " + pessoas);
         }

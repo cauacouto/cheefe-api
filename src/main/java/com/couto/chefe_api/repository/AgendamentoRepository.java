@@ -47,10 +47,10 @@ public interface AgendamentoRepository extends JpaRepository<Agendamento,Long> {
 
     // as duas consultas seguem os índices parciais da V16 (status CONFIRMADO e marca nula)
     @Query("SELECT a.id FROM Agendamento a WHERE a.status = com.couto.chefe_api.enums.StatusAgendamento.CONFIRMADO "
-            + "AND a.lembreteClienteEm IS NULL AND a.dataHoraInicial <= :limite72h AND a.dataHoraInicial > :limite48h")
+            + "AND a.lembreteClienteEm IS NULL AND a.detalhesConfirmadosEm IS NULL AND a.dataHoraInicial <= :limite72h AND a.dataHoraInicial > :limite48h")
     List<Long> buscarSemLembrete(@Param("limite72h") LocalDateTime limite72h, @Param("limite48h") LocalDateTime limite48h);
 
-    /** Confirmados que começam entre 48h (exclusive) e 72h (inclusive) a partir de agora e ainda sem lembrete. */
+    /** Confirmados que começam entre 48h (exclusive) e 72h (inclusive) a partir de agora, sem lembrete e sem os detalhes já confirmados. */
     default List<Long> idsParaLembrarCliente(LocalDateTime agora) {
         return buscarSemLembrete(agora.plusHours(72), agora.plusHours(48));
     }
@@ -87,6 +87,14 @@ public interface AgendamentoRepository extends JpaRepository<Agendamento,Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT a FROM Agendamento a WHERE a.id = :id")
     Optional<Agendamento> travarPorId(@Param("id") Long id);
+
+    /**
+     * Trava os agendamentos do cliente (sempre em ordem de id, como as rotinas): uma rotina em andamento termina antes
+     * da exclusão da conta, e a seguinte relê e não encontra mais nada.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Agendamento a WHERE a.usuario.id = :clienteId ORDER BY a.id")
+    List<Agendamento> travarDoCliente(@Param("clienteId") UUID clienteId);
 
     /** Intervalos semiabertos: um que termina às 20h não conflita com outro que começa às 20h. */
     @Query("SELECT COUNT(a) > 0 FROM Agendamento a WHERE a.chefe.id = :chefeId "

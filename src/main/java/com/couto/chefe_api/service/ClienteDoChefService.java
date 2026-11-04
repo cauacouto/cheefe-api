@@ -85,21 +85,22 @@ public class ClienteDoChefService {
     }
 
     /**
-     * Cria ou substitui a nota; texto nulo ou em branco apaga (vazio). Acesso primeiro (404 não passa pelo filtro, que
-     * pode bloquear a conta), moderação depois, e só então a gravação.
+     * Cria ou substitui a nota; texto nulo ou em branco apaga (vazio), sem checar o acesso. Para gravar: acesso
+     * primeiro (404 não passa pelo filtro, que pode bloquear a conta), moderação depois, e só então a gravação.
      */
     @Transactional
     public Optional<NotaClienteDto> gravarNota(UUID clienteId, String texto, UsuarioAutenticado chef) {
         ChefeModel chefe = exigirChefAtivo(chef);
+        NotaClienteId id = new NotaClienteId(chef.id(), clienteId);
+        if (texto == null || texto.isBlank()) {
+            // o chef sempre apaga a própria nota, mesmo sem acesso (pedido recusado): o 204 não revela nada
+            notaRepository.findById(id).ifPresent(notaRepository::delete);
+            return Optional.empty();
+        }
         if (!agendamentoRepository.chefConheceOCliente(clienteId, chef.id())) {
             throw new RecursoNaoEncontradoException("cliente não encontrado");
         }
         UserModel cliente = clienteDe(clienteId);
-        NotaClienteId id = new NotaClienteId(chef.id(), clienteId);
-        if (texto == null || texto.isBlank()) {
-            notaRepository.findById(id).ifPresent(notaRepository::delete);
-            return Optional.empty();
-        }
         String original = texto.strip();
         String exibido = moderacaoConteudo.verificar(original, chef).texto();
         NotaCliente nota = notaRepository.findById(id).orElseGet(() -> {

@@ -92,6 +92,9 @@ public class UsuarioService {
     public void deletar(UUID usuarioId) {
         UserModel user = repository.findById(usuarioId)
                 .orElseThrow(UsuarioException::new);
+        // os agendamentos primeiro, em ordem de id: uma rotina que grava notificação deles termina antes (ou, depois,
+        // relê sob a trava e não encontra mais nada), então nenhuma notificação fica órfã
+        agendamentoRepository.travarDoCliente(usuarioId);
         // antes de juntar ids: um envio que estava no meio entra na conta e é apagado junto
         List<Long> conversas = conversaRepository.travarDoCliente(usuarioId).stream().map(Conversa::getId).toList();
         // apagar a conta apaga os dados do cliente, inclusive as denúncias que ele fez (LGPD)

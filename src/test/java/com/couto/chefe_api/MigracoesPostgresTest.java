@@ -363,7 +363,9 @@ class MigracoesPostgresTest {
                     .contains("CONFIRMADO").contains("resumo_chef_em IS NULL");
             assertThat(coluna(st, "SELECT indexdef FROM pg_indexes WHERE schemaname = 'chefhome' "
                     + "AND indexname = 'idx_agendamentos_sem_aviso_um_ano'")).singleElement().asString()
-                    .contains("CONCLUIDO").contains("aviso_um_ano_em IS NULL");
+                    .contains("CONCLUIDO").contains("aviso_um_ano_em IS NULL")
+                    // só as quatro ocasiões do aviso: o índice não guarda todo concluído
+                    .contains("ANIVERSARIO").contains("JANTAR_ROMANTICO").contains("EMPRESA").contains("CELEBRACAO");
         }
     }
 

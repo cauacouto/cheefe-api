@@ -350,6 +350,20 @@ class DetalhesAgendamentoIntegrationTest {
                 .satisfies(n -> assertThat(n.getReferenciaId()).isEqualTo(String.valueOf(outro.getId())));
     }
 
+    @Test
+    void agendamentoLegadoSemQuantidadeDePessoasAceitaAsRestricoes() throws Exception {
+        Agendamento legado = confirmado(ana, AGORA.plusDays(5), null);
+        legado.setQuantidadePessoas(null);
+        agendamentoRepository.save(legado);
+
+        // sem a quantidade não há limite conhecido: vale só a quantidade mínima de 1
+        ajustar(ana, legado.getId(), "{\"restricoes\":[{\"tipo\":\"SEM_GLUTEN\",\"quantidade\":3}]}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.restricoes[0].quantidade").value(3));
+        ajustar(ana, legado.getId(), "{\"restricoes\":[{\"tipo\":\"SEM_GLUTEN\",\"quantidade\":0}]}")
+                .andExpect(status().isBadRequest());
+    }
+
     // ─── apoio ───────────────────────────────────────────────────────────
 
     ResultActions ajustar(UserModel cliente, Long id, String corpo) throws Exception {

@@ -115,6 +115,21 @@ class LembretesIntegrationTest {
     }
 
     @Test
+    void quemJaConfirmouOuAjustouOsDetalhesNaoRecebeOLembrete() {
+        Agendamento confirmou = agendamento(AGORA.plusHours(60), StatusAgendamento.CONFIRMADO);
+        confirmou.setDetalhesConfirmadosEm(AGORA.minusHours(1));
+        agendamentoRepository.save(confirmou);
+        Agendamento pendente = agendamento(AGORA.plusHours(61), StatusAgendamento.CONFIRMADO);
+
+        rotina.processar();
+
+        assertThat(notificacoes(EventoNotificacao.LEMBRETE_DETALHES)).singleElement()
+                .satisfies(n -> assertThat(n.getReferenciaId()).isEqualTo(String.valueOf(pendente.getId())));
+        // nada gravado: o agendamento de quem já confirmou segue sem a marca do lembrete
+        assertThat(recarregar(confirmou).getLembreteClienteEm()).isNull();
+    }
+
+    @Test
     void lembreteUmaVezSo() {
         agendamento(AGORA.plusHours(60), StatusAgendamento.CONFIRMADO);
 
