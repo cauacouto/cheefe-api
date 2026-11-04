@@ -201,7 +201,11 @@ public class AgendamentoService {
             if (!menu.getChefe().getId().equals(agenda.getChefe().getId())) {
                 throw new TrocaDeChefException();
             }
-            int pessoas = dto.quantidadePessoas() != null ? dto.quantidadePessoas() : agenda.getQuantidadePessoas();
+            Integer pessoas = dto.quantidadePessoas() != null ? dto.quantidadePessoas() : agenda.getQuantidadePessoas();
+            // sem quantidade gravada, o novo menu não tem como validar os limites nem calcular o valor
+            if (pessoas == null) {
+                throw new AgendamentoInvalidoException("Informe a quantidade de pessoas");
+            }
             exigirReservavel(menu, pessoas);
             agenda.aplicarMenu(menu, pessoas);
         }
