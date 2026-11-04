@@ -64,6 +64,25 @@ public interface AgendamentoRepository extends JpaRepository<Agendamento,Long> {
         return buscarSemResumo(agora, agora.plusHours(24));
     }
 
+    /**
+     * Concluídos de ocasião especial, sem aviso de um ano, que começaram em (de, ate]. Segue o índice parcial da V16
+     * (status CONCLUIDO e aviso_um_ano_em nulo). A janela exata de 30 dias é conferida pela rotina.
+     */
+    @Query("SELECT new com.couto.chefe_api.repository.CandidatoAoAvisoDeUmAno(a.id, a.chefe.id, a.usuario.id, a.dataHoraInicial) "
+            + "FROM Agendamento a WHERE a.status = com.couto.chefe_api.enums.StatusAgendamento.CONCLUIDO "
+            + "AND a.avisoUmAnoEm IS NULL AND a.ocasiao IN (com.couto.chefe_api.enums.OcasiaoMenu.ANIVERSARIO, "
+            + "com.couto.chefe_api.enums.OcasiaoMenu.JANTAR_ROMANTICO, com.couto.chefe_api.enums.OcasiaoMenu.EMPRESA, "
+            + "com.couto.chefe_api.enums.OcasiaoMenu.CELEBRACAO) "
+            + "AND a.dataHoraInicial > :de AND a.dataHoraInicial <= :ate ORDER BY a.dataHoraInicial")
+    List<CandidatoAoAvisoDeUmAno> candidatosAoAvisoDeUmAno(@Param("de") LocalDateTime de, @Param("ate") LocalDateTime ate);
+
+    /** O chef e o cliente têm algum pedido ou confirmado que ainda não começou. */
+    @Query("SELECT COUNT(a) > 0 FROM Agendamento a WHERE a.chefe.id = :chefeId AND a.usuario.id = :clienteId "
+            + "AND a.status IN (com.couto.chefe_api.enums.StatusAgendamento.PENDENTE, "
+            + "com.couto.chefe_api.enums.StatusAgendamento.CONFIRMADO) AND a.dataHoraInicial > :agora")
+    boolean existeAgendamentoFuturoEntre(@Param("chefeId") UUID chefeId, @Param("clienteId") UUID clienteId,
+                                         @Param("agora") LocalDateTime agora);
+
     /** SELECT ... FOR UPDATE: a rotina e o chef não concluem o mesmo agendamento ao mesmo tempo. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT a FROM Agendamento a WHERE a.id = :id")

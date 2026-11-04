@@ -119,6 +119,8 @@ public class UsuarioService {
                 EventoNotificacao.AGENDAMENTO_CONFIRMADO, EventoNotificacao.AGENDAMENTO_CANCELADO,
                 EventoNotificacao.RESUMO_DO_SERVICO, EventoNotificacao.DETALHES_ALTERADOS,
                 EventoNotificacao.DETALHES_CONFIRMADOS), agendamentoRepository.idsDoCliente(clienteId));
+        // a referência do aviso de um ano é o próprio cliente (e não um agendamento)
+        notificacaoService.apagarDasReferencias(EnumSet.of(EventoNotificacao.UM_ANO_DE_CLIENTE), List.of(clienteId.toString()));
         apagarDasReferencias(EnumSet.of(EventoNotificacao.MENSAGEM_RECEBIDA), conversas);
         apagarDasReferencias(EnumSet.of(EventoNotificacao.MENSAGEM_DENUNCIADA),
                 denunciaMensagemRepository.idsDasDenunciasNasConversasDoCliente(clienteId));

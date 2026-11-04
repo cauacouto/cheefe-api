@@ -169,6 +169,19 @@ class LembretesIntegrationTest {
     }
 
     @Test
+    void resumoComUmaPessoaFalaNoSingular() {
+        Agendamento sozinho = agendamento(AGORA.plusHours(5), StatusAgendamento.CONFIRMADO);
+        sozinho.setQuantidadePessoas(1);
+        agendamentoRepository.save(sozinho);
+
+        rotina.processar();
+
+        assertThat(notificacoes(EventoNotificacao.RESUMO_DO_SERVICO)).singleElement().satisfies(n ->
+                assertThat(n.getMensagem()).isEqualTo("Hoje às " + sozinho.getDataHoraInicial().format(HORA) + ": "
+                        + sozinho.getMenuNome() + " para 1 pessoa, 0 restrições"));
+    }
+
+    @Test
     void resumoUmaVezSo() {
         agendamento(AGORA.plusHours(10), StatusAgendamento.CONFIRMADO);
 

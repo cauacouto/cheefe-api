@@ -47,6 +47,8 @@ auth:
 chefhome:
   rotina:
     cron: "-"
+    aviso-um-ano:
+      cron: "-"
   # verificação de telefone falsa (código 000000), pedida explicitamente: os testes do fluxo /telefone usam
   telefone:
     verificador-falso: true

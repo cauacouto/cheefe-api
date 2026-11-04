@@ -47,6 +47,9 @@ import com.couto.chefe_api.exception.TrocaDeChefException;
 import com.couto.chefe_api.exception.UsuarioException;
 import com.couto.chefe_api.mapper.AgendamentoMapper;
 import com.couto.chefe_api.repository.UsuarioRepository;
+import com.couto.chefe_api.domain.UserModel;
+import com.couto.chefe_api.enums.OcasiaoMenu;
+import com.couto.chefe_api.dto.ClienteDoChefDto;
 import com.couto.chefe_api.domain.Agendamento;
 import com.couto.chefe_api.domain.ChefeModel;
 import com.couto.chefe_api.domain.EnderecoModel;
@@ -68,6 +71,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.Optional;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -79,6 +86,9 @@ import java.util.UUID;
 public class AgendamentoService {
 
     static final int TAMANHO_MAXIMO_PAGINA = 50;
+    static final int JANELA_AVISO_UM_ANO_DIAS = 30;
+    private static final Set<OcasiaoMenu> OCASIOES_DO_AVISO_UM_ANO = EnumSet.of(OcasiaoMenu.ANIVERSARIO,
+            OcasiaoMenu.JANTAR_ROMANTICO, OcasiaoMenu.EMPRESA, OcasiaoMenu.CELEBRACAO);
 
     private static final DateTimeFormatter DIA = DateTimeFormatter.ofPattern("dd/MM");
     private static final DateTimeFormatter HORA = DateTimeFormatter.ofPattern("HH:mm");
@@ -390,11 +400,61 @@ public class AgendamentoService {
                     int tipos = a.getRestricoes().size();
                     notificacaoService.notificar(a.getChefe().getId(), TipoUsuario.CHEFE, EventoNotificacao.RESUMO_DO_SERVICO,
                             quando + " às " + inicio.format(HORA) + ": " + menu + " para "
-                                    + (a.getQuantidadePessoas() != null ? a.getQuantidadePessoas() : 0) + " pessoas, "
+                                    + pessoas(a.getQuantidadePessoas()) + ", "
                                     + tipos + (tipos == 1 ? " restrição" : " restrições"),
                             String.valueOf(a.getId()));
                     a.setResumoChefEm(agora);
                 });
+    }
+
+    /**
+     * Rotina: um par (chef, cliente). Relê com trava e confere de novo; grava o aviso em todos os agendamentos do par
+     * e notifica no máximo uma vez, pelo aniversário mais próximo, se o chef opera e os dois não têm nada marcado.
+     */
+    @Transactional
+    public void avisarUmAno(List<Long> idsDoPar) {
+        LocalDateTime agora = agora();
+        LocalDateTime limite = agora.plusDays(JANELA_AVISO_UM_ANO_DIAS);
+        List<Agendamento> doPar = idsDoPar.stream().sorted()
+                .map(agendamentoRepository::travarPorId).flatMap(Optional::stream)
+                .filter(a -> a.getStatus() == StatusAgendamento.CONCLUIDO && a.getAvisoUmAnoEm() == null
+                        && a.getUsuario() != null && a.getDataHoraInicial() != null
+                        && OCASIOES_DO_AVISO_UM_ANO.contains(a.getOcasiao())
+                        && a.getDataHoraInicial().plusYears(1).isAfter(agora)
+                        && !a.getDataHoraInicial().plusYears(1).isAfter(limite))
+                .toList();
+        Agendamento maisProximo = doPar.stream()
+                .min(Comparator.comparing(a -> a.getDataHoraInicial().plusYears(1))).orElse(null);
+        if (maisProximo == null) {
+            return;
+        }
+        ChefeModel chefe = maisProximo.getChefe();
+        UserModel cliente = maisProximo.getUsuario();
+        boolean chefeOpera = Boolean.TRUE.equals(chefe.getAtivo()) && chefe.getBloqueadoEm() == null;
+        if (chefeOpera && !agendamentoRepository.existeAgendamentoFuturoEntre(chefe.getId(), cliente.getId(), agora)) {
+            LocalDateTime aniversario = maisProximo.getDataHoraInicial().plusYears(1);
+            long dias = ChronoUnit.DAYS.between(agora.toLocalDate(), aniversario.toLocalDate());
+            String quando = dias == 0 ? "Hoje faz" : "Em " + dias + (dias == 1 ? " dia faz" : " dias faz");
+            notificacaoService.notificar(chefe.getId(), TipoUsuario.CHEFE, EventoNotificacao.UM_ANO_DE_CLIENTE,
+                    quando + " um ano " + daOcasiao(maisProximo.getOcasiao()) + " que você fez para "
+                            + ClienteDoChefDto.primeiroNome(cliente.getNome()),
+                    cliente.getId().toString());
+        }
+        doPar.forEach(a -> a.setAvisoUmAnoEm(agora));
+    }
+
+    private static String pessoas(Integer quantidade) {
+        int n = quantidade != null ? quantidade : 0;
+        return n + (n == 1 ? " pessoa" : " pessoas");
+    }
+
+    private static String daOcasiao(OcasiaoMenu ocasiao) {
+        return switch (ocasiao) {
+            case ANIVERSARIO -> "do aniversário";
+            case JANTAR_ROMANTICO -> "do jantar romântico";
+            case EMPRESA -> "do evento de empresa";
+            default -> "da celebração";
+        };
     }
 
     /** Linha do tempo: só o cliente dono ou o chef do agendamento (mesmo depois de recusar ou desistir). */

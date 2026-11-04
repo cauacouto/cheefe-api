@@ -223,6 +223,27 @@ class UsuarioServiceIntegrationTest {
         assertThat(notificacaoRepository.findAll()).isEmpty();
     }
 
+    @Test
+    void contaApagadaApagaAvisoDeUmAnoEAvisosDeDetalhesDosChefs() {
+        ChefeModel bia = novoChefe("Bia");
+        UserModel cliente = usuarioRepository.findById(usuarioId).orElseThrow();
+        Agendamento ag = concluido(cliente, bia);
+        UUID outroCliente = UUID.randomUUID();
+        notificacaoService.notificar(bia.getId(), TipoUsuario.CHEFE, EventoNotificacao.UM_ANO_DE_CLIENTE,
+                "Em 3 dias faz um ano do aniversário que você fez para Ana", usuarioId.toString());
+        notificacaoService.notificar(bia.getId(), TipoUsuario.CHEFE, EventoNotificacao.UM_ANO_DE_CLIENTE,
+                "de outro cliente", outroCliente.toString());
+        notificacaoService.notificar(bia.getId(), TipoUsuario.CHEFE, EventoNotificacao.DETALHES_ALTERADOS,
+                "alterou", String.valueOf(ag.getId()));
+        notificacaoService.notificar(bia.getId(), TipoUsuario.CHEFE, EventoNotificacao.DETALHES_CONFIRMADOS,
+                "confirmou", String.valueOf(ag.getId()));
+
+        usuarioService.deletar(usuarioId);
+
+        assertThat(notificacaoRepository.findAll()).extracting(n -> n.getReferenciaId())
+                .containsExactly(outroCliente.toString());
+    }
+
     private Agendamento concluido(UserModel cliente, ChefeModel chefe) {
         Agendamento ag = new Agendamento();
         ag.setUsuario(cliente);
